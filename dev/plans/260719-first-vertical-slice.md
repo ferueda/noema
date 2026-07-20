@@ -21,21 +21,23 @@ The standalone Go CLI supports:
 
 ```text
 noema scan sessions --after <RFC3339> --before <RFC3339> --allow-remote
+noema worker --once --allow-remote
 noema ideas list
 noema jobs list
 ```
 
 `scan sessions` reads already-indexed Sessions evidence for an exclusive time
 window. It processes new bounded entry versions, stores observations and
-events, creates one Content Scout job for the scan, runs that job synchronously,
-and prints zero to five ideas. Each idea shows how the concept could work as a
+events, creates one Content Scout job, and exits. `worker --once` is a separate
+process invocation that claims one pending job, dispatches Content Scout, stores
+zero to five ideas, and exits. Each idea shows how the concept could work as a
 short post, a thread, and an article.
 
 Acceptance requires:
 
 - Noema uses only the Sessions structured CLI and never indexes Sessions.
-- A successful scan demonstrates the complete evidence → event → job → agent
-  → artifact path.
+- A successful scan-and-worker cycle demonstrates the complete evidence →
+  event → job → agent → artifact path.
 - Every observation, event, run, and idea retains bounded Sessions evidence
   references.
 - Repeating the same unchanged range makes no new model call and creates no
@@ -49,10 +51,11 @@ Acceptance requires:
 ## Changes
 
 1. `go.mod`, `Makefile`, `cmd/noema/main.go`, and `internal/config/` — create a
-   Go 1.26 CLI with `scan sessions`, `ideas list`, and `jobs list`. Use OS user
-   config and data directories with explicit file overrides for tests. Read the
-   gateway key only from an environment variable. Require both exclusive scan
-   bounds and `--allow-remote` before any model request.
+   Go 1.26 CLI with `scan sessions`, `worker --once`, `ideas list`, and `jobs
+   list`. Use OS user config and data directories with explicit file overrides
+   for tests. Read the gateway key only from an environment variable. Require
+   both exclusive scan bounds. Require `--allow-remote` on the scan and worker
+   commands before their respective model requests.
 
    Ship two task-level aliases:
 
@@ -188,12 +191,13 @@ Acceptance requires:
    - validate every distillation batch before persistence;
    - in one transaction, record every successfully processed chunk version,
      including chunks that produced zero observations, the new observations and
-     their `observation.created` events, and the final `scan.completed` event
-     plus `content-scout@v0` job when the scan produced an observation or a
+     their `observation.created` events, and the final `scan.completed` event;
+   - match the in-code V0 subscriptions in that transaction and create one
+     pending `content-scout@v0` job when the scan produced an observation or a
      deliberate Content Scout configuration change produces a new job key for
      the retained observations in this exact scan;
-   - after that transaction commits, claim and run only the job created by this
-     command.
+   - exit after the transaction commits without importing or invoking Content
+     Scout.
 
    Persist and display the current invocation's bounds, processing
    configuration, coverage, skips, and outcome even when no chunk is new. Reuse
@@ -205,9 +209,16 @@ Acceptance requires:
    old observations or infer source deletion; the CLI and README must state
    that current-state reconciliation is deferred.
 
-8. `internal/agents/content_scout.go` — load only the new observations named in
-   the job payload and their bounded evidence excerpts. Do not retrieve prior
-   ideas, deduplicate across scans, expose tools, or loop with the model.
+8. `internal/application/run_worker.go` and
+   `internal/agents/content_scout.go` — implement the separate consumer role.
+   `noema worker --once --allow-remote` claims the oldest pending job, dispatches
+   it through the in-code agent registry, makes one attempt, records the result,
+   and exits. If no job is pending, report that and exit successfully. The
+   worker imports no Sessions adapter and performs no ingestion.
+
+   Content Scout loads only the observations named in the immutable job payload
+   and their bounded evidence excerpts. It does not retrieve prior ideas,
+   deduplicate across scans, expose tools, or loop with the model.
 
    Build one request with a hard cap of 100 observations and 64 KiB. If the
    fixed payload exceeds either cap, fail the job before a model call. Validate
@@ -226,7 +237,8 @@ Acceptance requires:
      content, digest mismatch, command failure, and unsupported schema;
    - config, privacy filtering, exact gateway request fields, timeout and output
      token enforcement, and invalid model output;
-   - the full successful path;
+   - the full successful path across separate scan and worker process
+     invocations;
    - a second unchanged scan making zero model calls;
    - partial, empty, blocked, and failed scans;
    - a failed Content Scout job remaining visible and terminal.
@@ -239,8 +251,9 @@ Acceptance requires:
 - With explicit authority and a gateway key, optionally smoke-test each shipped
   route using generic fixture text only. Recheck current provider privacy
   support before the request.
-- Manually index Sessions outside Noema, run one approved scan, inspect no more
-  than five idea cards, and confirm an unchanged rerun makes no remote call.
+- Manually index Sessions outside Noema, run one approved scan followed by
+  `noema worker --once --allow-remote`, inspect no more than five idea cards,
+  and confirm an unchanged scan enqueues no job or remote call.
 
 ## Explicitly deferred
 
