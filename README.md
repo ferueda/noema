@@ -23,6 +23,8 @@ Noema is at the product-definition stage. The current sources of truth are:
   safety rules, and the first useful outcome.
 - [Architecture](docs/architecture.md): system boundaries, data flow, core
   concepts, and the first vertical slice.
+- [First experimental implementation plan](dev/plans/260719-first-vertical-slice.md):
+  the deliberately small Sessions-to-content-ideas V0.
 
 Noema is a standalone project. It does not depend on Harness, Factory work
 items, Inngest, or any single model, queue, workflow engine, or storage
