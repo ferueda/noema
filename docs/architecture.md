@@ -19,7 +19,7 @@ context from the knowledge layer.
 
 The first implementation is a standalone Go application with a Noema-owned
 SQLite database. Sessions is the first source. Content Scout is the first
-agent. A manual scan is the first execution mode.
+agent. A manual scan followed by a one-shot worker is the first execution mode.
 
 ## Design influences
 
@@ -74,6 +74,49 @@ Human review and explicit decisions
 
 Noema does not own canonical provider histories. It owns the interpretations,
 events, agent execution records, and artifacts it derives from them.
+
+## V0 execution roles
+
+One Go binary provides two separate execution roles. The scan command is the
+producer. It stops after publishing events and committing jobs. The worker
+command is the consumer. It starts separately and knows nothing about Sessions;
+it only claims queued jobs and dispatches subscribed agents.
+
+```mermaid
+flowchart LR
+    S["Sessions"]
+    H["Human review"]
+
+    subgraph N["One Noema binary, two execution roles"]
+        SCAN["Producer<br/>noema scan sessions"]
+        ING["Source adapter<br/>and ingestion"]
+        DIST["Distillation"]
+        KNOW["Normalized observations"]
+        EVENTS["SQLite event store"]
+        QUEUE["SQLite job queue"]
+        WORKER["Consumer<br/>noema worker --once"]
+        SCOUT["Content Scout"]
+        IDEAS["Content ideas"]
+
+        SCAN --> ING
+        ING --> DIST
+        DIST --> KNOW
+        KNOW --> EVENTS
+        EVENTS --> QUEUE
+        QUEUE --> WORKER
+        WORKER --> SCOUT
+        SCOUT --> IDEAS
+    end
+
+    S --> SCAN
+    IDEAS --> H
+```
+
+The CLI is a presentation and composition boundary, not one combined domain
+component. In V0, both roles link the same internal packages and use SQLite as
+their durable handoff. Later, a scheduler, daemon, Inngest workflow, or
+Cloudflare worker may invoke the same application boundaries without changing
+the domain model.
 
 ## Core flow
 
@@ -358,10 +401,11 @@ implementation must preserve:
 - An agent upgrade can be evaluated against retained events without silently
   replacing old artifacts.
 
-The experimental V0 stores the job and makes one synchronous attempt. A failed
-job is terminal and inspectable. It does not yet claim at-least-once delivery,
-retry safety, leases, or replay; those remain target queue semantics to add only
-after the first agent path proves useful.
+The experimental V0 stores the job during `noema scan sessions`. A separate
+`noema worker --once` invocation claims one pending job and makes one attempt.
+A failed job is terminal and inspectable. V0 does not yet claim at-least-once
+delivery, retry safety, leases, or replay; those remain target queue semantics
+to add only after the first agent path proves useful.
 
 Inngest, Cloudflare Queues, or Cloudflare Workflows may later implement parts
 of this execution model. Their run identifiers and status values remain
@@ -517,7 +561,7 @@ idea. New independent evidence may strengthen and resurface an existing idea.
 The first implementation should prove one path through every required layer:
 
 ```text
-Manual date-range scan
+Producer: noema scan sessions
         ↓
 Sessions structured output
         ↓
@@ -530,12 +574,16 @@ SQLite knowledge records + evidence refs
 Durable domain events
         ↓
 SQLite subscription jobs
+        │
+        └──── durable process boundary ────┐
+                                           ↓
+Consumer: noema worker --once
         ↓
 Content Scout model invocation
         ↓
 Validated content-idea artifacts
         ↓
-CLI review
+noema ideas list
 ```
 
 The slice is complete when:
@@ -546,7 +594,8 @@ The slice is complete when:
   and events.
 - Content Scout receives bounded, traceable evidence through retrieval
   operations.
-- A successful scan shows no more than five ranked idea cards.
+- A successful manual scan-and-worker cycle shows no more than five ranked idea
+  cards.
 - Every idea can be traced to its supporting Sessions evidence.
 - Sensitive details are excluded or generalized according to the project
   intent.
@@ -591,7 +640,8 @@ to remote infrastructure without a separate privacy design.
 - The local queue comes before a remote workflow engine.
 - Structured and full-text retrieval come before embeddings.
 - Content Scout is the first agent.
-- The first execution mode is a manual date-range scan.
+- The first execution mode is a manual date-range scan followed by a separate
+  one-shot worker invocation.
 - The first interface is a CLI.
 - The first artifact is an evidence-backed content idea, not a complete draft.
 - Agent outputs require human review before external action.

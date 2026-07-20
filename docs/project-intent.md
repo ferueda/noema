@@ -161,7 +161,7 @@ The first vertical slice uses:
 - Content Scout as the only subscriber.
 - A command-line interface as the initial presentation.
 
-One manual scan should:
+One manual cycle uses a producer command followed by a consumer command:
 
 1. Read already-indexed Sessions evidence for the requested range.
 2. Detect new or changed documents through stable source identity and digests.
@@ -169,8 +169,11 @@ One manual scan should:
    insights, decisions, problems, experiments, and lessons.
 4. Store those observations with metadata and evidence references.
 5. Publish durable domain events and enqueue matching Content Scout jobs.
-6. Run Content Scout through a provider-neutral model boundary.
-7. Return at most five strong, ranked content ideas. An empty result is valid.
+6. Exit the scan command after the event and job transaction commits.
+7. Run `noema worker --once` to claim one pending job and invoke Content Scout
+   through a provider-neutral model boundary.
+8. Use `noema ideas list` to review at most five strong, ranked content ideas.
+   An empty result is valid.
 
 Each content idea includes:
 
