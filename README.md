@@ -1,9 +1,10 @@
 # Noema
 
-**Noema** is a philosophical term from Greek origins meaning **"thought,"
-"concept," or "what is thought about."** It describes the object or content of
-a thought, feeling, or perception. Every time the mind focuses on something,
-there is an object in the world and an intended meaning of it in the mind.
+> **Noema** — from Greek — means *thought*, *concept*, or *what is thought
+> about*.
+>
+> In philosophy, it is the object or content of a thought, feeling, or
+> perception: the thing as it is intended or understood by the mind.
 
 The name reflects the project's purpose: turning evidence from our work into
 explicit, traceable knowledge that focused agents can act on.
