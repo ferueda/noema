@@ -123,6 +123,7 @@ decision.recorded
 failure.observed
 experiment.completed
 artifact.produced
+scan.completed
 ```
 
 Knowledge changes and their events commit in one SQLite transaction. This
@@ -274,12 +275,14 @@ required.
 
 One attempt to process an event:
 
-- Event, agent, and model identity
+- Event, agent, model alias, requested model, and resolved provider identity
 - Started and finished times
 - Status and attempts
 - Tool requests or bounded audit metadata
 - Validated output or failure
-- Cost and usage when the provider supplies them
+- Prompt and output-schema versions
+- Requested privacy and routing policy
+- Cost, usage, latency, and provider request identity when available
 
 ### Agent artifact
 
@@ -327,6 +330,9 @@ Noema:
   processing.
 - Requests bounded evidence by default.
 - Treats transcript instructions as untrusted history.
+- Records whether each scan's source coverage was complete or partial.
+- Uses retained evidence from a partial Sessions capture, but never treats
+  missing data in an incomplete scope as proof that evidence was removed.
 
 Noema does not:
 
@@ -351,6 +357,11 @@ implementation must preserve:
 - Replaying an event cannot grant more external authority.
 - An agent upgrade can be evaluated against retained events without silently
   replacing old artifacts.
+
+The experimental V0 stores the job and makes one synchronous attempt. A failed
+job is terminal and inspectable. It does not yet claim at-least-once delivery,
+retry safety, leases, or replay; those remain target queue semantics to add only
+after the first agent path proves useful.
 
 Inngest, Cloudflare Queues, or Cloudflare Workflows may later implement parts
 of this execution model. Their run identifiers and status values remain
@@ -400,11 +411,75 @@ The runtime:
 A model provider is not allowed to become the domain boundary. Provider
 responses are parsed and validated before entering application state.
 
+## Model gateway
+
+Noema owns a small structured-generation interface. Distillers and agents call
+that interface using a task-level model alias, instructions, bounded input, and
+an output schema. They do not import a provider SDK, use a provider model name,
+or interpret a provider response directly.
+
+The first remote implementation uses Vercel AI Gateway through its
+OpenAI-compatible Chat Completions API. The adapter may use the official OpenAI
+Go client, but its request and response types remain inside the adapter. Vercel
+is an initial transport and routing choice, not part of Noema's domain model.
+
+Model aliases resolve through configuration. A route includes:
+
+- The gateway and canonical model identifier.
+- An explicit provider allowlist and order.
+- Required capabilities, including JSON Schema structured output.
+- Privacy requirements such as zero data retention and no prompt training.
+- Timeouts, token limits, and retry policy.
+
+Initial evaluation routes use `openai/gpt-oss-120b` served by Cerebras for
+distillation and `openai/gpt-5.4-mini` served by Azure for Content Scout. Both
+request zero data retention and no prompt training. These are configurable
+starting points, not permanent agent dependencies.
+
+Noema does not rely on gateway defaults for provider selection. Evaluation runs
+pin the provider so latency, cost, and output quality remain comparable.
+Production routes may allow an explicit fallback set only when every route
+satisfies the same capability and privacy policy.
+
+The first experimental slice pins exactly one provider per route and rejects
+multi-provider configuration. Comparison models are separate, explicitly
+selected routes. Automatic fallback remains a later production option, not V0
+behavior.
+
+Every model result is validated against Noema's local output schema before it
+can create an observation or agent artifact. OpenAI compatibility only
+standardizes the transport; it does not prove that providers implement
+parameters or schemas identically.
+
+Remote model execution is opt-in. Before a request leaves the machine, Noema
+applies its deterministic privacy filter and checks the configured route. If a
+required retention, training, provider, or structured-output guarantee cannot
+be requested, the call fails. V0 has no weaker-policy override. No configured
+remote route means no remote request.
+
+Agent runs record enough information to explain and compare model behavior:
+
+- Model alias and requested canonical model.
+- Gateway, resolved inference provider, and resolved provider model.
+- Agent, instructions, and output-schema versions.
+- Privacy and routing policy requested.
+- Input and output token usage, latency, and cost when available.
+- Gateway generation or provider request identity when available.
+- Validation outcome and bounded failure details.
+
 ## Content Scout
 
 Content Scout is the first agent and the acceptance test for the architecture.
 
-It reacts to events that can signal useful content, including:
+The first experimental slice writes one `scan.completed` event after a scan's
+new observations and granular domain events in the same atomic commit. The
+event carries the scan identity and bounded observation identities, not their
+evidence bodies. It is emitted only when the scan has at least one new
+observation. This creates one Content Scout job and preserves the limit of five
+ideas across the whole scan.
+
+Later versions may also let Content Scout react to individual events that can
+signal useful content, including:
 
 ```text
 insight.observed
@@ -467,7 +542,8 @@ The slice is complete when:
 
 - The same unchanged range can be scanned again without duplicate knowledge,
   jobs, or ideas.
-- Changed source evidence produces new or updated observations and events.
+- Changed source evidence produces a new immutable chunk version, observations,
+  and events.
 - Content Scout receives bounded, traceable evidence through retrieval
   operations.
 - A successful scan shows no more than five ranked idea cards.
@@ -519,13 +595,21 @@ to remote infrastructure without a separate privacy design.
 - The first interface is a CLI.
 - The first artifact is an evidence-backed content idea, not a complete draft.
 - Agent outputs require human review before external action.
+- Noema owns a provider-neutral structured-generation interface.
+- Vercel AI Gateway is the initial remote model-gateway adapter.
+- The initial gateway transport is OpenAI-compatible Chat Completions.
+- Models and inference providers are selected through explicit, configurable
+  routes rather than agent code.
+- Gateway output is validated locally before it enters Noema's derived state.
+- The first Content Scout subscription uses one `scan.completed` event so a
+  scan creates at most one Content Scout job.
 
 ## Deferred decisions
 
 The implementation plan must either resolve these choices or keep them behind a
 small boundary:
 
-- Initial model provider and authentication method.
+- Exact gateway authentication and configuration file shape.
 - Exact Go SQLite driver.
 - Schema migration tool.
 - Structured-output validation library.

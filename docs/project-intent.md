@@ -184,11 +184,12 @@ Each content idea includes:
 - An angle for each suitable format: short X post, longer X thread, and
   article.
 
-V1 identifies ideas. It does not write complete drafts.
+V0 identifies ideas. It does not write complete drafts.
 
-Ideas persist locally. An unchanged idea is not repeated merely because scan
-ranges overlap. An existing idea may resurface when meaningful new evidence
-strengthens or changes it.
+Ideas persist locally. An exact unchanged rerun does not create them again.
+Cross-scan semantic deduplication, strengthening, and resurfacing are later
+hypotheses; V0 may show similar ideas from different changed or overlapping
+evidence.
 
 ## Non-goals for the first vertical slice
 
@@ -221,6 +222,13 @@ strengthens or changes it.
 - Source text is secret-free because it was returned as structured output.
 - An event is safe to replay against an agent with external side effects.
 - A remote service has the same privacy boundary as local processing.
+- OpenAI-compatible APIs behave identically across models and providers.
+- A model gateway always routes the same model to the same inference provider.
+- Gateway defaults provide sufficient retention, training, or provider
+  restrictions for private evidence.
+- A privacy control is active merely because the gateway offers it.
+- Automatic provider or model fallback is harmless for evaluation or private
+  evidence.
 - A model, queue, workflow engine, or storage provider will remain permanent.
 
 ## Revisit triggers
