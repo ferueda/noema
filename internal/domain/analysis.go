@@ -4,6 +4,7 @@ import "time"
 
 const (
 	AnalysisStageFacts       = "facts"
+	AnalysisStageClaims      = "claims"
 	AnalysisCompleted        = "completed"
 	AnalysisFailed           = "failed"
 	FactOutcomeNotApplicable = "not-applicable"
@@ -20,21 +21,24 @@ type AnalysisOmissions struct {
 }
 
 type AnalysisRun struct {
-	ID                      string             `json:"id"`
-	ProcessingKey           string             `json:"processingKey,omitempty"`
-	Stage                   string             `json:"stage"`
-	RequestedSourceIdentity string             `json:"requestedSourceIdentity"`
-	Revision                *EvidenceRevision  `json:"revision,omitempty"`
-	Selection               *EvidenceSelection `json:"selection,omitempty"`
-	ExtractorName           string             `json:"extractorName"`
-	ExtractorVersion        string             `json:"extractorVersion"`
-	SchemaVersion           int                `json:"schemaVersion"`
-	FactIDs                 []string           `json:"factIds"`
-	Omissions               AnalysisOmissions  `json:"omissions"`
-	Status                  string             `json:"status"`
-	Error                   string             `json:"error,omitempty"`
-	StartedAt               time.Time          `json:"startedAt"`
-	FinishedAt              time.Time          `json:"finishedAt"`
+	ID                      string                  `json:"id"`
+	ProcessingKey           string                  `json:"processingKey,omitempty"`
+	Stage                   string                  `json:"stage"`
+	RequestedSourceIdentity string                  `json:"requestedSourceIdentity"`
+	Revision                *EvidenceRevision       `json:"revision,omitempty"`
+	Selection               *EvidenceSelection      `json:"selection,omitempty"`
+	ExtractorName           string                  `json:"extractorName"`
+	ExtractorVersion        string                  `json:"extractorVersion"`
+	SchemaVersion           int                     `json:"schemaVersion"`
+	FactIDs                 []string                `json:"factIds"`
+	InputFactIDs            []string                `json:"inputFactIds,omitempty"`
+	ClaimIDs                []string                `json:"claimIds,omitempty"`
+	Model                   *ModelExecutionMetadata `json:"model,omitempty"`
+	Omissions               AnalysisOmissions       `json:"omissions"`
+	Status                  string                  `json:"status"`
+	Error                   string                  `json:"error,omitempty"`
+	StartedAt               time.Time               `json:"startedAt"`
+	FinishedAt              time.Time               `json:"finishedAt"`
 }
 
 type ToolFactValue struct {

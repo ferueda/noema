@@ -13,7 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/ferueda/noema/internal/domain"
-	"github.com/ferueda/noema/internal/platform"
+	"github.com/ferueda/noema/internal/evidence"
 )
 
 const (
@@ -48,7 +48,9 @@ func (Extractor) Extract(document domain.EvidenceDocument) ([]domain.FactDraft, 
 		},
 	}
 	for entryIndex := range document.Entries {
-		state.extractEntry(document.Entries[entryIndex])
+		if err := state.extractEntry(document.Entries[entryIndex]); err != nil {
+			return nil, state.omissions, err
+		}
 	}
 	return state.facts, state.omissions, nil
 }
@@ -67,18 +69,27 @@ type commandMatch struct {
 	framework string
 }
 
-func (state *extractionState) extractEntry(entry domain.EvidenceEntry) {
+func (state *extractionState) extractEntry(entry domain.EvidenceEntry) error {
 	switch entry.Kind {
 	case "tool-call":
-		state.addToolFact(entry, "call")
-		state.extractCommand(entry)
+		if err := state.addToolFact(entry, "call"); err != nil {
+			return err
+		}
+		return state.extractCommand(entry)
 	case "tool-result":
-		state.addToolFact(entry, "result")
-		state.extractResult(entry)
+		if err := state.addToolFact(entry, "result"); err != nil {
+			return err
+		}
+		return state.extractResult(entry)
 	}
+	return nil
 }
 
-func (state *extractionState) addToolFact(entry domain.EvidenceEntry, kind string) {
+func (state *extractionState) addToolFact(entry domain.EvidenceEntry, kind string) error {
+	ref, err := evidence.SessionsReference(state.document, entry.Ordinal, nil)
+	if err != nil {
+		return err
+	}
 	state.facts = append(state.facts, domain.FactDraft{
 		Kind: "tool-" + kind,
 		Value: domain.FactValue{Tool: &domain.ToolFactValue{
@@ -86,13 +97,14 @@ func (state *extractionState) addToolFact(entry domain.EvidenceEntry, kind strin
 			CallID: entry.ToolCallID, RelatedEntryOrdinal: entry.RelatedEntryOrdinal,
 		}},
 		Outcome: domain.FactOutcomeNotApplicable, ParseRule: "sessions-entry-tool-" + kind + "-v1",
-		Evidence: []domain.EvidenceRef{state.entryReference(entry)},
+		Evidence: []domain.EvidenceRef{ref},
 	})
+	return nil
 }
 
-func (state *extractionState) extractCommand(entry domain.EvidenceEntry) {
+func (state *extractionState) extractCommand(entry domain.EvidenceEntry) error {
 	if !recognizedCommandTool(entry.ToolName) {
-		return
+		return nil
 	}
 	for _, segment := range entry.Content {
 		if segment.Text == nil {
@@ -102,8 +114,12 @@ func (state *extractionState) extractCommand(entry domain.EvidenceEntry) {
 		if !ok {
 			continue
 		}
+		segmentOrdinal := segment.Ordinal
+		ref, err := evidence.SessionsReference(state.document, entry.Ordinal, &segmentOrdinal)
+		if err != nil {
+			return err
+		}
 		selected := state.selectText(command)
-		ref := state.segmentReference(entry, segment)
 		state.commands[entry.Ordinal] = commandMatch{evidence: ref, framework: testFramework(command)}
 		state.facts = append(state.facts, domain.FactDraft{
 			Kind: "command", Value: domain.FactValue{Command: cloneText(selected)},
@@ -119,17 +135,22 @@ func (state *extractionState) extractCommand(entry domain.EvidenceEntry) {
 				Evidence: []domain.EvidenceRef{ref},
 			})
 		}
-		return
+		return nil
 	}
+	return nil
 }
 
-func (state *extractionState) extractResult(entry domain.EvidenceEntry) {
+func (state *extractionState) extractResult(entry domain.EvidenceEntry) error {
 	for _, segment := range entry.Content {
 		if segment.Text == nil {
 			continue
 		}
 		text := segment.Text.Text
-		ref := state.segmentReference(entry, segment)
+		segmentOrdinal := segment.Ordinal
+		ref, err := evidence.SessionsReference(state.document, entry.Ordinal, &segmentOrdinal)
+		if err != nil {
+			return err
+		}
 		if code, ok := exitCode(text); ok {
 			outcome := domain.FactOutcomeSuccess
 			if code != 0 {
@@ -150,6 +171,7 @@ func (state *extractionState) extractResult(entry domain.EvidenceEntry) {
 			})
 		}
 	}
+	return nil
 }
 
 func (state *extractionState) addTestResult(entry domain.EvidenceEntry, resultRef domain.EvidenceRef, output string, code int) {
@@ -173,44 +195,6 @@ func (state *extractionState) addTestResult(entry domain.EvidenceEntry, resultRe
 		Outcome: outcome, ParseRule: "linked-test-result-v1",
 		Evidence: []domain.EvidenceRef{command.evidence, resultRef},
 	})
-}
-
-func (state *extractionState) entryReference(entry domain.EvidenceEntry) domain.EvidenceRef {
-	return state.reference(entry, nil)
-}
-
-func (state *extractionState) segmentReference(entry domain.EvidenceEntry, segment domain.EvidenceSegment) domain.EvidenceRef {
-	return state.reference(entry, &segment)
-}
-
-func (state *extractionState) reference(entry domain.EvidenceEntry, segment *domain.EvidenceSegment) domain.EvidenceRef {
-	ref := domain.EvidenceRef{
-		SourceKind: domain.EvidenceSourceSessions, SourceIdentity: state.document.Revision.CanonicalID,
-		DocumentDigestScheme: state.document.Revision.DocumentDigest.Scheme,
-		DocumentDigest:       state.document.Revision.DocumentDigest.Digest,
-		EntryOrdinal:         entry.Ordinal, EntryKind: entry.Kind, Actor: entry.Actor,
-		RelatedEntryOrdinal: entry.RelatedEntryOrdinal, ToolCallID: entry.ToolCallID,
-		ToolName: entry.ToolName, ToolNamespace: entry.ToolNamespace,
-	}
-	if segment != nil {
-		ordinal := segment.Ordinal
-		ref.SegmentOrdinal = &ordinal
-		ref.Origin = segment.Origin
-		ref.OriginConfidence = segment.OriginConfidence
-		if segment.Text != nil {
-			ref.ContentHashScheme = segment.Text.ContentHash.Scheme
-			ref.ContentHash = segment.Text.ContentHash.Digest
-		}
-	}
-	fingerprint, _ := platform.Fingerprint(struct {
-		Source  string
-		Digest  string
-		Entry   int
-		Segment *int
-		Hash    string
-	}{ref.SourceIdentity, ref.DocumentDigest, ref.EntryOrdinal, ref.SegmentOrdinal, ref.ContentHash})
-	ref.ID = platform.DerivedID("eref_", fingerprint)
-	return ref
 }
 
 func (state *extractionState) selectText(value string) domain.SelectedText {
