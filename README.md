@@ -47,6 +47,13 @@ provider.
 
 ## Development
 
+Noema requires the Go version declared in `go.mod`. Prepare a checkout with:
+
+```sh
+make check-env
+make setup
+```
+
 Run the complete local gate:
 
 ```sh
@@ -67,3 +74,6 @@ that SQLite is their only handoff:
 ```sh
 go test ./internal/integration
 ```
+
+Contributor setup, command behavior, and test-layer guidance live in
+[docs/contributing/](docs/contributing/index.md).
