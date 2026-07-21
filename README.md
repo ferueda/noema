@@ -15,23 +15,31 @@ durable events, and useful outputs from small, focused agents.
 
 The first source is [Sessions](https://github.com/ferueda/sessions). The first
 agent is Content Scout, which finds evidence-backed content ideas from recent
-AI-assisted development work.
+AI-assisted development work. Content Scout is the first consumer, not the
+product boundary: the same admitted facts and claims should later support
+workflow improvement and personal coding-development agents.
 
 Noema is in early implementation. The current code establishes the local
-producer-to-worker spine: normalized evidence, events, jobs, agent runs, and
+producer-to-worker spine: derived observations, events, jobs, agent runs, and
 content ideas persist in SQLite, and the producer and worker communicate only
-through that database. The Sessions adapter and remote model adapters are the
-next milestones; `scan sessions` and `worker --once` deliberately refuse to
-make remote calls until those safety boundaries are wired.
+through that database. The next milestone processes one explicit canonical
+Sessions session into deterministic, inspectable facts without a model call.
+`scan sessions` and `worker --once` deliberately remain fail-closed until their
+real milestone integrations are wired.
+
+The foundation still contains Content Scout-specific request, worker, and
+completion seams used by its fake end-to-end proof. The accepted architecture
+requires those seams to become use-case-neutral as the real evidence, claim,
+subscription, and artifact stages are implemented.
 
 The current sources of truth are:
 
 - [Project intent](docs/project-intent.md): purpose, priorities, boundaries,
   safety rules, and the first useful outcome.
 - [Architecture](docs/architecture.md): system boundaries, data flow, core
-  concepts, and the first vertical slice.
-- [First experimental implementation plan](dev/plans/260719-first-vertical-slice.md):
-  the deliberately small Sessions-to-content-ideas V0.
+  concepts, and milestone structure.
+- [Roadmap](docs/roadmap.md): locked milestone sequence, completion gates, and
+  evidence-triggered later work.
 
 Noema is a standalone project. It does not depend on Harness, Factory work
 items, Inngest, or any single model, queue, workflow engine, or storage

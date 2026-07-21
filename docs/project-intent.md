@@ -1,30 +1,46 @@
 # Project intent
 
 - Status: accepted product baseline
-- Date: 2026-07-19
+- Date: 2026-07-20
 
 ## Purpose
 
-Noema is a local-first knowledge, event, and agent runtime for personal work.
-It observes evidence from the tools where work happens, distills that evidence
-into a consistent model, publishes meaningful changes as durable events, and
-lets small, focused agents turn those events into useful, reviewable outputs.
+Noema is a local-first derived-knowledge, event, and agent runtime for personal
+work. Sessions is its initial canonical evidence plane for coding-agent
+history. Noema begins where source capture and normalization end: it extracts
+deterministic facts, admits evidence-backed semantic claims, records meaningful
+changes as durable events, and lets small, focused agents turn those events
+into useful, reviewable outputs.
 
 The long-term product combines two ideas:
 
-1. A knowledge pipeline that ingests varied sources, extracts structured
-   meaning and metadata, and supports strong evidence retrieval.
+1. A derived-knowledge pipeline that consumes canonical evidence, extracts
+   deterministic facts and structured semantic meaning, and supports
+   evidence-backed retrieval over Noema-owned records.
 2. An event pipeline that publishes normalized changes to a queue where
    focused agents can react independently.
 
 Noema is the infrastructure for those pipelines. Content Scout is its first
 agent and first proof that the infrastructure is useful.
 
+The evidence and knowledge pipeline is use-case-neutral. It records what
+happened and what can be supported about it; it does not extract hooks,
+audiences, content formats, personal weaknesses, learning recommendations, or
+workflow fixes. Focused agents derive those application-specific artifacts
+from the same admitted facts and claims.
+
+Noema is also a learning project. It should make the mechanics of evidence
+admission, extraction, event delivery, agent execution, and replay visible
+enough to study and change. Experiments with Go, model providers, retrieval,
+Inngest, or Cloudflare are welcome behind the accepted boundaries, but an
+experiment enters the product path only when it solves an observed need.
+
 ## Audience
 
 The initial user is an individual software developer who does substantial work
 with AI coding tools and wants that work to produce reusable knowledge,
-content, and workflow improvements.
+content, workflow improvements, and evidence-backed guidance about their own
+coding development.
 
 The first content audience is developers actively using AI tools. Topics
 include everyday AI-assisted coding, Codex usage, software development with AI,
@@ -38,31 +54,52 @@ company-wide use are not initial requirements.
 Noema should make this loop possible:
 
 ```text
-Evidence from work
+Provider histories
         ↓
-Normalized knowledge
+Canonical source evidence
+        ↓
+Deterministic facts
+        ↓
+Validated semantic claims
         ↓
 Durable domain events
         ↓
 Focused agent subscriptions
         ↓
-Reviewable ideas, proposals, and drafts
+Reviewable typed artifacts
         ↓
 Explicit human decisions
 ```
+
+Canonical evidence records what a source system observed. Deterministic facts
+and semantic claims record what Noema derived. They remain separate authority
+classes and carry source coordinates back to the evidence.
+
+An `AnalysisRun` records the exact evidence revision and selection, processing
+versions, coverage, and admitted fact and claim identities for one attempt.
+Summaries are optional, rebuildable views over those records. They help people
+and agents understand a scope, but they never replace the facts, claims, or
+evidence that support them.
 
 Adding a new focused agent should normally require its event subscriptions,
 evidence queries, instructions, and output schema. It should not require
 rewriting ingestion or storage.
 
-Adding a new source should normally require a source adapter and source-specific
-distillation. It should not require changing agents to understand that
-provider's native format.
+The generic runtime stores an agent artifact envelope and its lineage. Each
+agent owns the typed payload inside that envelope. Content ideas, coding
+assessments, and workflow proposals are sibling artifact types rather than core
+knowledge concepts.
+
+Adding a new source should normally require a source adapter that provides an
+equivalent stable, canonical evidence contract. It should not require changing
+agents to understand that source's native format. A provider already normalized
+by Sessions is not a separate Noema source integration.
 
 ## What we optimize for
 
-1. **Evidence before inference.** Derived knowledge and agent outputs remain
-   traceable to bounded source evidence.
+1. **Evidence before inference.** Deterministic facts are extracted before
+   semantic interpretation. Every admitted claim and agent output remains
+   traceable to bounded canonical evidence.
 2. **Local privacy and control.** Private work remains local by default. The
    user chooses when analysis runs and what may leave the machine.
 3. **Useful outputs.** The platform is judged by the quality of what its agents
@@ -72,12 +109,18 @@ provider's native format.
 5. **Workflow independence.** Noema can understand work whether it happened in
    a plain agent session, an Inngest workflow, a pull request, or another tool.
 6. **Incremental and replayable processing.** Unchanged evidence is not
-   repeatedly analyzed. Changed rules or agents can be evaluated against
-   retained derived events.
-7. **Honest uncertainty.** Inferred episodes, classifications, relationships,
-   and recommendations carry confidence and can be corrected.
-8. **Simple beginnings.** The first implementation uses the fewest components
-   needed to exercise the full path from evidence to agent output.
+   repeatedly analyzed. Extractors can be rerun from retained canonical
+   evidence, and changed agents can be evaluated against retained derived
+   records.
+7. **Honest uncertainty.** Semantic claims distinguish observed, inferred, and
+   uncertain conclusions; preserve confidence and contradictions; and can be
+   corrected.
+8. **Simple beginnings.** Prove one uncertain boundary at a time, starting with
+   one explicitly selected session while preserving the intended end-to-end
+   architecture.
+9. **Inspectable mechanics.** Prefer explicit stored stages, versioned inputs,
+   and understandable process boundaries so the system teaches us how the
+   architecture behaves.
 
 ## What we do not optimize for
 
@@ -97,20 +140,43 @@ provider's native format.
 
 ### Source ownership
 
-- Source systems remain the owners of their canonical evidence.
-- Source histories are read-only inputs.
-- Noema does not parse Codex or Cursor histories directly while Sessions owns
-  that responsibility.
-- Noema consumes Sessions through its versioned CLI JSON or JSONL output. It
-  does not import Sessions internals or open the Sessions SQLite database.
+- Provider systems own their raw histories. Source histories are read-only
+  inputs.
+- Sessions is the canonical evidence plane for coding-agent history. It owns
+  provider discovery, parsing, structural extraction, normalization,
+  validation, retention, and transcript retrieval.
+- Noema consumes Sessions only through its versioned CLI JSON or JSONL
+  contract. It does not import Sessions internals, open its SQLite database, or
+  parse Codex or Cursor histories directly.
 - Noema does not invoke `sessions index` implicitly. Indexing remains an
   explicit Sessions operation.
+- Noema does not duplicate complete transcripts or create a second raw-history
+  or transcript-search archive. It stores source coordinates, digests, content
+  hashes, processing metadata, its own derived records, and only the minimum
+  bounded admitted excerpt required for review.
+- Noema never resolves stored coordinates against a different Sessions document
+  digest. If the referenced revision is no longer retained, resolution fails
+  closed rather than substituting evidence from the latest snapshot.
 
 ### Derived state
 
-- Noema owns its normalized observations, episodes, events, agent runs, and
-  agent outputs.
-- Noema's interpretations are rebuildable from canonical evidence.
+- Noema owns deterministic facts and semantic claims, plus analyses, episodes,
+  events, jobs, agent runs, typed agent artifacts, and explicit human
+  decisions. Facts and claims use separate domain types and validation paths;
+  they may share an initial persistence projection.
+- A deterministic fact is still a derived record. Canonical source evidence
+  remains the authority for what was captured.
+- Noema's interpretations are rebuildable while the referenced canonical
+  evidence version remains available.
+- Every `AnalysisRun` records its evidence revision, selection, coverage,
+  processing configuration, admitted outputs, and completion or failure state.
+- A summary is a versioned projection over admitted facts and claims, not a new
+  authority class or the only stored representation of an analysis.
+- Model output is untrusted until its schema, evidence references, confidence,
+  and contradictions are validated.
+- Deterministic and semantic extraction remain independent of agent output
+  schemas. A new artifact type cannot redefine facts or previously admitted
+  claims implicitly.
 - An episode is a Noema hypothesis, not a source session, Factory work item,
   Inngest run, issue, or pull request.
 - External records can support or relate to an episode but cannot be required
@@ -130,14 +196,24 @@ provider's native format.
   and unpublished plans are excluded from content outputs.
 - Other people's words and raw agent transcript text are not quoted without
   explicit review.
+- Personal coding assessments remain private local artifacts by default. They
+  follow the same explicit remote-processing controls as other private derived
+  work and are never published automatically.
 
 ### Agent authority
 
 - Agent outputs are proposals or local artifacts.
+- Agent execution is stateless across runs. Continuity lives in admitted
+  evidence, derived records, events, jobs, run history, and artifacts rather
+  than model memory or one long conversation.
 - No agent publishes content, modifies a source system, changes a workflow, or
   edits its own instructions without explicit approval.
 - A model response is never treated as evidence merely because a model produced
   it.
+- Assessments about the user are bounded to observed coding behavior. They must
+  preserve counterevidence and distinguish user, agent, environment, mixed, and
+  unknown attribution rather than presenting every failure as a personal
+  weakness.
 - Agent failures, retries, versions, inputs, evidence references, and outputs
   remain inspectable.
 
@@ -153,27 +229,57 @@ provider's native format.
 
 ## First useful outcome
 
-The first vertical slice uses:
+V0 reaches the first useful outcome through three small, independently
+inspectable milestones. It starts with one explicitly selected Sessions
+session before broad time-range or corpus scans.
 
-- Sessions as the only source.
-- An explicit, manually supplied time range.
-- A local SQLite database for derived state, events, jobs, and outputs.
-- Content Scout as the only subscriber.
-- A command-line interface as the initial presentation.
+### Milestone 1: canonical evidence and deterministic facts
 
-One manual cycle uses a producer command followed by a consumer command:
+1. Export the complete export-eligible content of one already-indexed retained
+   session snapshot locally through the Sessions CLI.
+2. Validate its schema, trust disposition, identity, digest, coordinates,
+   bounds, omissions, and available coverage.
+3. Mechanically extract supported facts such as tool calls and results,
+   commands, errors, test invocations and directly supported outcomes, files,
+   and repository metadata.
+4. Store those facts with exact evidence references and make them inspectable
+   locally.
 
-1. Read already-indexed Sessions evidence for the requested range.
-2. Detect new or changed documents through stable source identity and digests.
-3. Distill relevant evidence into normalized observations, including useful
-   insights, decisions, problems, experiments, and lessons.
-4. Store those observations with metadata and evidence references.
-5. Publish durable domain events and enqueue matching Content Scout jobs.
-6. Exit the scan command after the event and job transaction commits.
-7. Run `noema worker --once` to claim one pending job and invoke Content Scout
-   through a provider-neutral model boundary.
-8. Use `noema ideas list` to review at most five strong, ranked content ideas.
-   An empty result is valid.
+This milestone makes no model call. Code extracts only literal observations
+that the canonical structure and supported parsers can establish. A repeatable
+parser is not assumed to be correct: ambiguous outcomes remain unknown, and
+source capture omissions remain visible even when the retained snapshot was
+exported in full.
+
+### Milestone 2: semantic claims
+
+1. Give bounded canonical evidence and deterministic facts to a
+   provider-neutral structured-generation boundary.
+2. Extract a small initial claim vocabulary: problem, symptom, hypothesis,
+   failed attempt, root cause, decision, solution, verification, and lesson.
+3. Reject claims with invalid evidence references or failures in schema,
+   privacy, contradiction, and deterministic-consistency checks.
+4. Preserve whether each claim is observed, inferred, or uncertain, together
+   with confidence and contradictory evidence.
+5. Store admitted claims, their durable events, and the subscriber-independent
+   `analysis.completed` event atomically.
+
+A second model verification pass is not required initially. Add it only if
+evaluation shows that schema, evidence, and deterministic validation are
+insufficient.
+
+### Milestone 3: Content Scout
+
+1. Enqueue Content Scout from admitted knowledge events.
+2. Run the worker separately through the provider-neutral model boundary.
+3. Store and review at most five ranked, evidence-backed content ideas. An
+   empty result is valid.
+4. Show how each suitable idea could become a short X post, a longer X thread,
+   or an article.
+
+Each stage stores its own versioned derived records so later stages can rerun
+without returning to raw provider histories, while the referenced canonical
+Sessions evidence remains available.
 
 Each content idea includes:
 
@@ -194,8 +300,13 @@ Cross-scan semantic deduplication, strengthening, and resurfacing are later
 hypotheses; V0 may show similar ideas from different changed or overlapping
 evidence.
 
-## Non-goals for the first vertical slice
+## Non-goals for V0
 
+- Broad time-range, corpus-wide, or automatic scans before the explicit-session
+  path is useful.
+- A Noema-owned raw transcript archive or duplicate Sessions search library.
+- Provider-specific Codex or Cursor parsing.
+- A separate knowledge-unit layer before real claims show that one is needed.
 - Automatic or scheduled scans.
 - A background daemon.
 - More than one source adapter.
@@ -219,6 +330,16 @@ evidence.
   complete and correct.
 - A user-looking message was authored directly by the user.
 - A model summary is faithful or safe to publish.
+- A failed attempt, correction, missing test, or repeated command proves a user
+  knowledge gap.
+- Missing evidence that a skill was used proves the user lacks that skill.
+- A structured Sessions field is equivalent to a semantic conclusion.
+- An assistant statement that a command or test succeeded is stronger than the
+  recorded tool result.
+- A claim is supported merely because a model returned a valid evidence
+  identifier.
+- Sessions retains every raw provider revision or can always reproduce an
+  earlier canonical snapshot.
 - Repeated text represents independent evidence.
 - Similarity represents truth, usefulness, or novelty.
 - A popular-looking idea is aligned with the user's voice or goals.
@@ -238,12 +359,24 @@ evidence.
 
 Consider additional components only after evidence shows a need:
 
+- Expand from one selected session to ranges only after the evidence and claim
+  outputs are useful and inspectable.
+- Add knowledge units when individual claims prove too granular for retrieval
+  or Content Scout.
+- Add a second semantic verification pass when evaluation shows unsupported or
+  contradicted claims surviving deterministic validation.
+- Revisit canonical revision retention with Sessions only when a concrete
+  reproducibility need cannot be met by its retained snapshots.
 - Add embeddings when metadata and full-text retrieval repeatedly miss
   conceptually related evidence.
 - Add a second source when Content Scout quality is limited by missing context,
   not by weak extraction.
 - Add Workflow Scout when the source-to-event-to-agent path works without
   Content Scout-specific assumptions.
+- Add Coding Evaluation after multi-session scopes and attribution are
+  trustworthy. It produces reviewable growth areas and learning recommendations
+  from supporting and contradicting evidence; it does not score identity,
+  personality, or general ability.
 - Add scheduled execution when manual scans are useful but are being missed.
 - Add Inngest when durable multi-step execution, waiting, or retries exceed the
   value of the local queue.
