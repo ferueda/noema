@@ -105,6 +105,8 @@ below.
 
 ## V0 Milestone 1: canonical evidence and deterministic facts
 
+- Status: implemented
+
 ### Goal
 
 Understand one explicitly selected Sessions session without a model call.

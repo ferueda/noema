@@ -20,13 +20,13 @@ AI-assisted development work. Content Scout is the first consumer, not the
 product boundary: the same admitted facts and claims should later support
 workflow improvement and personal coding-development agents.
 
-Noema is in early implementation. The current code establishes the local
-producer-to-worker spine: derived observations, events, jobs, agent runs, and
-content ideas persist in SQLite, and the producer and worker communicate only
-through that database. The next milestone processes one explicit canonical
-Sessions session into deterministic, inspectable facts without a model call.
-`scan sessions` and `worker --once` deliberately remain fail-closed until their
-real milestone integrations are wired.
+Noema is in early implementation. It can process one explicitly selected,
+already-indexed Sessions snapshot into deterministic, inspectable facts without
+a model call. Exact unchanged reruns reuse the prior analysis, changed document
+digests create a new analysis, and stored evidence resolves only while Sessions
+can return the recorded revision. The local producer-to-worker spine also
+persists its foundation records in SQLite; `worker --once` remains fail-closed
+until the later agent-runtime milestone.
 
 The foundation still contains Content Scout-specific request, worker, and
 completion seams used by its fake end-to-end proof. The accepted architecture
@@ -64,16 +64,38 @@ make check
 Inspect a Noema database:
 
 ```sh
+sessions index
+go run ./cmd/noema scan sessions '<canonical-id>' --database /path/to/noema.db
+go run ./cmd/noema analyses show '<analysis-id>' --database /path/to/noema.db
+go run ./cmd/noema analyses show '<analysis-id>' --resolve --database /path/to/noema.db
 go run ./cmd/noema jobs list --database /path/to/noema.db
 go run ./cmd/noema ideas list --database /path/to/noema.db
 ```
 
-The end-to-end integration test uses a fake source, distiller, and Content
-Scout. It opens separate producer and worker database connections and proves
-that SQLite is their only handoff:
+Noema never runs `sessions index` implicitly. `scan sessions` invokes
+`sessions export '<canonical-id>' --format jsonl --full`; `--full` means the
+complete export-eligible retained Sessions snapshot, not proof that the source
+provider captured everything. Noema stores the admitted revision and selection,
+deterministic facts, bounded selected values, exact evidence coordinates, and
+processing metadata. It does not store the complete exported transcript.
+The local reader rejects exports larger than 64 MiB as an inspectable failed
+analysis instead of buffering unbounded transcript data.
+
+`analyses show` reads only Noema's stored derived records. `--resolve`
+explicitly re-exports the selected Sessions identity and returns bounded source
+segments only when its document digest exactly matches the stored revision. If
+Sessions now returns another digest, resolution fails with
+`source-revision-unavailable`; the prior facts remain inspectable.
+
+The Milestone 1 scan and inspection path is local and makes no model or other
+remote request. Set `NOEMA_SESSIONS_COMMAND` only when the Sessions executable
+is not available as `sessions` on `PATH`.
+
+The test suite includes both the foundation's fake source/agent spine and a
+generic fake Sessions executable that proves revision-safe fact processing:
 
 ```sh
-go test ./internal/integration
+go test ./...
 ```
 
 Contributor setup, command behavior, and test-layer guidance live in

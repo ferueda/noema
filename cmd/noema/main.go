@@ -9,7 +9,11 @@ import (
 	"io"
 	"os"
 
+	sessionsadapter "github.com/ferueda/noema/internal/adapters/sessions"
 	sqlitestore "github.com/ferueda/noema/internal/adapters/sqlite"
+	"github.com/ferueda/noema/internal/application"
+	"github.com/ferueda/noema/internal/domain"
+	"github.com/ferueda/noema/internal/extractors/sessionfacts"
 	"github.com/ferueda/noema/internal/platform"
 )
 
@@ -27,7 +31,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	}
 	switch args[0] {
 	case "scan":
-		return runScan(args[1:], stderr)
+		return runScan(ctx, args[1:], stdout, stderr)
+	case "analyses":
+		return runAnalyses(ctx, args[1:], stdout, stderr)
 	case "worker":
 		return runWorker(ctx, args[1:], stdout, stderr)
 	case "jobs":
@@ -43,12 +49,89 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	}
 }
 
-func runScan(args []string, stderr io.Writer) error {
-	if len(args) == 0 || args[0] != "sessions" {
-		fmt.Fprintln(stderr, "usage: noema scan sessions [options]")
+func runScan(ctx context.Context, args []string, stdout, stderr io.Writer) error {
+	if len(args) < 2 || args[0] != "sessions" {
+		fmt.Fprintln(stderr, "usage: noema scan sessions <canonical-id> [--database path]")
 		return errors.New("scan source must be sessions")
 	}
-	return errors.New("Sessions ingestion is not implemented in the walking-skeleton milestone")
+	canonicalID := args[1]
+	flags := flag.NewFlagSet("scan sessions", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	databasePath := flags.String("database", "", "SQLite database path")
+	if err := flags.Parse(args[2:]); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return errors.New("scan sessions received unexpected arguments")
+	}
+	store, closeStore, err := openStore(ctx, *databasePath)
+	if err != nil {
+		return err
+	}
+	defer closeStore()
+	reader := newSessionsReader()
+	analyzer := application.FactAnalyzer{
+		Source: reader, Extractor: sessionfacts.Extractor{}, Store: store,
+		NewID: platform.NewID,
+	}
+	result, err := analyzer.Run(ctx, canonicalID)
+	if err != nil {
+		return err
+	}
+	return writeJSON(stdout, struct {
+		AnalysisID string                   `json:"analysisId"`
+		Reused     bool                     `json:"reused"`
+		Coverage   string                   `json:"coverage"`
+		Omissions  domain.AnalysisOmissions `json:"omissions"`
+		FactCount  int                      `json:"factCount"`
+	}{
+		AnalysisID: result.Analysis.Run.ID,
+		Reused:     result.Reused,
+		Coverage:   result.Analysis.Run.Selection.Coverage,
+		Omissions:  result.Analysis.Run.Omissions,
+		FactCount:  len(result.Analysis.Facts),
+	})
+}
+
+func runAnalyses(ctx context.Context, args []string, stdout, stderr io.Writer) error {
+	if len(args) < 2 || args[0] != "show" {
+		fmt.Fprintln(stderr, "usage: noema analyses show <analysis-id> [--resolve] [--database path]")
+		return errors.New("analyses currently supports only show")
+	}
+	analysisID := args[1]
+	flags := flag.NewFlagSet("analyses show", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	resolve := flags.Bool("resolve", false, "resolve evidence against the recorded Sessions revision")
+	databasePath := flags.String("database", "", "SQLite database path")
+	if err := flags.Parse(args[2:]); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return errors.New("analyses show received unexpected arguments")
+	}
+	store, closeStore, err := openStore(ctx, *databasePath)
+	if err != nil {
+		return err
+	}
+	defer closeStore()
+	if !*resolve {
+		analysis, err := store.LoadFactAnalysis(ctx, analysisID)
+		if err != nil {
+			return err
+		}
+		return writeJSON(stdout, analysis)
+	}
+	resolver := application.Resolver{Source: newSessionsReader(), Store: store}
+	analysis, err := resolver.Resolve(ctx, analysisID)
+	if err != nil {
+		return err
+	}
+	return writeJSON(stdout, analysis)
+}
+
+func newSessionsReader() sessionsadapter.Reader {
+	executable := os.Getenv("NOEMA_SESSIONS_COMMAND")
+	return sessionsadapter.Reader{Executable: executable, Runner: sessionsadapter.ExecRunner{}}
 }
 
 func runWorker(_ context.Context, args []string, _ io.Writer, stderr io.Writer) error {
@@ -150,7 +233,8 @@ func writeUsage(writer io.Writer) {
 	fmt.Fprintln(writer, `usage: noema <command>
 
 commands:
-  scan sessions   ingest Sessions evidence (next milestone)
+  scan sessions   process one retained Sessions snapshot into deterministic facts
+  analyses show   inspect a stored fact analysis; optionally resolve its evidence
   worker --once   process one pending agent job (next milestone)
   jobs list       list durable jobs
   ideas list      list content ideas`)
