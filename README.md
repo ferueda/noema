@@ -9,9 +9,10 @@
 The name reflects the project's purpose: turning evidence from our work into
 explicit, traceable knowledge that focused agents can act on.
 
-Noema is a local-first knowledge, event, and agent runtime for personal work.
-It turns evidence from the tools where work happens into normalized knowledge,
-durable events, and useful outputs from small, focused agents.
+Noema is a local-first derived-knowledge, event, and agent runtime for personal
+work. It turns canonical evidence from the tools where work happens into
+traceable facts and claims, durable events, and reviewable outputs from small,
+focused agents.
 
 The first source is [Sessions](https://github.com/ferueda/sessions). The first
 agent is Content Scout, which finds evidence-backed content ideas from recent

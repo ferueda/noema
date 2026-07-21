@@ -5,8 +5,9 @@ implementation.
 
 ## Active
 
-None. Create a focused implementation plan for V0 Milestone 1 before continuing
-real integration work.
+- [260720-milestone-1-evidence-facts.md](260720-milestone-1-evidence-facts.md) —
+  process one explicit Sessions snapshot into deterministic, inspectable facts
+  without a model call.
 
 ## Superseded
 
