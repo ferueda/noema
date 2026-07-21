@@ -5,9 +5,7 @@ implementation.
 
 ## Active
 
-- [260720-milestone-1-evidence-facts.md](260720-milestone-1-evidence-facts.md) —
-  process one explicit Sessions snapshot into deterministic, inspectable facts
-  without a model call.
+None.
 
 ## Superseded
 
@@ -18,4 +16,6 @@ implementation.
 
 ## Completed
 
-None.
+- [260720-milestone-1-evidence-facts.md](260720-milestone-1-evidence-facts.md) —
+  process one explicit Sessions snapshot into deterministic, inspectable facts
+  without a model call.

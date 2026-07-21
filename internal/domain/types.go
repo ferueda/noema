@@ -9,16 +9,6 @@ const (
 	JobFailed    = "failed"
 )
 
-type EvidenceRef struct {
-	ID             string `json:"id"`
-	SourceKind     string `json:"sourceKind"`
-	SourceIdentity string `json:"sourceIdentity"`
-	DocumentDigest string `json:"documentDigest"`
-	EntryOrdinal   int    `json:"entryOrdinal"`
-	ContentHash    string `json:"contentHash"`
-	Excerpt        string `json:"excerpt"`
-}
-
 type EvidenceChunk struct {
 	ID                string
 	Fingerprint       string

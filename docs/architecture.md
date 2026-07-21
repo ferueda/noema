@@ -174,9 +174,9 @@ Cloudflare worker may invoke the same application boundaries without changing
 the domain model.
 
 The foundation's generic `Source`, `Distiller`, and time-range `ScanRequest`
-are test seams, not the accepted real Sessions workflow. Milestone 1 may evolve
-those contracts around explicit-session admission and deterministic facts while
-preserving the producer, transaction, queue, and worker boundaries they proved.
+remain test seams, not the real Sessions workflow. Milestone 1 added a separate,
+narrow explicit-session source, fact extractor, and fact-analysis store boundary
+without routing evidence admission through the foundation worker.
 
 ## Core flow
 
@@ -189,11 +189,15 @@ reader verifies the schema version, `untrusted-history` disposition, identity,
 document digest, entry and segment coordinates, omissions, and source coverage
 before admitting input. Full export removes presentation bounds; it does not
 claim that Sessions captured unsupported or missing provider content.
+The local subprocess reader enforces a 64 MiB operational ceiling and records an
+inspectable failure rather than accepting a partial export or buffering input
+without a bound.
 
 Canonical content is transient in Noema. The durable source snapshot remains in
 Sessions. Noema persists only the evidence coordinates and processing identity
-needed to explain and rerun its own derived stages, plus a minimum bounded
-excerpt when a human must review an artifact.
+needed to explain and rerun its own derived stages, plus bounded selected fact
+values. Milestone 1 evidence references contain no excerpts; explicit evidence
+resolution is transient and digest-locked.
 
 Later semantic analysis selects bounded, privacy-filtered evidence from that
 admitted scope before any remote call. It preserves the useful conversational
@@ -438,9 +442,8 @@ A normalized interpretation admitted from untrusted model output:
 - Extractor, schema, prompt, model, and route versions
 
 Deterministic facts and semantic claims use separate domain types and validation
-paths so invalid field combinations are difficult to represent. The existing
-`observations` table may remain their initial shared persistence projection with
-an explicit authority discriminator while the schema is small.
+paths so invalid field combinations are difficult to represent. Facts use their
+own Milestone 1 table; the claim projection remains a Milestone 2 decision.
 
 ### Analysis run
 
@@ -584,7 +587,15 @@ agent_runs
 content_ideas
 ```
 
-The schema proves the process boundary, not the final generic contracts. Its
+Milestone 1 adds two use-case-neutral tables without rewriting that foundation:
+
+```text
+analysis_runs
+facts
+```
+
+The foundation schema proves the process boundary, not the final generic
+contracts. Its
 `scans.job_id`, `ScanRequest.ContentScoutConfigKey`, `JobPayload.ScanID`,
 `Observation.Summary`, `Agent.Run` returning `[]ContentIdeaDraft`,
 `JobCompletion.Ideas`, and `content_ideas` write path are Content Scout-specific
@@ -598,12 +609,12 @@ Scout-specific payload validation outside the generic worker. The existing
 `content_ideas` table may remain as a query projection, but core job completion
 cannot require it.
 
-Milestone work replaces the broad `Observation` application model with distinct
-fact and claim types while allowing `observations` to remain a shared storage
-projection. It also adds complete Sessions coordinates, attribution when
-supported, and explicit stage versions. Add a table only when one of those
-durable responsibilities cannot be represented clearly in the existing schema.
-Knowledge units, episodes, and relation tables are not preconditions for V0.
+Milestone 1 keeps deterministic `Fact` records and their `AnalysisRun` lineage
+separate from the broad foundation `Observation` model. Milestone 2 will add a
+distinct claim type and validation path; its exact persistence projection can
+follow the queries that prove useful. Complete Sessions coordinates and explicit
+stage versions are already part of the fact path. Knowledge units, episodes,
+and relation tables are not preconditions for V0.
 
 Each rerunnable stage has a separate identity:
 
@@ -672,7 +683,8 @@ implementation must preserve:
 - An agent upgrade can be evaluated against retained events without silently
   replacing old artifacts.
 
-Milestone 1 stops after its admitted facts and granular events. Milestone 2
+Milestone 1 stops after its completed analysis and admitted facts; it creates no
+events or jobs. Milestone 2
 atomically persists its `AnalysisRun`, admitted claims, granular knowledge
 events, and `analysis.completed`. Milestone 3 runs generic subscription matching
 against that retained event and stores the resulting Content Scout job
@@ -980,11 +992,10 @@ small boundary:
 - Exact gateway authentication and configuration file shape.
 - Schema migration tool.
 - Structured-output validation library.
-- Exact Milestone 1 command grammar and local fact-inspection presentation.
-- Whether facts and claims continue sharing the `observations` persistence
-  projection after their domain types separate.
+- The semantic-claim persistence projection and queries.
 - Exact generic artifact payload encoding and whether `content_ideas` remains a
   projection after the Milestone 3 cutover.
-- How evidence is previewed safely in the CLI.
+- How later artifact-specific previews build on Milestone 1's digest-locked,
+  bounded evidence resolution.
 - How the privacy filter combines deterministic rules and model review.
-- The first command grammar and configuration-file format.
+- The configuration-file format for remote semantic and agent routes.

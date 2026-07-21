@@ -1,6 +1,6 @@
 # Process one Sessions snapshot into deterministic facts
 
-- Status: approved for implementation
+- Status: implemented
 - Roadmap: [V0 Milestone 1](../../docs/roadmap.md#v0-milestone-1-canonical-evidence-and-deterministic-facts)
 
 ## Goal
