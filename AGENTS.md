@@ -14,6 +14,12 @@ owns milestone sequence and decision gates. Do not weaken these sources or
 implement a superseded plan implicitly in an implementation plan or code
 change.
 
+Contributor guidance:
+
+- Development and commands: `docs/contributing/development.md`
+- Testing and proof layers: `docs/contributing/testing.md`
+- Contributor index: `docs/contributing/index.md`
+
 ## Core rules
 
 - Keep Noema standalone. Harness, Factory, Inngest, Cloudflare, Sessions, model
@@ -51,6 +57,13 @@ change.
   scheduler, or vector database before a proven use case requires it.
 - Keep fixtures, examples, and documentation free of private transcript
   content, repository names, local paths, and personal identifiers.
+- Keep routine tests offline and isolated from user Sessions data, Noema data,
+  credentials, and external services.
+- Add regression coverage for bugs when it protects repeatable behavior.
+- Before handoff, pull-request publication, or declaring work complete, run
+  `make check`.
+- For formatting failures, run `make fix`, inspect the diff, and rerun the
+  relevant test followed by `make check`.
 
 When a proposed change conflicts with the product intent or architecture, stop
 and make the product decision explicit before implementing it.
