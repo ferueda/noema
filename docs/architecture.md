@@ -102,17 +102,26 @@ replace the smaller facts and claims that other agents need. They are
 rebuildable projections, never source evidence or the sole retained result of
 an analysis.
 
-The reusable boundary is:
+The reusable core model is:
 
 ```text
-Canonical evidence
-  → facts
-  → claims
-  → analysis events
-  → subscription jobs
-  → agent runs
-  → typed artifacts
+EvidenceRevision
+        ↓ selected by
+AnalysisRun(stage, scope, coverage, configuration)
+        ├── Fact ───────────────┐
+        ├── Claim ──────────────┼── changes produce → DomainEvent
+        └── Summary projection ─┘
+                                      ↓ matched into
+                              SubscriptionJob
+                                      ↓ executed as
+                              AgentRun
+                                      ↓ produces
+                              Artifact<ContentIdeaV1 | CodingAssessmentV1 | ...>
 ```
+
+These are domain responsibilities, not a required table-per-type schema. V0 may
+store a revision inline with references and may project facts and claims into
+one SQLite table while their domain types and validation remain separate.
 
 Content Scout produces `content-idea` artifacts. A later Coding Evaluation
 agent produces `coding-assessment` artifacts. They share evidence, knowledge,
@@ -244,14 +253,14 @@ verification step is added only if unsupported claims survive these checks.
 
 ### 5. Close the analysis and optionally summarize it
 
-Each processing attempt records an analysis envelope. It identifies the exact
+Each processing attempt records an `AnalysisRun`. It identifies the exact
 canonical evidence versions selected, the project and time scope when known,
 coverage and omissions, the ordered admitted fact and claim identities, all
 processor and model configuration needed to explain the result, and the final
 completion or failure state. An analysis is a processing boundary, not a claim
 that one session equals one work episode.
 
-When the Milestone 2 semantic analysis completes, its envelope, newly admitted
+When the Milestone 2 semantic analysis completes, its run, newly admitted
 claims, granular knowledge events, and subscriber-independent
 `analysis.completed` event commit in one transaction. The event belongs to the
 analysis stage even when no focused agent is registered.
@@ -354,12 +363,12 @@ implementations.
 
 ## Core concepts
 
-The first implementation needs a small model. Names may change during planning,
-but their responsibilities should remain separate.
+The first implementation uses this small vocabulary. The persistence projection
+may evolve, but these responsibilities remain separate.
 
-### Canonical evidence input
+### Evidence revision
 
-A bounded representation returned by a canonical evidence plane:
+A stable identity for one canonical source revision:
 
 - Source kind and instance
 - Stable native identity
@@ -367,21 +376,25 @@ A bounded representation returned by a canonical evidence plane:
 - Document digest
 - Capture time and source time when known
 - Project, workspace, and other source metadata when known
-- Selection bounds, omissions, truncation, and available coverage
-- Bounded content or a supported way to request it
 
 For Sessions, the durable document remains in Sessions. Noema stores identity,
 digest, processing keys, and exact coordinates rather than an immutable
 transcript copy. Canonical content remains transient during analysis, with only
 the minimum bounded, sanitized excerpt retained when an artifact needs it for
-review.
+review. V0 may inline this revision identity in evidence references rather than
+introducing a separate table.
+
+Selection is an `AnalysisRun` responsibility. A run records whether it selected
+the complete retained snapshot or a bounded range, together with omissions,
+truncation, and available coverage. Several runs may select different parts of
+the same `EvidenceRevision` without creating new source revisions.
 
 ### Evidence reference
 
-A durable pointer from a Noema claim to source evidence:
+A durable pointer from a Noema record to source evidence:
 
-- Source identity
-- Document digest
+- Evidence revision identity, represented initially by source identity and
+  document digest
 - Entry, segment, or other source coordinates when available
 - Content hash when available
 - Timestamp, actor, content origin, and tool-call or result relationship when
@@ -429,27 +442,30 @@ paths so invalid field combinations are difficult to represent. The existing
 `observations` table may remain their initial shared persistence projection with
 an explicit authority discriminator while the schema is small.
 
-### Analysis envelope
+### Analysis run
 
 A versioned record of one bounded processing attempt:
 
-- Selected source identities, document digests, and selection method
+- Stage: facts, claims, or summary
+- Selected evidence revision identities and selection method
 - Project, workspace, and time scope when known
 - Bounds, omissions, truncation, and available coverage
-- Ordered admitted fact and claim identities
+- Ordered input and output fact and claim identities
 - Evidence-admission, extractor, schema, prompt, model, route, and privacy
   configuration that applies to the stages actually run
 - Start and completion times, status, and bounded failure details
 
-The envelope provides lineage and rerun identity across stages. It is not a
-session summary, work episode, or agent-specific input model. A Milestone 1
-analysis may stop after facts. A later semantic analysis can reuse those
-admitted inputs and add claims without modifying the earlier analysis.
+The run provides lineage and rerun identity across stages. It is not a session
+summary, work episode, or agent-specific input model. A Milestone 1 run may stop
+after facts. A later semantic run can reuse those admitted facts without
+modifying the earlier run. Ordered immutable fact, claim, and evidence-revision
+inputs remain the required lineage; a direct run-to-run relationship can be
+added later only if it improves inspection.
 
 ### Summary projection
 
-An optional, versioned view built only from an analysis's admitted facts and
-claims:
+An optional, versioned view built only from an `AnalysisRun`'s admitted facts
+and claims:
 
 - Problem and relevant context
 - Root cause and important decisions when supported
@@ -512,6 +528,20 @@ identify what changed; the agent retrieves admitted facts, claims, and bounded
 evidence; the run and artifact stores retain the result. Durable continuity
 never depends on a model remembering a prior run.
 
+### Subscription job
+
+A durable request created by matching one event to one agent subscription:
+
+- Triggering event identity
+- Agent name and version
+- Ordered immutable fact, claim, analysis-run, or artifact inputs
+- Agent configuration identity
+- Status, attempt count, timestamps, and bounded failure details
+
+The job contains stable knowledge identities, not transcript bodies or an
+agent-specific output payload. The queue owns its lifecycle; the registered
+agent handler owns the typed output.
+
 ### Agent run
 
 One attempt to process an event:
@@ -525,7 +555,7 @@ One attempt to process an event:
 - Requested privacy and routing policy
 - Cost, usage, latency, and provider request identity when available
 
-### Agent artifact
+### Artifact
 
 A typed, reviewable result with its own lifecycle. Its generic envelope records:
 
@@ -643,7 +673,7 @@ implementation must preserve:
   replacing old artifacts.
 
 Milestone 1 stops after its admitted facts and granular events. Milestone 2
-atomically persists its analysis envelope, admitted claims, granular knowledge
+atomically persists its `AnalysisRun`, admitted claims, granular knowledge
 events, and `analysis.completed`. Milestone 3 runs generic subscription matching
 against that retained event and stores the resulting Content Scout job
 atomically with the matching operation. Neither evidence processing nor
@@ -762,7 +792,7 @@ compare model behavior:
 Content Scout is the first agent and the acceptance test for the architecture.
 
 Milestone 2 writes one `analysis.completed` batch event in the same atomic commit
-as its semantic analysis envelope, newly admitted claims, and granular domain
+as its semantic `AnalysisRun`, newly admitted claims, and granular domain
 events. The event carries the analysis identity and bounded claim identities,
 not their evidence bodies.
 
@@ -903,7 +933,7 @@ to remote infrastructure without a separate privacy design.
   remote semantic and agent inputs remain separately bounded.
 - Evidence coordinates resolve only against their recorded Sessions document
   digest and fail closed when that revision is unavailable.
-- Every processing attempt records a versioned analysis envelope with scope,
+- Every processing attempt records a versioned `AnalysisRun` with scope,
   coverage, admitted inputs and outputs, configuration, and final status.
 - Summaries are optional projections over admitted facts and claims. They are
   never source evidence, the sole retained knowledge, or a required agent input.

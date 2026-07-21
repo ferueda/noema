@@ -49,12 +49,15 @@ The following decisions are fixed for V0:
   parsing is not treated as certainty.
 - Facts and semantic claims use distinct domain types and validation paths even
   if they share an initial SQLite projection.
+- Source identity plus document digest identifies an `EvidenceRevision`;
+  selection bounds and coverage belong to the consuming `AnalysisRun`.
 - Milestone 1 reads one complete export-eligible Sessions snapshot locally.
   Remote semantic and agent inputs remain separately bounded.
 - Stored coordinates resolve only against their recorded Sessions document
   digest and fail closed when that revision is unavailable.
-- Every processing attempt has an analysis envelope that records its bounded
-  input scope, coverage, versions, admitted outputs, and final status.
+- Every processing attempt has an `AnalysisRun` that records its stage,
+  evidence revision and selection, coverage, versions, admitted outputs, and
+  final status.
 - Summaries are optional, rebuildable projections over admitted facts and
   claims. They never replace those records or become source evidence.
 - Evidence admission, fact extraction, and semantic claims are use-case-neutral.
@@ -66,8 +69,8 @@ The following decisions are fixed for V0:
 - The separate producer and worker boundary remains because event-driven,
   focused agents are a core product hypothesis, not because V0 needs separate
   deployments.
-- Subscription matching creates jobs from stable events. Evidence and semantic
-  processing do not name or configure downstream agents.
+- Subscription matching creates `SubscriptionJob` records from stable events.
+  Evidence and semantic processing do not name or configure downstream agents.
 - The generic worker records agent runs and versioned artifact envelopes.
   Registered in-code handlers own typed payload validation.
 - Generic jobs reference a stable trigger and immutable knowledge inputs rather
@@ -216,13 +219,13 @@ It records:
   than an unsupported assumption.
 - Store admitted claims, processing identity, bounded failure details, and
   durable granular knowledge events. An empty result is successful.
-- Record the semantic attempt in an analysis envelope with the ordered reused
+- Record the semantic attempt in an `AnalysisRun` with the ordered reused
   fact identities, admitted claim identities, and the semantic schema, prompt,
   model, route, and privacy configuration used. Do not modify the earlier
   fact-only analysis.
 - Keep summaries, if introduced for inspection, as separate versioned
   projections whose sections cite admitted fact or claim identities.
-- Commit the semantic analysis envelope, admitted claims, granular events, and
+- Commit the semantic `AnalysisRun`, admitted claims, granular events, and
   subscriber-independent `analysis.completed` event atomically.
 
 ### Gate

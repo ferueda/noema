@@ -75,10 +75,11 @@ Canonical evidence records what a source system observed. Deterministic facts
 and semantic claims record what Noema derived. They remain separate authority
 classes and carry source coordinates back to the evidence.
 
-An analysis records the exact evidence scope, processing versions, coverage,
-and admitted fact and claim identities for one run. Summaries are optional,
-rebuildable views over those records. They help people and agents understand a
-scope, but they never replace the facts, claims, or evidence that support them.
+An `AnalysisRun` records the exact evidence revision and selection, processing
+versions, coverage, and admitted fact and claim identities for one attempt.
+Summaries are optional, rebuildable views over those records. They help people
+and agents understand a scope, but they never replace the facts, claims, or
+evidence that support them.
 
 Adding a new focused agent should normally require its event subscriptions,
 evidence queries, instructions, and output schema. It should not require
@@ -167,7 +168,7 @@ by Sessions is not a separate Noema source integration.
   remains the authority for what was captured.
 - Noema's interpretations are rebuildable while the referenced canonical
   evidence version remains available.
-- Every analysis records its selected evidence identities, scope, coverage,
+- Every `AnalysisRun` records its evidence revision, selection, coverage,
   processing configuration, admitted outputs, and completion or failure state.
 - A summary is a versioned projection over admitted facts and claims, not a new
   authority class or the only stored representation of an analysis.
