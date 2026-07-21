@@ -40,6 +40,25 @@ func TestExtractorBuildsOnlyMechanicallySupportedFacts(t *testing.T) {
 	}
 }
 
+func TestExtractorPreservesStableEvidenceReferenceIdentities(t *testing.T) {
+	document := evidenceDocument(
+		entry(0, "tool-call", "model", nil, "exec_command", `{"cmd":"go test ./..."}`),
+	)
+	facts, _, err := (Extractor{}).Extract(document)
+	if err != nil {
+		t.Fatalf("extract: %v", err)
+	}
+	if len(facts) < 2 {
+		t.Fatalf("facts = %#v", facts)
+	}
+	if got := facts[0].Evidence[0].ID; got != "eref_975931f4231050ca2bd22ffadc378ea4" {
+		t.Fatalf("entry evidence ID = %q", got)
+	}
+	if got := facts[1].Evidence[0].ID; got != "eref_52f8d0da6eb60e0fbd7718b13a7174ca" {
+		t.Fatalf("segment evidence ID = %q", got)
+	}
+}
+
 func TestExtractorCapsSelectedFactText(t *testing.T) {
 	longCommand := strings.Repeat("x", maxTextValueBytes+500)
 	document := evidenceDocument(entry(0, "tool-call", "model", nil, "exec_command", fmt.Sprintf(`{"cmd":%q}`, longCommand)))
