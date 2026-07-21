@@ -5,7 +5,9 @@ implementation.
 
 ## Active
 
-None.
+- [260721-milestone-2-semantic-claims.md](260721-milestone-2-semantic-claims.md) —
+  turn one completed fact analysis into validated semantic claims and durable
+  knowledge events through an explicitly approved, bounded model request.
 
 ## Superseded
 
