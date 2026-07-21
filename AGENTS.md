@@ -23,6 +23,13 @@ change.
   import its internals or read its SQLite database directly.
 - Keep canonical source evidence separate from Noema's rebuildable
   interpretations.
+- Never resolve stored evidence coordinates against a Sessions document whose
+  digest differs from the recorded digest. Fail closed when that revision is no
+  longer available.
+- Use separate domain types and validation paths for deterministic facts and
+  semantic claims. They may share a persistence projection while V0 is small.
+- Keep deterministic facts literal and uncertainty-aware. Repeatable parsing
+  does not turn narrative assertions into observed outcomes.
 - Treat summaries as rebuildable views over admitted facts and claims. Never
   make a summary the only retained representation or use it as source evidence.
 - Keep evidence admission, fact extraction, and semantic claims independent of

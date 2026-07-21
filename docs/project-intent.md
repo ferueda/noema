@@ -153,12 +153,16 @@ by Sessions is not a separate Noema source integration.
   or transcript-search archive. It stores source coordinates, digests, content
   hashes, processing metadata, its own derived records, and only the minimum
   bounded admitted excerpt required for review.
+- Noema never resolves stored coordinates against a different Sessions document
+  digest. If the referenced revision is no longer retained, resolution fails
+  closed rather than substituting evidence from the latest snapshot.
 
 ### Derived state
 
-- Noema owns deterministic facts and semantic claims, initially stored as typed
-  observations, plus analyses, episodes, events, jobs, agent runs, typed agent
-  artifacts, and explicit human decisions.
+- Noema owns deterministic facts and semantic claims, plus analyses, episodes,
+  events, jobs, agent runs, typed agent artifacts, and explicit human
+  decisions. Facts and claims use separate domain types and validation paths;
+  they may share an initial persistence projection.
 - A deterministic fact is still a derived record. Canonical source evidence
   remains the authority for what was captured.
 - Noema's interpretations are rebuildable while the referenced canonical
@@ -230,16 +234,21 @@ session before broad time-range or corpus scans.
 
 ### Milestone 1: canonical evidence and deterministic facts
 
-1. Export one already-indexed session through the Sessions CLI.
+1. Export the complete export-eligible content of one already-indexed retained
+   session snapshot locally through the Sessions CLI.
 2. Validate its schema, trust disposition, identity, digest, coordinates,
    bounds, omissions, and available coverage.
 3. Mechanically extract supported facts such as tool calls and results,
-   commands, errors, tests and outcomes, files, and repository metadata.
+   commands, errors, test invocations and directly supported outcomes, files,
+   and repository metadata.
 4. Store those facts with exact evidence references and make them inspectable
    locally.
 
-This milestone makes no model call. Code extracts only what the canonical
-structure can establish.
+This milestone makes no model call. Code extracts only literal observations
+that the canonical structure and supported parsers can establish. A repeatable
+parser is not assumed to be correct: ambiguous outcomes remain unknown, and
+source capture omissions remain visible even when the retained snapshot was
+exported in full.
 
 ### Milestone 2: semantic claims
 
@@ -247,10 +256,12 @@ structure can establish.
    provider-neutral structured-generation boundary.
 2. Extract a small initial claim vocabulary: problem, symptom, hypothesis,
    failed attempt, root cause, decision, solution, verification, and lesson.
-3. Reject claims with invalid or unsupported evidence references.
+3. Reject claims with invalid evidence references or failures in schema,
+   privacy, contradiction, and deterministic-consistency checks.
 4. Preserve whether each claim is observed, inferred, or uncertain, together
    with confidence and contradictory evidence.
-5. Store admitted claims and their durable events.
+5. Store admitted claims, their durable events, and the subscriber-independent
+   `analysis.completed` event atomically.
 
 A second model verification pass is not required initially. Add it only if
 evaluation shows that schema, evidence, and deterministic validation are

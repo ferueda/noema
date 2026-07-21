@@ -45,6 +45,14 @@ The following decisions are fixed for V0:
 - Code extracts observable facts before a model interprets their meaning.
 - Facts, semantic claims, and agent artifacts remain separate authority
   classes. Every derived record retains exact source coordinates.
+- Deterministic facts stay literal and preserve unknown outcomes; repeatable
+  parsing is not treated as certainty.
+- Facts and semantic claims use distinct domain types and validation paths even
+  if they share an initial SQLite projection.
+- Milestone 1 reads one complete export-eligible Sessions snapshot locally.
+  Remote semantic and agent inputs remain separately bounded.
+- Stored coordinates resolve only against their recorded Sessions document
+  digest and fail closed when that revision is unavailable.
 - Every processing attempt has an analysis envelope that records its bounded
   input scope, coverage, versions, admitted outputs, and final status.
 - Summaries are optional, rebuildable projections over admitted facts and
@@ -101,7 +109,8 @@ Understand one explicitly selected Sessions session without a model call.
 ### Scope
 
 - Accept one canonical Sessions identity supplied by the user.
-- Invoke only supported versioned Sessions JSON or JSONL commands.
+- Invoke `sessions export '<id>' --format jsonl --full` to read the complete
+  export-eligible latest retained snapshot locally.
 - Validate schema version, `untrusted-history` disposition, canonical identity,
   document digest, entry and segment coordinates, bounds, omissions, and
   available coverage.
@@ -113,16 +122,20 @@ Understand one explicitly selected Sessions session without a model call.
   extractor and schema versions, admitted fact identities, and final status.
 - Extend Noema evidence references to preserve the complete useful Sessions
   coordinate, including segment ordinal and content hash when present.
-- Deterministically identify supported observations such as:
+- Deterministically identify supported facts such as:
   - tool calls and results;
   - commands;
-  - test commands and outcomes;
+  - test commands and parsed test summaries;
+  - outcomes only when structured status, observed exit code, or an exact
+    supported parser establishes them;
   - compiler, package, or tool errors;
   - files mentioned or changed when evidence supports it;
   - repository or workspace metadata when available;
   - package names and URLs;
   - explicit verification evidence.
-- Store these as typed, observed facts with extractor and schema versions.
+- Store these as a dedicated fact type with structured value, extractor name
+  and version, parse rule, schema version, exact evidence, and an explicit
+  success, failure, or unknown outcome when applicable.
 - Add a local inspection path for the admitted evidence metadata, extracted
   facts, omissions, and failures.
 - Remove agent configuration and job creation from the evidence and fact
@@ -133,8 +146,17 @@ Understand one explicitly selected Sessions session without a model call.
 - No model, gateway configuration, or remote request is involved.
 - Repeating the same canonical session version creates no duplicate facts.
 - Every stored fact resolves to valid Sessions entry and segment evidence.
+- Resolving a stored fact requires the current Sessions export to have its
+  recorded document digest. A mismatch returns `source-revision-unavailable`
+  and never substitutes coordinates from the newer document.
+- A revision mismatch leaves prior facts and their lineage inspectable but marks
+  their canonical content unavailable for resolution or rerun.
 - Partial, omitted, malformed, stale, or unsupported evidence is reported
   honestly and never presented as complete.
+- Full export is described as complete-retained-snapshot coverage, not proof
+  that Sessions captured unsupported or missing provider content.
+- Narrative assertions such as “tests should pass” cannot become successful
+  outcome facts.
 - A changed canonical document can be processed as a new version without
   silently overwriting the earlier derived identity.
 - Generic fixtures exercise the public Sessions contract without private data.
@@ -167,8 +189,8 @@ evidence-backed meaning.
 - verification
 - lesson
 
-The initial observation model evolves rather than introducing a large new
-ontology. A semantic observation records:
+The semantic claim type remains small rather than introducing a large ontology.
+It records:
 
 - type and statement;
 - status: `observed`, `inferred`, or `uncertain`;
@@ -193,18 +215,23 @@ ontology. A semantic observation records:
   than an assistant's narrative claim; an observed diff or edit is stronger
   than an unsupported assumption.
 - Store admitted claims, processing identity, bounded failure details, and
-  durable knowledge events. An empty result is successful.
+  durable granular knowledge events. An empty result is successful.
 - Record the semantic attempt in an analysis envelope with the ordered reused
   fact identities, admitted claim identities, and the semantic schema, prompt,
   model, route, and privacy configuration used. Do not modify the earlier
   fact-only analysis.
 - Keep summaries, if introduced for inspection, as separate versioned
   projections whose sections cite admitted fact or claim identities.
+- Commit the semantic analysis envelope, admitted claims, granular events, and
+  subscriber-independent `analysis.completed` event atomically.
 
 ### Gate
 
-- Unsupported claims are rejected even when their JSON is valid.
-- Every admitted claim has valid bounded evidence.
+- Every admitted claim has valid bounded evidence and passes schema, privacy,
+  contradiction, and deterministic-consistency checks.
+- Reviewed fixtures and explicitly approved local sessions measure semantic
+  support quality; passing local checks is not represented as proof that the
+  cited text entails the claim.
 - Deterministic facts remain distinguishable from model interpretations.
 - Protected content is blocked before remote transmission and after generation.
 - A reviewed generic fixture set and one explicitly approved local session
@@ -240,9 +267,10 @@ useful, safe content ideas.
 
 ### Scope
 
-- Publish a completed-analysis batch event for newly admitted semantic claims.
-- Add deterministic subscription matching, then match the in-code Content Scout
-  subscription and create one durable job.
+- Read the retained Milestone 2 `analysis.completed` batch event for newly
+  admitted semantic claims.
+- Add deterministic subscription matching, match the in-code Content Scout
+  subscription, and create one durable job without re-emitting the event.
 - Keep the analysis event identity independent of Content Scout configuration.
   A changed agent configuration creates a new job against the retained event
   and ordered claim identities; it does not re-emit claims or rerun semantic

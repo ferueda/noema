@@ -173,32 +173,41 @@ preserving the producer, transaction, queue, and worker boundaries they proved.
 
 ### 1. Select and admit canonical evidence
 
-V0 starts from one explicitly selected canonical Sessions identity. The source
-reader invokes only supported versioned JSON or JSONL commands and verifies the
-schema version, `untrusted-history` disposition, identity, document digest,
-entry and segment coordinates, omissions, and bounds before admitting input.
+V0 starts from one explicitly selected canonical Sessions identity. Milestone 1
+uses `sessions export '<id>' --format jsonl --full` to read the complete
+export-eligible content of the latest retained snapshot locally. The source
+reader verifies the schema version, `untrusted-history` disposition, identity,
+document digest, entry and segment coordinates, omissions, and source coverage
+before admitting input. Full export removes presentation bounds; it does not
+claim that Sessions captured unsupported or missing provider content.
 
 Canonical content is transient in Noema. The durable source snapshot remains in
 Sessions. Noema persists only the evidence coordinates and processing identity
 needed to explain and rerun its own derived stages, plus a minimum bounded
 excerpt when a human must review an artifact.
 
-Semantic analysis preserves the useful conversational unit and linked tool
-context. An isolated search hit or message is discovery evidence, not enough by
-itself to establish a problem, decision, failure, or lesson. V0 begins with one
-bounded session; later episode and multi-source analysis may select smaller or
-larger coherent units explicitly.
+Later semantic analysis selects bounded, privacy-filtered evidence from that
+admitted scope before any remote call. It preserves the useful conversational
+unit and linked tool context. An isolated search hit or message is discovery
+evidence, not enough by itself to establish a problem, decision, failure, or
+lesson. Every analysis states whether it covers the complete retained snapshot
+or only a selected range; partial analysis is never described as understanding
+the whole session.
 
 ### 2. Extract deterministic facts
 
 Code extracts what the canonical structure can establish without a model. The
-initial scope includes tool calls and results, commands, tests and outcomes,
-errors, file references, package names, URLs, repository metadata when
-available, and explicit verification evidence.
+initial scope includes tool calls and results, commands, test invocations,
+parsed test summaries, directly supported outcomes, errors, file references,
+package names, URLs, repository metadata when available, and explicit
+verification assertions.
 
-Each fact records its kind, structured value, extractor version, and exact
-evidence references. A deterministic fact is derived data, not canonical
-evidence.
+Each fact records its kind, structured value, extractor name and version, the
+parse rule that produced it, and exact evidence references. Deterministic means
+the same supported parser produces the same result, not that the result is
+certain. Facts stay literal, preserve an explicit unknown outcome when
+applicable, and never turn narrative text such as “tests should pass” into a
+successful test run.
 
 ### 3. Extract semantic candidate claims
 
@@ -225,9 +234,13 @@ test, compiler, and tool output
 ```
 
 This precedence guides validation; it does not make every source record true.
-Unsupported claims are rejected, and insufficient evidence can produce an
-empty successful result. A second model verification pass is added only if
-evaluation shows a concrete need.
+Local admission can validate schema, evidence identity and coordinates,
+privacy, contradictions, and consistency with deterministic facts. It cannot
+prove that arbitrary evidence semantically entails every natural-language
+claim. Claims that fail the checks are rejected, insufficient evidence can
+produce an empty successful result, and semantic support quality is measured
+with reviewed fixtures and approved local sessions. A second model or human
+verification step is added only if unsupported claims survive these checks.
 
 ### 5. Close the analysis and optionally summarize it
 
@@ -237,6 +250,11 @@ coverage and omissions, the ordered admitted fact and claim identities, all
 processor and model configuration needed to explain the result, and the final
 completion or failure state. An analysis is a processing boundary, not a claim
 that one session equals one work episode.
+
+When the Milestone 2 semantic analysis completes, its envelope, newly admitted
+claims, granular knowledge events, and subscriber-independent
+`analysis.completed` event commit in one transaction. The event belongs to the
+analysis stage even when no focused agent is registered.
 
 A summary may then present the admitted records as a problem, attempts, outcome,
 verification, lessons, and unknowns. Every summary statement points to fact or
@@ -289,7 +307,7 @@ Initial retrieval uses:
 - Time and project scope.
 
 Noema does not duplicate Sessions's raw transcript search. Its search index
-covers the higher-level observations and artifacts it owns.
+covers the higher-level facts, claims, and artifacts it owns.
 
 Full-text search over normalized Noema knowledge is the next retrieval strategy.
 Embeddings and fusion come later behind the same boundary.
@@ -378,13 +396,17 @@ what evidence supported the interpretation.
 A mechanically derived observation:
 
 - Kind and structured value
-- Extractor and schema version
+- Extractor name, extractor version, parse rule, and schema version
 - Exact evidence references
 - Actor, origin, or subject when the canonical evidence directly supports it
 - Time or repository metadata when directly supported
+- Success, failure, or unknown when the fact represents an outcome
 
 Deterministic facts do not need a model, prompt, or model confidence score. They
-remain derived records and can be rebuilt from canonical evidence.
+remain derived records and can be rebuilt from canonical evidence. Determinism
+describes repeatability, not certainty. Outcome facts require structured source
+status, an observed exit code, or an exact supported parser result; assertions
+about what should have happened remain assertions.
 
 ### Semantic claim
 
@@ -402,9 +424,10 @@ A normalized interpretation admitted from untrusted model output:
   unknown
 - Extractor, schema, prompt, model, and route versions
 
-`Observation` remains the initial storage and domain name for facts and claims
-while the schema is small. The authority class and kind must stay explicit so a
-deterministic fact is never confused with a model interpretation.
+Deterministic facts and semantic claims use separate domain types and validation
+paths so invalid field combinations are difficult to represent. The existing
+`observations` table may remain their initial shared persistence projection with
+an explicit authority discriminator while the schema is small.
 
 ### Analysis envelope
 
@@ -451,7 +474,7 @@ A revisable grouping of related observations:
 - Goal and current state
 - Time range
 - Project or workspace scope
-- Relationships to observations and artifacts
+- Relationships to facts, claims, and artifacts
 - Grouping confidence
 
 Episodes do not require structured completion or a work item.
@@ -545,12 +568,12 @@ Scout-specific payload validation outside the generic worker. The existing
 `content_ideas` table may remain as a query projection, but core job completion
 cannot require it.
 
-Milestone work also evolves observations to represent deterministic facts,
-semantic claims, complete Sessions coordinates, attribution when supported,
-and explicit stage versions. It should add tables only when one of those
-durable responsibilities cannot be represented clearly in the existing
-schema. Knowledge units, episodes, and relation tables are not preconditions
-for V0.
+Milestone work replaces the broad `Observation` application model with distinct
+fact and claim types while allowing `observations` to remain a shared storage
+projection. It also adds complete Sessions coordinates, attribution when
+supported, and explicit stage versions. Add a table only when one of those
+durable responsibilities cannot be represented clearly in the existing schema.
+Knowledge units, episodes, and relation tables are not preconditions for V0.
 
 Each rerunnable stage has a separate identity:
 
@@ -579,11 +602,21 @@ Noema:
 - Starts V0 from one explicit canonical session identity.
 - Uses canonical source identity, document digests, and exact entry and segment
   coordinates for incremental processing.
-- Requests bounded evidence by default.
+- Reads the full export-eligible retained snapshot locally for Milestone 1;
+  remote model inputs and later agent retrieval remain separately bounded.
 - Treats transcript instructions as untrusted history.
 - Records omissions, bounds, and available coverage honestly.
+- Labels every analysis scope as complete-retained-snapshot or partial.
 - Uses retained evidence from a partial Sessions capture, but never treats
   missing data in an incomplete scope as proof that evidence was removed.
+- Resolves an evidence reference only when the current export has the recorded
+  document digest. A mismatch fails with `source-revision-unavailable`; Noema
+  never applies old coordinates to a newer Sessions document.
+
+When a revision is unavailable, existing facts, claims, runs, and artifacts
+remain inspectable from their stored lineage and bounded review data. They are
+not rerunnable or resolvable to canonical transcript content unless that exact
+Sessions revision becomes available again.
 
 Noema does not:
 
@@ -609,15 +642,16 @@ implementation must preserve:
 - An agent upgrade can be evaluated against retained events without silently
   replacing old artifacts.
 
-Milestones 1 and 2 stop after persisting their admitted derived records and
-events. Milestone 3 runs generic subscription matching against a stable
-analysis event and stores the resulting Content Scout job atomically with the
-matching operation. Neither evidence processing nor semantic extraction knows
-which agent subscribed. A separate `noema worker --once` invocation claims one
-pending job and makes one attempt. A failed job is terminal and inspectable. V0
-does not yet claim at-least-once delivery, retry safety, leases, or replay;
-those remain target queue semantics to add only after the first agent path
-proves useful.
+Milestone 1 stops after its admitted facts and granular events. Milestone 2
+atomically persists its analysis envelope, admitted claims, granular knowledge
+events, and `analysis.completed`. Milestone 3 runs generic subscription matching
+against that retained event and stores the resulting Content Scout job
+atomically with the matching operation. Neither evidence processing nor
+semantic extraction knows which agent subscribed. A separate
+`noema worker --once` invocation claims one pending job and makes one attempt. A
+failed job is terminal and inspectable. V0 does not yet claim at-least-once
+delivery, retry safety, leases, or replay; those remain target queue semantics
+to add only after the first agent path proves useful.
 
 Inngest, Cloudflare Queues, or Cloudflare Workflows may later implement parts
 of this execution model. Their run identifiers and status values remain
@@ -727,11 +761,14 @@ compare model behavior:
 
 Content Scout is the first agent and the acceptance test for the architecture.
 
-Milestone 3 writes one batch event after a session analysis admits new semantic
-claims and granular domain events in the same atomic commit. The event carries
-the analysis identity and bounded claim identities, not their evidence bodies.
-This creates one Content Scout job and preserves the limit of five ideas across
-the selected analysis.
+Milestone 2 writes one `analysis.completed` batch event in the same atomic commit
+as its semantic analysis envelope, newly admitted claims, and granular domain
+events. The event carries the analysis identity and bounded claim identities,
+not their evidence bodies.
+
+Milestone 3 matches the retained event to Content Scout and creates one durable
+job. This preserves the limit of five ideas across the selected analysis
+without making event publication depend on Content Scout.
 
 The completed-analysis event has a stable identity independent of any agent or
 subscriber configuration. A first subscription creates a job from that
@@ -858,6 +895,14 @@ to remote infrastructure without a separate privacy design.
   ambient scans.
 - Deterministic facts precede semantic extraction, and facts and claims remain
   separate authority classes.
+- Deterministic facts stay literal and preserve unknown outcomes; repeatable
+  parsing is not treated as certainty.
+- Facts and claims use distinct domain types and validation paths even if they
+  share an initial SQLite projection.
+- Milestone 1 reads one complete export-eligible Sessions snapshot locally;
+  remote semantic and agent inputs remain separately bounded.
+- Evidence coordinates resolve only against their recorded Sessions document
+  digest and fail closed when that revision is unavailable.
 - Every processing attempt records a versioned analysis envelope with scope,
   coverage, admitted inputs and outputs, configuration, and final status.
 - Summaries are optional projections over admitted facts and claims. They are
@@ -892,6 +937,8 @@ to remote infrastructure without a separate privacy design.
 - Gateway output is validated locally before it enters Noema's derived state.
 - The first Content Scout subscription uses one completed-analysis batch event
   so one selected analysis creates at most one Content Scout job.
+- Milestone 2 publishes that event as part of semantic analysis; Milestone 3
+  only matches the retained event to subscriptions.
 - Knowledge units and a second model verification pass require evidence from
   real claims; they are not V0 prerequisites.
 
@@ -904,7 +951,8 @@ small boundary:
 - Schema migration tool.
 - Structured-output validation library.
 - Exact Milestone 1 command grammar and local fact-inspection presentation.
-- How deterministic and semantic observation kinds map onto the first schema.
+- Whether facts and claims continue sharing the `observations` persistence
+  projection after their domain types separate.
 - Exact generic artifact payload encoding and whether `content_ideas` remains a
   projection after the Milestone 3 cutover.
 - How evidence is previewed safely in the CLI.
