@@ -6,10 +6,13 @@ Before planning or changing Noema, read:
 
 - `docs/project-intent.md`
 - `docs/architecture.md`
+- `docs/roadmap.md`
 
 The project intent owns product direction and hard boundaries. The architecture
-owns system boundaries and accepted component responsibilities. Do not weaken
-either implicitly in an implementation plan or code change.
+owns system boundaries and accepted component responsibilities. The roadmap
+owns milestone sequence and decision gates. Do not weaken these sources or
+implement a superseded plan implicitly in an implementation plan or code
+change.
 
 ## Core rules
 
@@ -20,12 +23,20 @@ either implicitly in an implementation plan or code change.
   import its internals or read its SQLite database directly.
 - Keep canonical source evidence separate from Noema's rebuildable
   interpretations.
+- Treat summaries as rebuildable views over admitted facts and claims. Never
+  make a summary the only retained representation or use it as source evidence.
+- Keep evidence admission, fact extraction, and semantic claims independent of
+  downstream uses. Content fields, coding assessments, and workflow proposals
+  belong to agent-specific artifacts, not the knowledge pipeline.
 - Preserve evidence references for derived observations, events, and agent
   outputs.
 - Keep raw private evidence local by default. Do not send it to a remote model
   or service without an explicit product decision and user control.
 - Agents create reviewable artifacts. They do not publish content, edit source
   systems, or apply workflow changes without explicit approval.
+- A new agent may add a subscription, bounded queries, typed output, and
+  presentation. It must not require source, extraction, queue, or generic
+  worker behavior to understand that output type.
 - Do not make Factory work items, Inngest runs, issues, pull requests, or any
   other external artifact required for work to be understood.
 - Prefer one thin end-to-end implementation over unused abstraction.

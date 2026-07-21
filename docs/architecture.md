@@ -1,16 +1,16 @@
 # Architecture
 
 - Status: accepted design baseline
-- Date: 2026-07-19
-- Scope: local-first foundation and first vertical slice
+- Date: 2026-07-20
+- Scope: local-first foundation and staged V0
 
 ## Executive summary
 
-Noema combines a knowledge pipeline with an event-driven agent runtime.
-
-The knowledge pipeline ingests evidence from the tools where work happens,
-distills it into a provider-neutral model, stores metadata and provenance, and
-offers narrow retrieval operations.
+Noema combines a derived-knowledge pipeline with an event-driven agent runtime.
+It does not repeat provider capture, parsing, or canonical transcript storage
+already owned by Sessions. It consumes canonical evidence, extracts observable
+facts deterministically, admits evidence-backed semantic claims, and stores the
+derived records and provenance that its agents need.
 
 The event pipeline records meaningful changes, enqueues subscribed agents, and
 stores their typed outputs. Events trigger agents; they do not carry all of the
@@ -18,43 +18,56 @@ evidence an agent may need. Agents use evidence references to retrieve bounded
 context from the knowledge layer.
 
 The first implementation is a standalone Go application with a Noema-owned
-SQLite database. Sessions is the first source. Content Scout is the first
-agent. A manual scan followed by a one-shot worker is the first execution mode.
+SQLite database. Sessions is the first evidence plane. Content Scout is the
+first agent. One explicitly selected session is processed through independently
+inspectable milestones before broader scans are considered. A manual producer
+followed by a one-shot worker remains the first complete execution mode.
 
 ## Design influences
 
 Noema draws from two public designs:
 
-- Drew Bredvick's event-driven agent pattern: ingest sources, normalize work
-  into events, publish to a queue, and let focused agents subscribe.
+- Drew Bredvick's event-driven agent pattern: build a normalized evidence
+  layer, express meaningful changes as events, publish them to a queue, and let
+  small focused agents subscribe.
 - Cerebras's knowledge-base design: meet data where it lives, distill
-  unstructured sources into a shared shape, retain rich metadata, combine
-  retrieval methods, and give agents narrow evidence tools.
+  coherent source units into a shared shape, retain rich metadata and
+  provenance, combine retrieval methods, restore useful context, and give
+  agents narrow evidence tools.
 
 References:
 
+- <https://x.com/dbredvick/status/2077938167567487241>
 - <https://x.com/dbredvick/status/2078086524470464577>
+- <https://x.com/dbredvick/status/2078108962319217145>
+- <https://x.com/dbredvick/status/2078150905078206789>
 - <https://www.cerebras.ai/blog/how-we-built-our-knowledge-base>
 
 These are influences, not specifications. Noema adapts them for private,
 personal-scale work and explicit human control.
 
+The first two X threads supply the event-driven thesis and concrete sequence.
+The third uses “ontology” for the shared normalized model; Noema starts with a
+small typed schema and adds richer relationships or rules only for proven
+queries. The fourth points to the Cerebras evidence and retrieval design. In
+Noema, Sessions already owns the canonical capture portion of that design.
+
 ## System context
 
 ```text
-Canonical sources
-  Sessions initially
+Canonical evidence planes
+  Sessions for coding-agent history
   GitHub / Linear / Inngest / files later
           │
           ▼
 ┌──────────────────────────────────────────────────────────────┐
 │ Noema                                                        │
 │                                                              │
-│ Source adapters → Ingestion → Distillation                   │
+│ Evidence admission → deterministic facts                   │
 │                                  │                           │
 │                                  ▼                           │
-│                    Normalized knowledge store                │
-│                    metadata + evidence refs + search         │
+│                    semantic claim extraction                │
+│                    validation and admission                 │
 │                                  │                           │
 │                         durable domain events                │
 │                                  │                           │
@@ -72,36 +85,69 @@ Canonical sources
 Human review and explicit decisions
 ```
 
-Noema does not own canonical provider histories. It owns the interpretations,
-events, agent execution records, and artifacts it derives from them.
+Sessions records what was present in provider histories. Deterministic Noema
+facts record what code could mechanically identify in that canonical evidence.
+Semantic Noema claims record what a model concluded or inferred. Agent
+artifacts propose how admitted claims might be used.
+
+## Use-case-neutral core
+
+The knowledge pipeline describes evidence; it does not optimize evidence for a
+particular agent. Deterministic extractors must not emit content hooks or
+learning recommendations. Semantic extraction must not decide that a behavior
+is publishable, a workflow should change, or the user has a weakness. Those are
+downstream judgments made by typed agents over admitted facts and claims.
+Session summaries may be derived for inspection or retrieval, but they do not
+replace the smaller facts and claims that other agents need. They are
+rebuildable projections, never source evidence or the sole retained result of
+an analysis.
+
+The reusable boundary is:
+
+```text
+Canonical evidence
+  → facts
+  → claims
+  → analysis events
+  → subscription jobs
+  → agent runs
+  → typed artifacts
+```
+
+Content Scout produces `content-idea` artifacts. A later Coding Evaluation
+agent produces `coding-assessment` artifacts. They share evidence, knowledge,
+events, queue semantics, retrieval, run tracking, and artifact lineage, but
+they do not share their application-specific output fields.
 
 ## V0 execution roles
 
 One Go binary provides two separate execution roles. The scan command is the
-producer. It stops after publishing events and committing jobs. The worker
-command is the consumer. It starts separately and knows nothing about Sessions;
-it only claims queued jobs and dispatches subscribed agents.
+producer. It admits evidence and writes the derived records for the milestone
+being exercised. Once semantic claims are real, it can publish events and
+commit matching jobs. The worker is the consumer. It starts separately and
+knows nothing about Sessions; it only claims queued jobs and dispatches
+subscribed agents.
 
 ```mermaid
 flowchart LR
-    S["Sessions"]
+    S["One explicit Sessions session"]
     H["Human review"]
 
     subgraph N["One Noema binary, two execution roles"]
         SCAN["Producer<br/>noema scan sessions"]
-        ING["Source adapter<br/>and ingestion"]
-        DIST["Distillation"]
-        KNOW["Normalized observations"]
+        ADMIT["Canonical evidence<br/>admission"]
+        FACTS["Deterministic facts"]
+        CLAIMS["Validated semantic claims"]
         EVENTS["SQLite event store"]
         QUEUE["SQLite job queue"]
         WORKER["Consumer<br/>noema worker --once"]
         SCOUT["Content Scout"]
         IDEAS["Content ideas"]
 
-        SCAN --> ING
-        ING --> DIST
-        DIST --> KNOW
-        KNOW --> EVENTS
+        SCAN --> ADMIT
+        ADMIT --> FACTS
+        FACTS --> CLAIMS
+        CLAIMS --> EVENTS
         EVENTS --> QUEUE
         QUEUE --> WORKER
         WORKER --> SCOUT
@@ -118,47 +164,94 @@ their durable handoff. Later, a scheduler, daemon, Inngest workflow, or
 Cloudflare worker may invoke the same application boundaries without changing
 the domain model.
 
+The foundation's generic `Source`, `Distiller`, and time-range `ScanRequest`
+are test seams, not the accepted real Sessions workflow. Milestone 1 may evolve
+those contracts around explicit-session admission and deterministic facts while
+preserving the producer, transaction, queue, and worker boundaries they proved.
+
 ## Core flow
 
-### 1. Observe
+### 1. Select and admit canonical evidence
 
-A source adapter lists evidence within an explicit scope and returns stable
-source identity, content digests, metadata, and bounded source documents.
+V0 starts from one explicitly selected canonical Sessions identity. The source
+reader invokes only supported versioned JSON or JSONL commands and verifies the
+schema version, `untrusted-history` disposition, identity, document digest,
+entry and segment coordinates, omissions, and bounds before admitting input.
 
-For Sessions, Noema invokes supported structured CLI commands. Noema does not
-open provider files, invoke provider adapters, or read the Sessions database.
+Canonical content is transient in Noema. The durable source snapshot remains in
+Sessions. Noema persists only the evidence coordinates and processing identity
+needed to explain and rerun its own derived stages, plus a minimum bounded
+excerpt when a human must review an artifact.
 
-### 2. Distill
+Semantic analysis preserves the useful conversational unit and linked tool
+context. An isolated search hit or message is discovery evidence, not enough by
+itself to establish a problem, decision, failure, or lesson. V0 begins with one
+bounded session; later episode and multi-source analysis may select smaller or
+larger coherent units explicitly.
 
-Distillers transform source documents into provider-neutral observations.
-Examples include:
+### 2. Extract deterministic facts
 
-- A goal was stated or changed.
-- A decision was made.
-- A useful explanation emerged.
-- A problem was encountered or solved.
-- An experiment produced a result.
-- A manual step was repeated.
-- An artifact was produced.
+Code extracts what the canonical structure can establish without a model. The
+initial scope includes tool calls and results, commands, tests and outcomes,
+errors, file references, package names, URLs, repository metadata when
+available, and explicit verification evidence.
 
-Distillation preserves uncertainty. It does not claim that every observation
-is true merely because it appeared in a transcript.
+Each fact records its kind, structured value, extractor version, and exact
+evidence references. A deterministic fact is derived data, not canonical
+evidence.
 
-### 3. Relate
+### 3. Extract semantic candidate claims
 
-The episode builder groups observations that appear to belong to the same
-continuing effort. It can use session lineage, goal continuity, repository,
-workspace, time proximity, artifact references, and workflow run identifiers.
+A provider-neutral structured-generation boundary interprets bounded canonical
+evidence and deterministic facts. The initial semantic vocabulary is problem,
+symptom, hypothesis, failed attempt, root cause, decision, solution,
+verification, and lesson.
 
-An episode is a revisable hypothesis. Grouping may be unknown, and later user
-actions may merge or split episodes.
+The model returns candidate claims, never admitted knowledge. Each candidate
+must state whether it is observed, inferred, or uncertain, and include
+confidence, supporting evidence, and contradictory evidence when known.
 
-### 4. Record events
+### 4. Validate and admit claims
+
+Noema validates candidate schema, evidence coordinates, confidence, status,
+contradictions, privacy, and consistency with deterministic facts. Coding
+evidence generally follows this precedence:
+
+```text
+test, compiler, and tool output
+        > observed diff or edit
+        > assistant statement
+        > unsupported human or model assumption
+```
+
+This precedence guides validation; it does not make every source record true.
+Unsupported claims are rejected, and insufficient evidence can produce an
+empty successful result. A second model verification pass is added only if
+evaluation shows a concrete need.
+
+### 5. Close the analysis and optionally summarize it
+
+Each processing attempt records an analysis envelope. It identifies the exact
+canonical evidence versions selected, the project and time scope when known,
+coverage and omissions, the ordered admitted fact and claim identities, all
+processor and model configuration needed to explain the result, and the final
+completion or failure state. An analysis is a processing boundary, not a claim
+that one session equals one work episode.
+
+A summary may then present the admitted records as a problem, attempts, outcome,
+verification, lessons, and unknowns. Every summary statement points to fact or
+claim identities. The summary can be discarded and rebuilt without losing
+knowledge. Long-session phase summaries may be added later when measured input
+or retrieval limits require them; they do not become a parallel fact store.
+
+### 6. Record events and enqueue subscriptions
 
 Changes to normalized knowledge produce domain events such as:
 
 ```text
-observation.created
+fact.observed
+claim.admitted
+analysis.completed
 episode.created
 episode.updated
 insight.observed
@@ -166,23 +259,25 @@ decision.recorded
 failure.observed
 experiment.completed
 artifact.produced
-scan.completed
 ```
 
 Knowledge changes and their events commit in one SQLite transaction. This
 prevents an updated projection from existing without the event that describes
 the change.
 
-### 5. Enqueue subscriptions
-
 Each focused agent declares the event types it handles. New events create
 durable jobs for matching subscriptions.
 
-The local queue provides at-least-once execution. Consumers must be
-idempotent. A stable key based on the event, agent, and agent version prevents
-duplicate outputs from retries.
+The target local queue provides at-least-once execution, so consumers are
+designed to be idempotent. The experimental V0 makes one terminal attempt. A
+stable key based on the event, agent, and agent version prevents duplicate
+outputs from exact reruns and prepares the boundary for later retry semantics.
 
-### 6. Retrieve evidence
+Episode building is not part of the immediate V0 flow. Episodes remain a later,
+revisable grouping hypothesis; one selected session is never assumed to equal
+one work episode.
+
+### 7. Retrieve evidence
 
 An agent receives an event envelope and narrow retrieval tools. It follows
 evidence references to request only the context it needs.
@@ -199,11 +294,17 @@ covers the higher-level observations and artifacts it owns.
 Full-text search over normalized Noema knowledge is the next retrieval strategy.
 Embeddings and fusion come later behind the same boundary.
 
-### 7. Produce a typed artifact
+### 8. Produce a typed artifact
 
 An agent returns a validated, typed artifact such as a content idea, workflow
 proposal, or draft. Noema stores the artifact, its evidence references, agent
 and model versions, input event, and run outcome.
+
+The generic runtime understands the artifact envelope, not the payload's
+business fields. The in-code agent handler validates its own versioned payload
+before the runtime commits it. Agent-specific tables or views may project an
+artifact for convenient queries, but they are not required by the queue or
+worker.
 
 Creating an artifact may publish another internal event. External side effects
 require a separate explicit approval path.
@@ -212,16 +313,21 @@ require a separate explicit approval path.
 
 | Component | Owns | Does not own |
 | --- | --- | --- |
-| Source adapter | Source discovery and supported reads | Domain policy, agent behavior, storage |
-| Ingestion service | Scan scope, change detection, checkpoints | Source parsing beyond the adapter |
-| Distiller | Evidence-to-observation extraction | Canonical evidence or publication decisions |
-| Episode builder | Revisable grouping and confidence | Workflow-specific identity |
-| Knowledge store | Derived records, metadata, relationships, evidence refs | Canonical source content |
+| Sessions | Provider capture, parsing, structural normalization, canonical retention, transcript retrieval | Semantic claims, agent behavior, Noema storage |
+| Sessions evidence reader | Supported CLI invocation, explicit-session selection, output-contract validation, bounded transient input | Provider parsing, Sessions storage, semantic interpretation |
+| Fact extractor | Deterministic observations, evidence links, extractor version | Semantic interpretation or source retention |
+| Semantic extractor | Candidate claims and model metadata | Admission, canonical evidence, publication decisions |
+| Claim validator | Schema, evidence, contradiction, privacy, and domain checks | Model reasoning or source mutation |
+| Episode builder | Later revisable grouping and confidence | Workflow-specific identity |
+| Knowledge store | Noema facts, claims, processing state, relationships, evidence refs | Canonical source content |
 | Retrieval service | Bounded evidence queries and result contracts | Agent orchestration |
 | Event store | Durable domain events and replay order | Full evidence bodies |
+| Subscription matcher | Event-to-agent matching and deterministic job identity | Extraction or agent reasoning |
 | Queue | Subscription jobs, leases, attempts, retry state | Agent reasoning |
-| Agent runtime | Model invocation, tool access, validation, run records | Domain storage details or external authority |
-| Presentation | Commands and review views | Ingestion, extraction, or model policy |
+| Agent runtime | Job lifecycle, model invocation, allowed retrieval, artifact envelopes, run records | Agent-specific payload meaning or external authority |
+| Agent handler | Typed input assembly, output validation, and artifact payload | Queue lifecycle or source access |
+| Artifact store | Generic artifact envelopes, payloads, versions, and lineage | Agent-specific interpretation or external publication |
+| Presentation | Commands and review views | Evidence admission, extraction, or model policy |
 | Composition root | Concrete adapters and provider wiring | Domain behavior |
 
 Dependencies point inward toward domain and application contracts. Only the
@@ -233,21 +339,24 @@ implementations.
 The first implementation needs a small model. Names may change during planning,
 but their responsibilities should remain separate.
 
-### Source document
+### Canonical evidence input
 
-A bounded representation returned by a source adapter:
+A bounded representation returned by a canonical evidence plane:
 
 - Source kind and instance
 - Stable native identity
+- Source contract schema and trust disposition
 - Document digest
 - Capture time and source time when known
-- Source metadata
+- Project, workspace, and other source metadata when known
+- Selection bounds, omissions, truncation, and available coverage
 - Bounded content or a supported way to request it
 
-The persistent source-document record does not need to copy the document body.
-For Sessions, it initially stores identity, digest, metadata, and processing
-state. Transcript content can remain transient during distillation, with only
-the minimum bounded excerpt retained when an artifact needs it for review.
+For Sessions, the durable document remains in Sessions. Noema stores identity,
+digest, processing keys, and exact coordinates rather than an immutable
+transcript copy. Canonical content remains transient during analysis, with only
+the minimum bounded, sanitized excerpt retained when an artifact needs it for
+review.
 
 ### Evidence reference
 
@@ -257,21 +366,82 @@ A durable pointer from a Noema claim to source evidence:
 - Document digest
 - Entry, segment, or other source coordinates when available
 - Content hash when available
+- Timestamp, actor, content origin, and tool-call or result relationship when
+  the canonical record directly supplies them
 - Bounded excerpt only when required for review
 
 An evidence reference is not proof that the referenced claim is true. It shows
 what evidence supported the interpretation.
 
-### Observation
+### Deterministic fact
 
-A normalized statement extracted from evidence:
+A mechanically derived observation:
 
-- Kind
-- Subject and summary
-- Time range
+- Kind and structured value
+- Extractor and schema version
+- Exact evidence references
+- Actor, origin, or subject when the canonical evidence directly supports it
+- Time or repository metadata when directly supported
+
+Deterministic facts do not need a model, prompt, or model confidence score. They
+remain derived records and can be rebuilt from canonical evidence.
+
+### Semantic claim
+
+A normalized interpretation admitted from untrusted model output:
+
+- Type: problem, symptom, hypothesis, failed attempt, root cause, decision,
+  solution, verification, or lesson
+- Statement
+- Status: observed, inferred, or uncertain
 - Confidence
-- Evidence references
-- Distiller and model version
+- Supporting and contradicting evidence references
+- Optional supporting deterministic-fact identities
+- Subject and scope when supported
+- Causal attribution, when relevant: user, agent, environment, mixed, or
+  unknown
+- Extractor, schema, prompt, model, and route versions
+
+`Observation` remains the initial storage and domain name for facts and claims
+while the schema is small. The authority class and kind must stay explicit so a
+deterministic fact is never confused with a model interpretation.
+
+### Analysis envelope
+
+A versioned record of one bounded processing attempt:
+
+- Selected source identities, document digests, and selection method
+- Project, workspace, and time scope when known
+- Bounds, omissions, truncation, and available coverage
+- Ordered admitted fact and claim identities
+- Evidence-admission, extractor, schema, prompt, model, route, and privacy
+  configuration that applies to the stages actually run
+- Start and completion times, status, and bounded failure details
+
+The envelope provides lineage and rerun identity across stages. It is not a
+session summary, work episode, or agent-specific input model. A Milestone 1
+analysis may stop after facts. A later semantic analysis can reuse those
+admitted inputs and add claims without modifying the earlier analysis.
+
+### Summary projection
+
+An optional, versioned view built only from an analysis's admitted facts and
+claims:
+
+- Problem and relevant context
+- Root cause and important decisions when supported
+- Attempts and their outcomes
+- Solution, final outcome, and verification
+- Reusable lessons
+- Unknowns, contradictions, omissions, and coverage limits
+- Supporting fact and claim identities for every section
+
+A summary is useful for inspection and context restoration, but it is not
+canonical evidence and does not create facts merely by stating them. When a
+model generates it, its schema and references are validated before admission.
+Agents may query the smaller records directly. Content suitability, personal
+development, and workflow recommendations remain agent judgments and never
+become summary fields in the neutral knowledge pipeline.
 
 ### Episode
 
@@ -314,6 +484,11 @@ A focused subscriber:
 The first version may define agents in code. A public plugin format is not
 required.
 
+Agent execution is stateless between jobs. The event and immutable job payload
+identify what changed; the agent retrieves admitted facts, claims, and bounded
+evidence; the run and artifact stores retain the result. Durable continuity
+never depends on a model remembering a prior run.
+
 ### Agent run
 
 One attempt to process an event:
@@ -329,32 +504,64 @@ One attempt to process an event:
 
 ### Agent artifact
 
-A typed, reviewable result with its own lifecycle. Content ideas are the first
-artifact type.
+A typed, reviewable result with its own lifecycle. Its generic envelope records:
+
+- Artifact ID, kind, and schema version
+- Producing run and input event or request
+- Versioned typed payload
+- Supporting and contradicting evidence references when applicable
+- Creation time, status, and supersession when later required
+
+Agent handlers use concrete payload types such as `ContentIdeaV1` or
+`CodingAssessmentV1`. The runtime persists them through the same envelope.
+Content ideas are the first artifact kind.
 
 ## Initial persistence
 
-SQLite is both the first durable store and the first local queue. Conceptual
-tables include:
+SQLite is both the first durable derived store and the first local queue. The
+foundation implements this deliberately small schema:
 
 ```text
-scan_runs
-source_documents
+scans
+evidence_chunks
 observations
-evidence_refs
-episodes
-episode_observations
-artifact_links
 events
-subscriptions
 jobs
 agent_runs
 content_ideas
-content_idea_evidence
 ```
 
-This is a responsibility map, not a committed migration. The implementation
-plan should prefer the smallest schema that preserves these boundaries.
+The schema proves the process boundary, not the final generic contracts. Its
+`scans.job_id`, `ScanRequest.ContentScoutConfigKey`, `JobPayload.ScanID`,
+`Observation.Summary`, `Agent.Run` returning `[]ContentIdeaDraft`,
+`JobCompletion.Ideas`, and `content_ideas` write path are Content Scout-specific
+or overly broad scaffold seams.
+
+Milestone 1 removes agent configuration and job creation from evidence and fact
+processing. Milestone 2 produces stable analysis events independent of any
+subscriber. Milestone 3 introduces deterministic subscription matching, a
+generic job input reference, agent result, and artifact envelope, and Content
+Scout-specific payload validation outside the generic worker. The existing
+`content_ideas` table may remain as a query projection, but core job completion
+cannot require it.
+
+Milestone work also evolves observations to represent deterministic facts,
+semantic claims, complete Sessions coordinates, attribution when supported,
+and explicit stage versions. It should add tables only when one of those
+durable responsibilities cannot be represented clearly in the existing
+schema. Knowledge units, episodes, and relation tables are not preconditions
+for V0.
+
+Each rerunnable stage has a separate identity:
+
+- Evidence admission: Sessions identity plus canonical digest and coordinates.
+- Facts: admitted evidence identity plus deterministic extractor version.
+- Claims: admitted evidence and facts plus semantic schema, prompt, model, and
+  route configuration.
+- Summary: ordered admitted fact and claim identities plus summary schema,
+  instructions, model, and route configuration when a model is used.
+- Agent artifact: ordered admitted input identities plus agent, artifact schema,
+  prompt, model, route, and retrieval-policy configuration.
 
 Canonical source state and Noema's derived state have different lifecycles.
 Rebuilding Noema's knowledge or search projection must not modify Sessions or
@@ -369,11 +576,12 @@ Noema:
 - Requires the user to index Sessions explicitly outside Noema.
 - Uses versioned JSON or JSONL commands.
 - Validates the structured-output schema and trust disposition.
-- Uses canonical source identity and document digests for incremental
-  processing.
+- Starts V0 from one explicit canonical session identity.
+- Uses canonical source identity, document digests, and exact entry and segment
+  coordinates for incremental processing.
 - Requests bounded evidence by default.
 - Treats transcript instructions as untrusted history.
-- Records whether each scan's source coverage was complete or partial.
+- Records omissions, bounds, and available coverage honestly.
 - Uses retained evidence from a partial Sessions capture, but never treats
   missing data in an incomplete scope as proof that evidence was removed.
 
@@ -382,7 +590,7 @@ Noema does not:
 - Import Sessions source modules.
 - Read or write the Sessions SQLite database.
 - Parse Cursor or Codex storage.
-- Duplicate retained raw transcripts.
+- Duplicate complete transcripts or create a second transcript-search archive.
 - Assume a session or lineage root is a complete work episode.
 
 ## Event and queue semantics
@@ -394,18 +602,22 @@ implementation must preserve:
 - Event schemas are versioned.
 - An event becomes visible only after its related knowledge change commits.
 - Subscription matching is deterministic.
-- Jobs are durable and at-least-once.
+- The target queue is at-least-once; V0 jobs are durable one-attempt records.
 - Agents are idempotent for an event and agent version.
 - Failures and retry attempts remain inspectable.
 - Replaying an event cannot grant more external authority.
 - An agent upgrade can be evaluated against retained events without silently
   replacing old artifacts.
 
-The experimental V0 stores the job during `noema scan sessions`. A separate
-`noema worker --once` invocation claims one pending job and makes one attempt.
-A failed job is terminal and inspectable. V0 does not yet claim at-least-once
-delivery, retry safety, leases, or replay; those remain target queue semantics
-to add only after the first agent path proves useful.
+Milestones 1 and 2 stop after persisting their admitted derived records and
+events. Milestone 3 runs generic subscription matching against a stable
+analysis event and stores the resulting Content Scout job atomically with the
+matching operation. Neither evidence processing nor semantic extraction knows
+which agent subscribed. A separate `noema worker --once` invocation claims one
+pending job and makes one attempt. A failed job is terminal and inspectable. V0
+does not yet claim at-least-once delivery, retry safety, leases, or replay;
+those remain target queue semantics to add only after the first agent path
+proves useful.
 
 Inngest, Cloudflare Queues, or Cloudflare Workflows may later implement parts
 of this execution model. Their run identifiers and status values remain
@@ -447,8 +659,8 @@ The runtime:
 2. Loads the event envelope and agent definition.
 3. Exposes only the allowed retrieval tools.
 4. Invokes the configured model.
-5. Validates the typed output.
-6. Stores the run and artifact.
+5. Lets the registered handler validate its typed output.
+6. Stores the run and generic artifact envelope atomically.
 7. Publishes any resulting internal event.
 8. Completes or retries the job.
 
@@ -457,10 +669,10 @@ responses are parsed and validated before entering application state.
 
 ## Model gateway
 
-Noema owns a small structured-generation interface. Distillers and agents call
-that interface using a task-level model alias, instructions, bounded input, and
-an output schema. They do not import a provider SDK, use a provider model name,
-or interpret a provider response directly.
+Noema owns a small structured-generation interface. Semantic extractors and
+agents call that interface using a task-level model alias, instructions,
+bounded input, and an output schema. They do not import a provider SDK, use a
+provider model name, or interpret a provider response directly.
 
 The first remote implementation uses Vercel AI Gateway through its
 OpenAI-compatible Chat Completions API. The adapter may use the official OpenAI
@@ -475,20 +687,19 @@ Model aliases resolve through configuration. A route includes:
 - Privacy requirements such as zero data retention and no prompt training.
 - Timeouts, token limits, and retry policy.
 
-Initial evaluation routes use `openai/gpt-oss-120b` served by Cerebras for
-distillation and `openai/gpt-5.4-mini` served by Azure for Content Scout. Both
-request zero data retention and no prompt training. These are configurable
-starting points, not permanent agent dependencies.
+Beginning in Milestone 2, initial evaluation routes use `openai/gpt-oss-120b`
+served by Cerebras for semantic extraction and `openai/gpt-5.4-mini` served by
+Azure for Content Scout. Both request zero data retention and no prompt
+training. These are configurable starting points, not permanent dependencies.
 
 Noema does not rely on gateway defaults for provider selection. Evaluation runs
 pin the provider so latency, cost, and output quality remain comparable.
 Production routes may allow an explicit fallback set only when every route
 satisfies the same capability and privacy policy.
 
-The first experimental slice pins exactly one provider per route and rejects
-multi-provider configuration. Comparison models are separate, explicitly
-selected routes. Automatic fallback remains a later production option, not V0
-behavior.
+V0 remote stages pin exactly one provider per route and reject multi-provider
+configuration. Comparison models are separate, explicitly selected routes.
+Automatic fallback remains a later production option, not V0 behavior.
 
 Every model result is validated against Noema's local output schema before it
 can create an observation or agent artifact. OpenAI compatibility only
@@ -501,7 +712,8 @@ required retention, training, provider, or structured-output guarantee cannot
 be requested, the call fails. V0 has no weaker-policy override. No configured
 remote route means no remote request.
 
-Agent runs record enough information to explain and compare model behavior:
+Semantic extraction and agent runs record enough information to explain and
+compare model behavior:
 
 - Model alias and requested canonical model.
 - Gateway, resolved inference provider, and resolved provider model.
@@ -515,12 +727,19 @@ Agent runs record enough information to explain and compare model behavior:
 
 Content Scout is the first agent and the acceptance test for the architecture.
 
-The first experimental slice writes one `scan.completed` event after a scan's
-new observations and granular domain events in the same atomic commit. The
-event carries the scan identity and bounded observation identities, not their
-evidence bodies. It is emitted only when the scan has at least one new
-observation. This creates one Content Scout job and preserves the limit of five
-ideas across the whole scan.
+Milestone 3 writes one batch event after a session analysis admits new semantic
+claims and granular domain events in the same atomic commit. The event carries
+the analysis identity and bounded claim identities, not their evidence bodies.
+This creates one Content Scout job and preserves the limit of five ideas across
+the selected analysis.
+
+The completed-analysis event has a stable identity independent of any agent or
+subscriber configuration. A first subscription creates a job from that
+retained event. If Content Scout's instructions, schema, model route, or other
+configuration changes, Noema may create a new job against the same event and
+analysis. That job is keyed by the ordered claim identities plus the new agent
+configuration. It does not re-emit knowledge events or repeat semantic
+extraction.
 
 Later versions may also let Content Scout react to individual events that can
 signal useful content, including:
@@ -537,7 +756,7 @@ It looks for practical lessons about AI-assisted software development,
 including tips, explanations, experiences, mistakes, experiments, and informed
 opinions.
 
-One scan returns at most five ideas ranked by strength. It does not force
+One analysis returns at most five ideas ranked by strength. It does not force
 variety between content styles and does not fill a quota with weak ideas.
 
 Each idea contains:
@@ -553,67 +772,64 @@ Each idea contains:
 The agent may return no ideas. It does not write a complete draft or publish
 content.
 
-Ideas have stable fingerprints. Overlapping scans do not repeat an unchanged
-idea. New independent evidence may strengthen and resurface an existing idea.
+Ideas have stable fingerprints. An unchanged analysis does not repeat an idea.
+Cross-session deduplication, strengthening, and resurfacing remain later
+hypotheses.
 
-## First vertical slice
+## Coding Evaluation agent
 
-The first implementation should prove one path through every required layer:
+Coding Evaluation is an accepted later agent after bounded multi-session
+analysis becomes trustworthy. It uses the same admitted facts and claims as
+Content Scout; it does not add a second extractor optimized for evaluation.
 
-```text
-Producer: noema scan sessions
-        ↓
-Sessions structured output
-        ↓
-Incremental source-document records
-        ↓
-Observation and insight distillation
-        ↓
-SQLite knowledge records + evidence refs
-        ↓
-Durable domain events
-        ↓
-SQLite subscription jobs
-        │
-        └──── durable process boundary ────┐
-                                           ↓
-Consumer: noema worker --once
-        ↓
-Content Scout model invocation
-        ↓
-Validated content-idea artifacts
-        ↓
-noema ideas list
-```
+An explicit user-selected scope identifies the sessions, projects, and time
+range to evaluate. The agent looks for recurring development patterns while
+preserving counterexamples and uncertainty. It must distinguish likely
+attribution among the user, coding agent, environment, mixed causes, and
+unknown causes. A single failed command or correction is not a weakness.
 
-The slice is complete when:
+Its `coding-assessment` artifact contains:
 
-- The same unchanged range can be scanned again without duplicate knowledge,
-  jobs, or ideas.
-- Changed source evidence produces a new immutable chunk version, observations,
-  and events.
-- Content Scout receives bounded, traceable evidence through retrieval
-  operations.
-- A successful manual scan-and-worker cycle shows no more than five ranked idea
-  cards.
-- Every idea can be traced to its supporting Sessions evidence.
-- Sensitive details are excluded or generalized according to the project
-  intent.
-- Empty results and agent failures are honest and inspectable.
-- No source data is modified and no content is published.
+- Evaluated scope and evidence coverage
+- Growth areas or development patterns, not identity judgments
+- Observed behavior, likely impact, recurrence, and confidence
+- Supporting and contradicting claim and evidence references
+- Attribution with an explicit unknown option
+- Concrete learning goal, suggested exercise, and success criterion
+
+The artifact is a private, reviewable proposal. It does not score personality
+or general ability, enroll the user in training, or modify tools and workflows.
+
+## Delivery sequence
+
+The executable foundation already proves the SQLite process boundary with fake
+adapters. Real behavior is added in three milestones:
+
+1. **Canonical evidence and deterministic facts.** Process one explicit
+   Sessions identity, validate bounded canonical export, store inspectable facts
+   with exact evidence coordinates, and make no model call.
+2. **Semantic claims.** Add privacy-filtered structured generation, validate
+   untrusted candidate claims against evidence and stronger facts, and persist
+   admitted claims and events.
+3. **Content Scout.** Match admitted knowledge to the focused agent, run the
+   separate generic worker, and store zero to five evidence-backed
+   `content-idea` artifacts.
+
+The full sequence is complete when one explicitly approved real session can
+cross all three milestones; every idea resolves through claims and facts to
+Sessions evidence; unchanged stages create no duplicate work; failures and
+empty results are inspectable; and no source is modified or content published.
+
+Detailed milestone gates and later decision triggers live in
+[the roadmap](roadmap.md).
 
 ## Growth path
 
-After the first slice is useful:
-
-1. Add idea decisions and selection history.
-2. Add full-text retrieval over normalized observations.
-3. Add Workflow Scout to test that agent subscriptions are general.
-4. Add a second source to test that ingestion is general.
-5. Add embeddings only when measured retrieval misses justify them.
-6. Add draft generation after idea selection creates useful feedback.
-7. Add scheduled or durable remote execution when manual local execution is
-   the limiting factor.
+After V0 is useful, follow the evidence-gated order in the roadmap. The first
+likely additions are idea decisions, optional knowledge-unit consolidation,
+multi-session analysis, Coding Evaluation, and drafts based on selection
+feedback. More sources, agents, retrieval methods, and execution infrastructure
+follow only when the current path exposes a concrete limit.
 
 Possible later mappings:
 
@@ -631,16 +847,39 @@ to remote infrastructure without a separate privacy design.
 ## Accepted decisions
 
 - Noema is separate from Harness and Sessions.
-- Sessions is the first source and remains the canonical coding-session
+- Sessions is the first evidence plane and remains the canonical coding-session
   library.
+- Noema consumes Sessions only through the public CLI and does not duplicate
+  its canonical transcript store or provider parsing.
 - Go and SQLite are the first implementation stack.
-- Noema owns derived knowledge, events, queue state, agent runs, and outputs.
+- Noema owns deterministic facts, semantic claims, events, queue state, agent
+  runs, and outputs.
+- One explicit canonical Sessions identity is processed before time-range or
+  ambient scans.
+- Deterministic facts precede semantic extraction, and facts and claims remain
+  separate authority classes.
+- Every processing attempt records a versioned analysis envelope with scope,
+  coverage, admitted inputs and outputs, configuration, and final status.
+- Summaries are optional projections over admitted facts and claims. They are
+  never source evidence, the sole retained knowledge, or a required agent input.
+- Evidence admission, facts, and claims are use-case-neutral. Content and
+  personal-development fields exist only in agent artifacts.
 - Work episodes are inferred Noema records, not Factory or workflow work items.
 - Events trigger focused agents; evidence is retrieved separately.
+- Subscription matching, not evidence processing, creates agent jobs.
+- Jobs reference a stable trigger and immutable knowledge inputs; the generic
+  payload does not require a scan or Content Scout fields.
+- Agent executions are stateless; durable continuity belongs to SQLite records,
+  not model memory.
+- The generic worker persists versioned artifact envelopes. Registered handlers
+  own typed payload validation; Content Scout fields do not belong in the
+  generic agent or completion contracts.
 - The local queue comes before a remote workflow engine.
 - Structured and full-text retrieval come before embeddings.
 - Content Scout is the first agent.
-- The first execution mode is a manual date-range scan followed by a separate
+- Coding Evaluation is an accepted later agent after multi-session analysis and
+  attribution are trustworthy.
+- The first complete execution mode is a manual producer followed by a separate
   one-shot worker invocation.
 - The first interface is a CLI.
 - The first artifact is an evidence-backed content idea, not a complete draft.
@@ -651,8 +890,10 @@ to remote infrastructure without a separate privacy design.
 - Models and inference providers are selected through explicit, configurable
   routes rather than agent code.
 - Gateway output is validated locally before it enters Noema's derived state.
-- The first Content Scout subscription uses one `scan.completed` event so a
-  scan creates at most one Content Scout job.
+- The first Content Scout subscription uses one completed-analysis batch event
+  so one selected analysis creates at most one Content Scout job.
+- Knowledge units and a second model verification pass require evidence from
+  real claims; they are not V0 prerequisites.
 
 ## Deferred decisions
 
@@ -660,10 +901,12 @@ The implementation plan must either resolve these choices or keep them behind a
 small boundary:
 
 - Exact gateway authentication and configuration file shape.
-- Exact Go SQLite driver.
 - Schema migration tool.
 - Structured-output validation library.
-- Whether distillation and Content Scout use the same model.
+- Exact Milestone 1 command grammar and local fact-inspection presentation.
+- How deterministic and semantic observation kinds map onto the first schema.
+- Exact generic artifact payload encoding and whether `content_ideas` remains a
+  projection after the Milestone 3 cutover.
 - How evidence is previewed safely in the CLI.
 - How the privacy filter combines deterministic rules and model review.
 - The first command grammar and configuration-file format.

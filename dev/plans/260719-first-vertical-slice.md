@@ -1,5 +1,23 @@
 # Build the first experimental Sessions-to-content-ideas slice
 
+- Status: partially implemented and superseded
+- Superseded: 2026-07-20
+- Replacement: [Product roadmap](../../docs/roadmap.md) and focused future
+  milestone plans
+
+This plan produced the runtime foundation now implemented in PR #5: the Go CLI,
+domain and application boundaries, SQLite handoff, producer and worker roles,
+idempotency seams, and fake end-to-end proof. Its remaining all-at-once sequence
+is no longer active:
+
+- Sessions evidence admission and deterministic facts moved to V0 Milestone 1.
+- Semantic extraction, privacy, and the model gateway moved to V0 Milestone 2.
+- Real Content Scout integration moved to V0 Milestone 3.
+
+Preserve the original plan below as decision history. Do not implement its
+remaining steps directly; create a focused reviewed plan for the current
+roadmap milestone.
+
 ## Goal
 
 Prove Noema's core hypothesis with the smallest useful end-to-end path:
