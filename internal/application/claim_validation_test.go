@@ -373,6 +373,7 @@ func TestAdmitClaimCandidatesProducesStableRouteSensitiveIDs(t *testing.T) {
 		name   string
 		change func(*ClaimAdmissionConfig)
 	}{
+		{name: "processing key", change: func(value *ClaimAdmissionConfig) { value.ProcessingKey = "processing-two" }},
 		{name: "extractor version", change: func(value *ClaimAdmissionConfig) { value.ExtractorVersion = "2" }},
 		{name: "schema version", change: func(value *ClaimAdmissionConfig) { value.SchemaVersion = 2 }},
 		{name: "prompt version", change: func(value *ClaimAdmissionConfig) {
@@ -459,7 +460,8 @@ func observedOutcomeCandidate(
 
 func validationConfig() ClaimAdmissionConfig {
 	return ClaimAdmissionConfig{
-		AnalysisRunID: "analysis-one", ExtractorName: "semantic-claims", ExtractorVersion: "1",
+		AnalysisRunID: "analysis-one", ProcessingKey: "processing-one",
+		ExtractorName: "semantic-claims", ExtractorVersion: "1",
 		SchemaVersion: 1, PromptVersion: "prompt-v1", CreatedAt: time.Date(2026, 7, 21, 12, 0, 0, 0, time.UTC),
 		Model: domain.ModelExecutionMetadata{
 			RequestedRoute: domain.RequestedModelRoute{

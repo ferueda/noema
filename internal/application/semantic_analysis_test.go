@@ -13,6 +13,7 @@ import (
 
 	"github.com/ferueda/noema/internal/domain"
 	noemaevidence "github.com/ferueda/noema/internal/evidence"
+	"github.com/ferueda/noema/internal/platform"
 )
 
 type recordingSemanticGenerator struct {
@@ -73,8 +74,11 @@ func TestSemanticAnalyzerFiltersBoundedInputAndBuildsCompletedAnalysis(t *testin
 		request.Input.Selection.Coverage != domain.CoverageCompleteRetainedSnapshot {
 		t.Fatalf("generator input is not the expected bounded complete selection: %#v", request.Input.Selection)
 	}
-	if request.PromptVersion != SemanticPromptVersion || request.SchemaVersion != SemanticClaimSchemaVersion ||
-		request.Instructions == "" || request.Route != semanticTestRoute() {
+	if request.PromptVersion != SemanticPromptVersion || request.Schema.Identity.Version != SemanticClaimSchemaVersion ||
+		request.Schema.Identity.Name != SemanticClaimSchemaName ||
+		request.Schema.Identity.Disposition != domain.StructuredOutputDispositionStrict ||
+		len(request.Schema.CanonicalJSON) == 0 || request.Instructions == "" ||
+		request.Route != semanticTestRoute().Requested {
 		t.Fatalf("generation request metadata = %#v", request)
 	}
 	if got := semanticTestJSON(t, analysis); got != analysisBefore {
@@ -91,7 +95,7 @@ func TestSemanticAnalyzerFiltersBoundedInputAndBuildsCompletedAnalysis(t *testin
 		len(run.ClaimIDs) != 1 || run.Model == nil {
 		t.Fatalf("semantic run = %#v", run)
 	}
-	if run.Model.RequestedRoute != semanticTestRoute() || run.Model.PromptVersion != SemanticPromptVersion ||
+	if run.Model.RequestedRoute != semanticTestRoute().Requested || run.Model.PromptVersion != SemanticPromptVersion ||
 		run.Model.ResolvedProvider != "cerebras" || run.Model.RequestID != "request-1" ||
 		run.Model.InputTokens == nil || *run.Model.InputTokens != 17 {
 		t.Fatalf("model execution metadata = %#v", run.Model)
@@ -104,6 +108,119 @@ func TestSemanticAnalyzerFiltersBoundedInputAndBuildsCompletedAnalysis(t *testin
 	if result.InputDigest == "" || result.Privacy.PolicyVersion != PrivacyPolicyVersion ||
 		len(result.Privacy.Redactions) == 0 {
 		t.Fatalf("input identity/privacy = %q / %#v", result.InputDigest, result.Privacy)
+	}
+}
+
+func TestSemanticAnalyzerPreparesCompleteIdentityBeforeGeneration(t *testing.T) {
+	analysis, document := semanticAnalysisFixture(t,
+		"Investigate /Users/example/dev/project/main.go",
+		"Record the bounded result.",
+	)
+	generator := &recordingSemanticGenerator{}
+	analyzer := semanticTestAnalyzer(generator)
+
+	prepared, err := analyzer.Prepare(SemanticAnalysisRequest{
+		FactAnalysis: analysis, Document: document, Route: semanticTestRoute(),
+	})
+	if err != nil {
+		t.Fatalf("prepare semantic analysis: %v", err)
+	}
+	if len(generator.requests) != 0 {
+		t.Fatalf("generation calls during preparation = %d, want 0", len(generator.requests))
+	}
+	if prepared.InputFactIDs == nil || !reflect.DeepEqual(*prepared.InputFactIDs, []string{"fact-command"}) ||
+		prepared.InputDigest == nil || *prepared.InputDigest == "" || prepared.Selection == nil ||
+		prepared.Privacy == nil || prepared.ProcessingKey == nil || *prepared.ProcessingKey == "" {
+		t.Fatalf("prepared identity is incomplete: %#v", prepared)
+	}
+	if prepared.Schema.Name != SemanticClaimSchemaName ||
+		prepared.Schema.Version != SemanticClaimSchemaVersion ||
+		prepared.Schema.Disposition != domain.StructuredOutputDispositionStrict ||
+		prepared.Schema.Digest == "" || prepared.Route.ConfigDigest == "" {
+		t.Fatalf("prepared schema/route identity = %#v / %#v", prepared.Schema, prepared.Route)
+	}
+	if strings.Contains(semanticTestJSON(t, prepared.GenerationRequest.Input), "/Users/example") ||
+		prepared.GenerationRequest.Schema.Identity != prepared.Schema ||
+		prepared.GenerationRequest.Route != prepared.Route.Requested {
+		t.Fatalf("prepared generation request = %#v", prepared.GenerationRequest)
+	}
+
+	changedRequest := SemanticAnalysisRequest{
+		FactAnalysis: analysis, Document: document, Route: semanticTestRoute(),
+	}
+	changedConfig := json.RawMessage(`{"profile":"semantic-v1","revision":2}`)
+	changedRequest.Route.SanitizedConfig = changedConfig
+	changedRequest.Route.ConfigDigest, err = platform.Fingerprint(changedConfig)
+	if err != nil {
+		t.Fatalf("fingerprint route configuration: %v", err)
+	}
+	changed, err := analyzer.Prepare(changedRequest)
+	if err != nil {
+		t.Fatalf("prepare changed route configuration: %v", err)
+	}
+	if *changed.InputDigest != *prepared.InputDigest || *changed.ProcessingKey == *prepared.ProcessingKey {
+		t.Fatalf("configuration changed the wrong identities: %#v / %#v", prepared, changed)
+	}
+}
+
+func TestSemanticAnalyzerPreparePreservesProgressOnPrivacyFailure(t *testing.T) {
+	secret := "ghp_" + strings.Repeat("a", 24)
+	analysis, document := semanticAnalysisFixture(t, "Inspect "+secret)
+	generator := &recordingSemanticGenerator{}
+
+	prepared, err := semanticTestAnalyzer(generator).Prepare(SemanticAnalysisRequest{
+		FactAnalysis: analysis, Document: document, Route: semanticTestRoute(),
+	})
+	var violation PrivacyViolation
+	if !errors.As(err, &violation) {
+		t.Fatalf("error = %v, want PrivacyViolation", err)
+	}
+	if prepared.Schema.Digest == "" || prepared.Route.ConfigDigest == "" || prepared.InputFactIDs == nil ||
+		prepared.Privacy == nil || len(prepared.Privacy.BlockedCategories) == 0 {
+		t.Fatal("established preparation fields were lost")
+	}
+	if prepared.Selection != nil || prepared.InputDigest != nil || prepared.ProcessingKey != nil {
+		t.Fatal("unavailable preparation fields were invented")
+	}
+	if len(generator.requests) != 0 {
+		t.Fatalf("generation calls = %d, want 0", len(generator.requests))
+	}
+}
+
+func TestSemanticAnalyzerPreparePreservesKnownEmptyFactSelection(t *testing.T) {
+	document := semanticDocument()
+	analysis := semanticAnalysisForDocument(t, document, nil)
+
+	prepared, err := semanticTestAnalyzer(nil).Prepare(SemanticAnalysisRequest{
+		FactAnalysis: analysis, Document: document, Route: semanticTestRoute(),
+	})
+	if err != nil {
+		t.Fatalf("prepare empty semantic analysis: %v", err)
+	}
+	if prepared.InputFactIDs == nil || len(*prepared.InputFactIDs) != 0 ||
+		prepared.Selection == nil || prepared.InputDigest == nil || prepared.ProcessingKey == nil {
+		t.Fatal("known-empty fact selection was not preserved")
+	}
+}
+
+func TestSemanticAnalyzerRejectsMutatedPreparationBeforeGeneration(t *testing.T) {
+	analysis, document := semanticAnalysisFixture(t, "Inspect the current behavior.")
+	generator := &recordingSemanticGenerator{}
+	analyzer := semanticTestAnalyzer(generator)
+	prepared, err := analyzer.Prepare(SemanticAnalysisRequest{
+		FactAnalysis: analysis, Document: document, Route: semanticTestRoute(),
+	})
+	if err != nil {
+		t.Fatalf("prepare semantic analysis: %v", err)
+	}
+	prepared.GenerationRequest.Input.Entries[0].Kind = "mutated"
+
+	_, err = analyzer.GeneratePrepared(context.Background(), prepared)
+	if !errors.Is(err, ErrSemanticInputInvalid) {
+		t.Fatalf("error = %v, want ErrSemanticInputInvalid", err)
+	}
+	if len(generator.requests) != 0 {
+		t.Fatalf("generation calls = %d, want 0", len(generator.requests))
 	}
 }
 
@@ -191,7 +308,7 @@ func TestSemanticAnalyzerBoundsExplicitInputAfterPrivacyExpansion(t *testing.T) 
 }
 
 func TestSemanticAnalyzerRejectsProtectedCandidateFieldsAsOneBatch(t *testing.T) {
-	for _, field := range []string{"statement", "subject", "scope"} {
+	for _, field := range []string{"statement", "subject", "scope", "actor", "origin"} {
 		t.Run(field, func(t *testing.T) {
 			analysis, document := semanticAnalysisFixture(t, "Inspect the current behavior.", "Record the result.")
 			generator := &recordingSemanticGenerator{
@@ -214,6 +331,10 @@ func TestSemanticAnalyzerRejectsProtectedCandidateFieldsAsOneBatch(t *testing.T)
 						protected.Subject = "/Users/example/private/subject"
 					case "scope":
 						protected.Scope = "/Users/example/private/scope"
+					case "actor":
+						protected.Actor = "/Users/example/private/actor"
+					case "origin":
+						protected.Origin = "/Users/example/private/origin"
 					}
 					return SemanticGenerationResult{
 						Candidates: []domain.ClaimCandidate{valid, protected}, Model: semanticModelMetadata(),
@@ -307,7 +428,7 @@ func TestSemanticAnalyzerRejectsRoutePrivacyMismatchBeforeGeneration(t *testing.
 	analysis, document := semanticAnalysisFixture(t, "Inspect the current behavior.", "Record the result.")
 	generator := &recordingSemanticGenerator{}
 	route := semanticTestRoute()
-	route.PrivacyPolicyVersion = "different-policy"
+	route.Requested.PrivacyPolicyVersion = "different-policy"
 
 	_, err := semanticTestAnalyzer(generator).Run(context.Background(), SemanticAnalysisRequest{
 		FactAnalysis: analysis, Document: document, Route: route,
@@ -323,18 +444,18 @@ func TestSemanticAnalyzerRejectsRoutePrivacyMismatchBeforeGeneration(t *testing.
 func TestSemanticAnalyzerRejectsProtectedAndInvalidRoutesBeforeGeneration(t *testing.T) {
 	for _, test := range []struct {
 		name       string
-		change     func(*domain.RequestedModelRoute)
+		change     func(*domain.ValidatedModelRoute)
 		privacyErr bool
 	}{
-		{name: "protected model", change: func(route *domain.RequestedModelRoute) {
-			route.Model = "openai/ghp_" + strings.Repeat("r", 24)
+		{name: "protected model", change: func(route *domain.ValidatedModelRoute) {
+			route.Requested.Model = "openai/ghp_" + strings.Repeat("r", 24)
 		}, privacyErr: true},
-		{name: "oversized provider", change: func(route *domain.RequestedModelRoute) {
-			route.Provider = strings.Repeat("p", 65)
+		{name: "oversized provider", change: func(route *domain.ValidatedModelRoute) {
+			route.Requested.Provider = strings.Repeat("p", 65)
 		}},
-		{name: "unknown alias", change: func(route *domain.RequestedModelRoute) { route.Alias = "other" }},
-		{name: "unknown gateway", change: func(route *domain.RequestedModelRoute) { route.Gateway = "other" }},
-		{name: "unknown route version", change: func(route *domain.RequestedModelRoute) { route.RouteVersion = "other" }},
+		{name: "unknown alias", change: func(route *domain.ValidatedModelRoute) { route.Requested.Alias = "other" }},
+		{name: "unknown gateway", change: func(route *domain.ValidatedModelRoute) { route.Requested.Gateway = "other" }},
+		{name: "unknown route version", change: func(route *domain.ValidatedModelRoute) { route.Requested.RouteVersion = "other" }},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			analysis, document := semanticAnalysisFixture(t, "Inspect the current behavior.")
@@ -360,10 +481,45 @@ func TestSemanticAnalyzerRejectsProtectedAndInvalidRoutesBeforeGeneration(t *tes
 	}
 }
 
+func TestSemanticAnalyzerRejectsInvalidRouteConfigurationIdentityBeforeGeneration(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		change func(*domain.ValidatedModelRoute)
+	}{
+		{name: "missing configuration", change: func(route *domain.ValidatedModelRoute) {
+			route.SanitizedConfig = nil
+		}},
+		{name: "non-object configuration", change: func(route *domain.ValidatedModelRoute) {
+			route.SanitizedConfig = json.RawMessage(`[]`)
+			route.ConfigDigest, _ = platform.Fingerprint(route.SanitizedConfig)
+		}},
+		{name: "digest mismatch", change: func(route *domain.ValidatedModelRoute) {
+			route.ConfigDigest = strings.Repeat("f", 64)
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			analysis, document := semanticAnalysisFixture(t, "Inspect the current behavior.")
+			generator := &recordingSemanticGenerator{}
+			route := semanticTestRoute()
+			test.change(&route)
+
+			prepared, err := semanticTestAnalyzer(generator).Prepare(SemanticAnalysisRequest{
+				FactAnalysis: analysis, Document: document, Route: route,
+			})
+			if !errors.Is(err, ErrSemanticInputInvalid) {
+				t.Fatalf("error = %v, want ErrSemanticInputInvalid", err)
+			}
+			if prepared.Schema.Digest == "" || prepared.InputFactIDs != nil || len(generator.requests) != 0 {
+				t.Fatal("route failure did not preserve the expected preparation boundary")
+			}
+		})
+	}
+}
+
 func TestValidateSemanticGenerationRequestSizeCapsCompleteEnvelope(t *testing.T) {
 	request := SemanticGenerationRequest{
 		Instructions: semanticInstructions, PromptVersion: SemanticPromptVersion,
-		SchemaVersion: SemanticClaimSchemaVersion, Route: semanticTestRoute(),
+		Schema: mustSemanticClaimOutputSchema(t), Route: semanticTestRoute().Requested,
 		Input: SemanticModelInput{SchemaVersion: SemanticInputSchemaVersion},
 	}
 	encoded, err := json.Marshal(request)
@@ -415,7 +571,7 @@ func TestSemanticAnalyzerIdentitiesTrackInputAndRoute(t *testing.T) {
 
 	routed := base
 	routed.Route = semanticTestRoute()
-	routed.Route.Model = "openai/comparison-model"
+	routed.Route.Requested.Model = "openai/comparison-model"
 	routeResult, err := analyzer.Run(context.Background(), routed)
 	if err != nil {
 		t.Fatalf("route run: %v", err)
@@ -443,11 +599,29 @@ func semanticTestAnalyzer(generator SemanticGenerator) SemanticAnalyzer {
 	}
 }
 
-func semanticTestRoute() domain.RequestedModelRoute {
-	return domain.RequestedModelRoute{
-		Alias: semanticRouteAlias, Gateway: semanticRouteGateway, Model: "openai/gpt-oss-120b",
-		Provider: "cerebras", RouteVersion: semanticRouteVersion, PrivacyPolicyVersion: PrivacyPolicyVersion,
+func semanticTestRoute() domain.ValidatedModelRoute {
+	configuration := json.RawMessage(`{"profile":"semantic-v1"}`)
+	digest, err := platform.Fingerprint(configuration)
+	if err != nil {
+		panic(err)
 	}
+	return domain.ValidatedModelRoute{
+		Requested: domain.RequestedModelRoute{
+			Alias: semanticRouteAlias, Gateway: semanticRouteGateway, Model: "openai/gpt-oss-120b",
+			Provider: "cerebras", RouteVersion: semanticRouteVersion, PrivacyPolicyVersion: PrivacyPolicyVersion,
+		},
+		SanitizedConfig: configuration,
+		ConfigDigest:    digest,
+	}
+}
+
+func mustSemanticClaimOutputSchema(t *testing.T) domain.StructuredOutputSchema {
+	t.Helper()
+	schema, err := semanticClaimOutputSchema()
+	if err != nil {
+		t.Fatalf("build semantic output schema: %v", err)
+	}
+	return schema
 }
 
 func semanticModelMetadata() domain.ModelExecutionMetadata {

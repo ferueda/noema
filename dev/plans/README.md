@@ -5,9 +5,12 @@ implementation.
 
 ## Active
 
+- [260721-semantic-durability-cleanup.md](260721-semantic-durability-cleanup.md) —
+  simplify the implemented durability internals without changing durable
+  behavior, then begin remote model work.
 - [260721-milestone-2-semantic-claims.md](260721-milestone-2-semantic-claims.md) —
-  admission is implemented; next persist validated claims and durable knowledge
-  events before adding the explicitly approved remote model request.
+  admission and durability are implemented; add the explicitly approved remote
+  model request after the bounded cleanup above.
 
 ## Superseded
 

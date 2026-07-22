@@ -69,14 +69,12 @@ func (store *Store) RecordFailedAnalysis(ctx context.Context, run domain.Analysi
 }
 
 func (store *Store) LoadFactAnalysis(ctx context.Context, id string) (domain.FactAnalysis, error) {
-	run, err := readAnalysisRun(store.database.QueryRowContext(ctx, `
-		SELECT id, processing_key, stage, requested_source_identity, revision_json,
-		       selection_json, extractor_name, extractor_version, schema_version,
-		       fact_ids_json, omissions_json, status, error, started_at, finished_at
-		  FROM analysis_runs WHERE id = ?
-	`, id))
+	run, err := loadAnalysisRun(ctx, store.database, id)
 	if err != nil {
 		return domain.FactAnalysis{}, fmt.Errorf("read fact analysis %s: %w", id, err)
+	}
+	if run.Stage != domain.AnalysisStageFacts {
+		return domain.FactAnalysis{}, fmt.Errorf("analysis %s has stage %s, want facts", id, run.Stage)
 	}
 	rows, err := store.database.QueryContext(ctx, `
 		SELECT id, fingerprint, analysis_run_id, kind, schema_version, value_json,
@@ -110,9 +108,22 @@ func (store *Store) LoadFactAnalysis(ctx context.Context, id string) (domain.Fac
 	return domain.FactAnalysis{Run: run, Facts: facts}, nil
 }
 
+type analysisRunQueryer interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+func loadAnalysisRun(ctx context.Context, queryer analysisRunQueryer, id string) (domain.AnalysisRun, error) {
+	return readAnalysisRun(queryer.QueryRowContext(ctx, `
+		SELECT id, processing_key, stage, requested_source_identity, revision_json,
+		       selection_json, extractor_name, extractor_version, schema_version,
+		       fact_ids_json, omissions_json, status, error, started_at, finished_at
+		  FROM analysis_runs WHERE id = ?
+	`, id))
+}
+
 func insertAnalysisRun(
 	ctx context.Context,
-	transaction *sql.Tx,
+	transaction analysisRunWriter,
 	run domain.AnalysisRun,
 	ignoreProcessingConflict bool,
 ) (bool, error) {
@@ -159,6 +170,10 @@ func insertAnalysisRun(
 		return false, fmt.Errorf("check inserted analysis run: %w", err)
 	}
 	return inserted == 1, nil
+}
+
+type analysisRunWriter interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
 }
 
 func insertFact(ctx context.Context, transaction *sql.Tx, fact domain.Fact, ordinal int) error {

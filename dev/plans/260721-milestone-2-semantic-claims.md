@@ -2,7 +2,9 @@
 
 - Status: in progress
 - Implemented: admission slice in PR #11 (`56981fc`)
-- Next: durability slice
+- Implemented: durability slice in this change
+- Next: [behavior-preserving durability cleanup](260721-semantic-durability-cleanup.md),
+  then the remote Gateway slice
 - Roadmap: [V0 Milestone 2](../../docs/roadmap.md#v0-milestone-2-validated-semantic-claims)
 
 ## Goal
@@ -29,8 +31,9 @@ The milestone is complete when:
 
 ## Implemented baseline
 
-PR #11 established the local admission boundary. Do not rebuild it in the
-remaining slices.
+PR #11 established the local admission boundary. The durability slice now
+persists that boundary without adding a remote model call. Do not rebuild it in
+the remaining slice.
 
 - `internal/domain/claim.go` owns the small claim vocabulary, untrusted
   candidates, admitted claims, requested routes, and model execution metadata.
@@ -47,20 +50,19 @@ remaining slices.
   the injected `SemanticGenerator`, and admits candidates through local schema,
   evidence, privacy, contradiction, attribution, and fact-consistency checks.
 - The application semantic boundary, not a provider adapter, owns the
-  versioned strict JSON Schema for candidate output. The remaining work adds
-  that schema to `SemanticGenerationRequest`; adapters only translate it.
-- The durability slice must close one narrow admission gap before persistence:
+  versioned strict JSON Schema for candidate output. It is carried by
+  `SemanticGenerationRequest`; adapters only translate it.
+- The durability slice closed one narrow admission gap before persistence:
   generated `Actor` and `Origin` are strings constrained to the existing fixed
   admitted vocabularies and must match supporting evidence. Postflight privacy
   also scans them alongside statement, subject, and scope as defense in depth;
   it does not replace or broaden those admission rules.
-- Routine tests use fake generation. No concrete Gateway adapter, remote
-  request, semantic persistence, semantic events, or semantic CLI command
-  exists yet.
+- Routine tests use fake generation. Semantic claims, failures, and events are
+  durable and inspectable. No concrete Gateway adapter, remote request, or
+  semantic-analysis creation command exists yet.
 
-The durability slice may make the minimum changes required to compute the
-processing identity before generation and make claim ownership unambiguous. It
-must preserve the existing evidence, privacy, and admission rules.
+The remaining remote slice must preserve the existing evidence, privacy,
+identity, durability, and admission rules.
 
 ## Locked remaining decisions
 
@@ -212,7 +214,7 @@ allowlisted route whose capabilities and privacy policy have been reviewed.
 
 ## Changes
 
-### 1. Durability application workflow — next slice
+### 1. Durability application workflow — implemented
 
 Keep the current admission logic and add one narrow persisted workflow around
 it rather than extending the foundation `Scanner` or `Distiller`.
@@ -259,7 +261,7 @@ The slice continues to inject a fake generator. It carries an already validated
 route value and digest but adds no route-file loader, remote adapter, or model
 SDK.
 
-### 2. SQLite semantic projection — next slice
+### 2. SQLite semantic projection — implemented
 
 Add `internal/adapters/sqlite/migrations/003_semantic_claims.sql` and one focused
 semantic store file. Leave the replayed `002_fact_analysis.sql` unchanged.
@@ -305,7 +307,7 @@ prove subject-type backfill preserves their IDs, fingerprints, and foreign-key
 relationships, and prove an unrecognized retained foundation event fails
 closed.
 
-### 3. Semantic inspection and resolution — next slice
+### 3. Semantic inspection and resolution — implemented
 
 Extend `noema analyses show <analysis-id> [--resolve]` without adding the remote
 analysis command yet.
@@ -435,10 +437,13 @@ path:
 1. **Admission slice — implemented:** semantic domain types, shared evidence
    references, bounded input, privacy policy, local claim validation, and fake
    generation.
-2. **Durability slice — next:** processing identity before generation, SQLite
+2. **Durability slice — implemented:** processing identity before generation, SQLite
    claims/details, atomic semantic events, exact reuse, failure recording,
    semantic inspection, and digest-locked resolution.
-3. **Remote slice:** Vercel adapter, explicit CLI approval/configuration,
+3. **Durability cleanup — next:** make preparation state private, split the
+   semantic store by responsibility, and share event fingerprint construction
+   without changing any durable or observable contract.
+4. **Remote slice:** Vercel adapter, explicit CLI approval/configuration,
    documentation, and offline end-to-end acceptance. Run one real approved
    session only after every local gate passes.
 

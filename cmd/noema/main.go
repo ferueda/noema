@@ -114,19 +114,42 @@ func runAnalyses(ctx context.Context, args []string, stdout, stderr io.Writer) e
 		return err
 	}
 	defer closeStore()
-	if !*resolve {
+	stage, err := store.AnalysisStage(ctx, analysisID)
+	if err != nil {
+		return err
+	}
+	switch stage {
+	case domain.AnalysisStageFacts:
+		if *resolve {
+			resolver := application.Resolver{Source: newSessionsReader(), Store: store}
+			analysis, err := resolver.Resolve(ctx, analysisID)
+			if err != nil {
+				return err
+			}
+			return writeJSON(stdout, analysis)
+		}
 		analysis, err := store.LoadFactAnalysis(ctx, analysisID)
 		if err != nil {
 			return err
 		}
 		return writeJSON(stdout, analysis)
+	case domain.AnalysisStageClaims:
+		if *resolve {
+			resolver := application.SemanticResolver{Source: newSessionsReader(), Store: store}
+			analysis, err := resolver.Resolve(ctx, analysisID)
+			if err != nil {
+				return err
+			}
+			return writeJSON(stdout, analysis)
+		}
+		analysis, err := store.LoadSemanticAnalysis(ctx, analysisID)
+		if err != nil {
+			return err
+		}
+		return writeJSON(stdout, analysis)
+	default:
+		return fmt.Errorf("analysis %s has unsupported stage %q", analysisID, stage)
 	}
-	resolver := application.Resolver{Source: newSessionsReader(), Store: store}
-	analysis, err := resolver.Resolve(ctx, analysisID)
-	if err != nil {
-		return err
-	}
-	return writeJSON(stdout, analysis)
 }
 
 func newSessionsReader() sessionsadapter.Reader {
@@ -234,7 +257,7 @@ func writeUsage(writer io.Writer) {
 
 commands:
   scan sessions   process one retained Sessions snapshot into deterministic facts
-  analyses show   inspect a stored fact analysis; optionally resolve its evidence
+  analyses show   inspect a stored analysis; optionally resolve its evidence
   worker --once   process one pending agent job (next milestone)
   jobs list       list durable jobs
   ideas list      list content ideas`)

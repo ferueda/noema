@@ -33,6 +33,7 @@ type Event struct {
 	ID          string
 	Fingerprint string
 	Type        string
+	SubjectType string
 	SubjectID   string
 	Payload     map[string]any
 	Evidence    []EvidenceRef

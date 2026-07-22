@@ -277,8 +277,9 @@ func (scanner Scanner) buildCommit(
 	for _, observation := range newObservations {
 		event, eventErr := scanner.newEvent(
 			"observation.created",
+			"observation",
 			observation.ID,
-			map[string]any{"observationId": observation.ID, "scanId": scanID},
+			map[string]any{"schemaVersion": 1, "observationId": observation.ID, "scanId": scanID},
 			observation.Evidence,
 		)
 		if eventErr != nil {
@@ -291,8 +292,9 @@ func (scanner Scanner) buildCommit(
 	if len(observations) > 0 {
 		scanEvent, eventErr := scanner.newEvent(
 			"scan.completed",
+			"scan",
 			scanID,
-			map[string]any{"scanId": scanID, "observationIds": observationIDs(observations)},
+			map[string]any{"schemaVersion": 1, "scanId": scanID, "observationIds": observationIDs(observations)},
 			unionEvidence(observations),
 		)
 		if eventErr != nil {
@@ -344,15 +346,17 @@ func (scanner Scanner) buildCommit(
 
 func (scanner Scanner) newEvent(
 	eventType string,
+	subjectType string,
 	subjectID string,
 	payload map[string]any,
 	evidence []domain.EvidenceRef,
 ) (domain.Event, error) {
 	fingerprint, err := platform.Fingerprint(struct {
-		Type      string
-		SubjectID string
-		Payload   map[string]any
-	}{Type: eventType, SubjectID: subjectID, Payload: payload})
+		Type        string
+		SubjectType string
+		SubjectID   string
+		Payload     map[string]any
+	}{Type: eventType, SubjectType: subjectType, SubjectID: subjectID, Payload: payload})
 	if err != nil {
 		return domain.Event{}, err
 	}
@@ -360,6 +364,7 @@ func (scanner Scanner) newEvent(
 		ID:          "evt_" + fingerprint[:32],
 		Fingerprint: fingerprint,
 		Type:        eventType,
+		SubjectType: subjectType,
 		SubjectID:   subjectID,
 		Payload:     payload,
 		Evidence:    evidence,

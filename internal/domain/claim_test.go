@@ -27,6 +27,29 @@ func TestClaimEnumsRejectUnknownValues(t *testing.T) {
 	}
 }
 
+func TestGeneratedClaimActorAndOriginVocabulariesAreClosed(t *testing.T) {
+	for _, value := range []string{"", "human", "model", "tool", "system"} {
+		if !ValidClaimActor(value) {
+			t.Fatalf("known actor %q was rejected", value)
+		}
+	}
+	for _, value := range []string{"unknown", "agent", "Human", " human "} {
+		if ValidClaimActor(value) {
+			t.Fatalf("unknown actor %q was accepted", value)
+		}
+	}
+	for _, value := range []string{"", "human", "injected", "delegated", "replayed-copied", "model", "tool", "system"} {
+		if !ValidClaimOrigin(value) {
+			t.Fatalf("known origin %q was rejected", value)
+		}
+	}
+	for _, value := range []string{"unknown", "agent", "Human", " human "} {
+		if ValidClaimOrigin(value) {
+			t.Fatalf("unknown origin %q was accepted", value)
+		}
+	}
+}
+
 func TestFactAnalysisRunOmitsSemanticMetadata(t *testing.T) {
 	encoded, err := json.Marshal(AnalysisRun{Stage: AnalysisStageFacts})
 	if err != nil {
