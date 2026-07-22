@@ -16,6 +16,13 @@ implementation.
 - [260722-semantic-evaluation-corpus.md](260722-semantic-evaluation-corpus.md) —
   establish a 12-case synthetic corpus with machine metrics and human review.
 
+## Queued
+
+- [260722-incremental-evidence-windows.md](260722-incremental-evidence-windows.md) —
+  after V0 feedback and the knowledge-unit checkpoint, plan one growing session
+  into deterministic windows and avoid repeated semantic calls for unchanged
+  work.
+
 ## Superseded
 
 - [260719-first-vertical-slice.md](260719-first-vertical-slice.md) — partially

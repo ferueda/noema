@@ -214,6 +214,46 @@ lesson. Every analysis states whether it covers the complete retained snapshot
 or only a selected range; partial analysis is never described as understanding
 the whole session.
 
+After the one-session Content Scout path is useful, idea decisions are being
+recorded, and the knowledge-unit checkpoint has been resolved, a deterministic
+local window planner replaces manual entry-number discovery for a growing session.
+It groups consecutive entries into bounded conversational windows, keeps linked
+tool calls and results together, prefers a safe boundary after deterministic
+verification, and otherwise closes at an input limit or the current end of the
+revision. The trailing end-of-revision window is provisional: appending entries
+may change and reprocess it, while earlier unchanged windows are not sent to a
+model again.
+
+Window planning is a local, versioned analysis stage over one admitted revision.
+The plan records bounds, boundary reasons, coverage, and fingerprints, but no
+transcript text. A cross-revision window fingerprint uses ordered canonical
+entry structure and content hashes without the whole-document digest. It may
+therefore recognize the same window in a later revision of the same canonical
+session. Remote execution still uses the existing revision-bound semantic
+workflow and its full prompt, schema, route, privacy, and extractor identity.
+The reuse identity also covers every revision-independent field sent by the
+semantic input builder and the builder's schema and limit-policy version.
+Changing any of those inputs reruns the window even when its source content is
+unchanged.
+
+Cross-revision reuse does not rewrite old claims or pretend they came from the
+newer Sessions revision. It references the prior completed semantic analysis,
+whose evidence remains bound to its original document digest. If that revision
+is no longer retained, its derived records remain inspectable but canonical
+evidence resolution still fails closed. A changed window creates a new semantic
+analysis and leaves the previous one immutable.
+
+The first window-planning slice is explicitly invoked for one session and has a
+reviewable local preview plus a user-approved maximum number of new semantic
+attempts that may invoke the remote model. Preview loads the reviewed route but
+requires no API key or remote approval and makes no network request. It uses the
+same versioned local preflight as execution, including privacy filtering and the
+complete prompt, schema, route, and request-size envelope. Execution must use
+the exact route digest recorded by the plan.
+It adds no Sessions manifest call, scheduler, daemon, model-based range selector,
+cross-session deduplication, summary, or episode inference. Multi-session work
+later reuses this per-revision planning behavior rather than replacing it.
+
 ### 2. Extract deterministic facts
 
 Code extracts what the canonical structure can establish without a model. The
