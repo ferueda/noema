@@ -58,6 +58,129 @@ func TestFactAnalysisMigrationPreservesFoundationData(t *testing.T) {
 	}
 }
 
+func TestSemanticMigrationBackfillsFoundationEventSubjectsWithoutRewritingEvents(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "noema.db")
+	database, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("open legacy database: %v", err)
+	}
+	for _, name := range []string{"001_initial.sql", "002_fact_analysis.sql"} {
+		migration, readErr := migrationFiles.ReadFile("migrations/" + name)
+		if readErr != nil {
+			t.Fatalf("read migration %s: %v", name, readErr)
+		}
+		if _, execErr := database.ExecContext(ctx, string(migration)); execErr != nil {
+			t.Fatalf("apply migration %s: %v", name, execErr)
+		}
+	}
+	now := formatTime(time.Date(2026, 7, 21, 10, 0, 0, 0, time.UTC))
+	if _, err := database.ExecContext(ctx, `
+		INSERT INTO scans (
+			id, fingerprint, knowledge_fingerprint, source_kind, after_time,
+			before_time, content_scope, coverage, status, skipped_count,
+			observation_ids_json, job_id, created_at, finished_at
+		) VALUES ('scan-one', 'scan-fp', 'knowledge-fp', 'synthetic', ?, ?,
+		          'private', 'complete', 'completed', 0, '["observation-one"]',
+		          'job-one', ?, ?);
+		INSERT INTO observations (
+			id, scan_id, fingerprint, distillation_key, kind, summary,
+			confidence, evidence_json, created_at
+		) VALUES ('observation-one', 'scan-one', 'observation-fp', 'distill-v0',
+		          'lesson', 'A generic lesson.', 0.8, '[]', ?);
+		INSERT INTO events (
+			id, fingerprint, type, subject_id, payload_json, evidence_json, created_at
+		) VALUES
+			('event-observation', 'event-observation-fp', 'observation.created',
+			 'observation-one', '{}', '[]', ?),
+			('event-scan', 'event-scan-fp', 'scan.completed',
+			 'scan-one', '{}', '[]', ?);
+		INSERT INTO jobs (
+			id, fingerprint, event_id, agent_name, agent_version, status,
+			payload_json, created_at
+		) VALUES ('job-one', 'job-fp', 'event-scan', 'content-scout', 'v0',
+		          'pending', '{}', ?)
+	`, now, now, now, now, now, now, now, now); err != nil {
+		t.Fatalf("insert milestone 1 fixture: %v", err)
+	}
+	if err := database.Close(); err != nil {
+		t.Fatalf("close legacy database: %v", err)
+	}
+
+	database, err = Open(ctx, path)
+	if err != nil {
+		t.Fatalf("migrate legacy database: %v", err)
+	}
+	defer database.Close()
+	rows, err := database.QueryContext(ctx, `
+		SELECT events.id, events.fingerprint, event_subject_types.subject_type
+		  FROM events
+		  JOIN event_subject_types ON event_subject_types.event_id = events.id
+		 ORDER BY events.id
+	`)
+	if err != nil {
+		t.Fatalf("query migrated events: %v", err)
+	}
+	defer rows.Close()
+	got := make([]string, 0, 2)
+	for rows.Next() {
+		var id, fingerprint, subjectType string
+		if err := rows.Scan(&id, &fingerprint, &subjectType); err != nil {
+			t.Fatalf("scan migrated event: %v", err)
+		}
+		got = append(got, id+":"+fingerprint+":"+subjectType)
+	}
+	want := []string{
+		"event-observation:event-observation-fp:observation",
+		"event-scan:event-scan-fp:scan",
+	}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("migrated events = %v, want %v", got, want)
+	}
+	var eventID string
+	if err := database.QueryRowContext(ctx, "SELECT event_id FROM jobs WHERE id = 'job-one'").Scan(&eventID); err != nil || eventID != "event-scan" {
+		t.Fatalf("job event after migration = %q, %v", eventID, err)
+	}
+	if err := database.Close(); err != nil {
+		t.Fatalf("close migrated database: %v", err)
+	}
+	database, err = Open(ctx, path)
+	if err != nil {
+		t.Fatalf("replay semantic migration: %v", err)
+	}
+	database.Close()
+}
+
+func TestSemanticMigrationRejectsUnknownExistingEventType(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "noema.db")
+	database, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("open legacy database: %v", err)
+	}
+	initial, err := migrationFiles.ReadFile("migrations/001_initial.sql")
+	if err != nil {
+		t.Fatalf("read initial migration: %v", err)
+	}
+	if _, err := database.ExecContext(ctx, string(initial)); err != nil {
+		t.Fatalf("apply legacy schema: %v", err)
+	}
+	if _, err := database.ExecContext(ctx, `
+		INSERT INTO events (
+			id, fingerprint, type, subject_id, payload_json, evidence_json, created_at
+		) VALUES ('event-unknown', 'event-unknown-fp', 'unknown.event',
+		          'subject-one', '{}', '[]', '2026-07-21T10:00:00Z')
+	`); err != nil {
+		t.Fatalf("insert unknown event: %v", err)
+	}
+	database.Close()
+
+	_, err = Open(ctx, path)
+	if err == nil || !strings.Contains(err.Error(), "unsupported type unknown.event") {
+		t.Fatalf("migration error = %v, want unsupported event type", err)
+	}
+}
+
 func TestStoreCommitsAndReusesFactAnalysisAtomically(t *testing.T) {
 	ctx := context.Background()
 	database, err := Open(ctx, filepath.Join(t.TempDir(), "noema.db"))

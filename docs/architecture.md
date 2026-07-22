@@ -484,7 +484,8 @@ A normalized interpretation admitted from untrusted model output:
 
 Deterministic facts and semantic claims use separate domain types and validation
 paths so invalid field combinations are difficult to represent. Facts use their
-own Milestone 1 table; the claim projection remains a Milestone 2 decision.
+own Milestone 1 table; claims and their semantic processing details use separate
+Milestone 2 projections.
 
 ### Analysis run
 
@@ -635,6 +636,15 @@ analysis_runs
 facts
 ```
 
+Milestone 2 adds the derived semantic projection and an additive event subject
+type sidecar without rewriting the foundation event envelope:
+
+```text
+semantic_analysis_details
+claims
+event_subject_types
+```
+
 The foundation schema proves the process boundary, not the final generic
 contracts. Its
 `scans.job_id`, `ScanRequest.ContentScoutConfigKey`, `JobPayload.ScanID`,
@@ -651,11 +661,11 @@ Scout-specific payload validation outside the generic worker. The existing
 cannot require it.
 
 Milestone 1 keeps deterministic `Fact` records and their `AnalysisRun` lineage
-separate from the broad foundation `Observation` model. Milestone 2 will add a
-distinct claim type and validation path; its exact persistence projection can
-follow the queries that prove useful. Complete Sessions coordinates and explicit
-stage versions are already part of the fact path. Knowledge units, episodes,
-and relation tables are not preconditions for V0.
+separate from the broad foundation `Observation` model. Milestone 2 keeps
+semantic claims, nullable progress details, and their validation path distinct
+from both facts and observations. Complete Sessions coordinates and explicit
+stage versions are part of both derived paths. Knowledge units, episodes, and
+relation tables are not preconditions for V0.
 
 Each rerunnable stage has a separate identity:
 

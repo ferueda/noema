@@ -29,6 +29,7 @@ var unsupportedAttributionActorPattern = regexp.MustCompile(`(?i)\b(?:users?|hum
 
 type ClaimAdmissionConfig struct {
 	AnalysisRunID    string
+	ProcessingKey    string
 	ExtractorName    string
 	ExtractorVersion string
 	SchemaVersion    int
@@ -124,31 +125,7 @@ func admitClaimCandidate(
 		return domain.Claim{}, err
 	}
 
-	normalized := candidate
-	normalized.Statement = statement
-	normalized.Subject = subject
-	normalized.Scope = scope
-	fingerprint, err := platform.Fingerprint(struct {
-		Candidate             domain.ClaimCandidate
-		SupportingEvidence    []domain.EvidenceRef
-		ContradictingEvidence []domain.EvidenceRef
-		ExtractorName         string
-		ExtractorVersion      string
-		SchemaVersion         int
-		PromptVersion         string
-		RequestedRoute        domain.RequestedModelRoute
-		ResolvedProvider      string
-		ResolvedModel         string
-	}{
-		normalized, supporting, contradicting, config.ExtractorName, config.ExtractorVersion,
-		config.SchemaVersion, config.PromptVersion, config.Model.RequestedRoute,
-		config.Model.ResolvedProvider, config.Model.ResolvedModel,
-	})
-	if err != nil {
-		return domain.Claim{}, errors.New("fingerprint claim")
-	}
-	return domain.Claim{
-		ID: platform.DerivedID("claim_", fingerprint), Fingerprint: fingerprint,
+	claim := domain.Claim{
 		AnalysisRunID: config.AnalysisRunID, Type: candidate.Type, Statement: statement,
 		Status: candidate.Status, Confidence: candidate.Confidence,
 		SupportingEvidence: supporting, ContradictingEvidence: contradicting,
@@ -159,7 +136,14 @@ func admitClaimCandidate(
 		PromptVersion: config.PromptVersion, RequestedRoute: config.Model.RequestedRoute,
 		ResolvedProvider: config.Model.ResolvedProvider, ResolvedModel: config.Model.ResolvedModel,
 		CreatedAt: config.CreatedAt.UTC(),
-	}, nil
+	}
+	fingerprint, err := ClaimFingerprint(config.ProcessingKey, claim)
+	if err != nil {
+		return domain.Claim{}, errors.New("fingerprint claim")
+	}
+	claim.ID = platform.DerivedID("claim_", fingerprint)
+	claim.Fingerprint = fingerprint
+	return claim, nil
 }
 
 func resolveClaimEvidence(
@@ -213,7 +197,7 @@ func validateSupportedActor(asserted string, supporting []domain.EvidenceRef) er
 	if asserted == "" {
 		return nil
 	}
-	if asserted == "unknown" || !oneOfString(asserted, "human", "model", "tool", "system") {
+	if !domain.ValidClaimActor(asserted) {
 		return errors.New("invalid actor")
 	}
 	matched := false
@@ -236,7 +220,7 @@ func validateSupportedOrigin(asserted string, supporting []domain.EvidenceRef) e
 	if asserted == "" {
 		return nil
 	}
-	if asserted == "unknown" || !oneOfString(asserted, "human", "injected", "delegated", "replayed-copied", "model", "tool", "system") {
+	if !domain.ValidClaimOrigin(asserted) {
 		return errors.New("invalid origin")
 	}
 	matched := false
@@ -399,7 +383,7 @@ func outcomeConflicts(claimed, observed string) bool {
 
 func validateClaimAdmissionConfig(config ClaimAdmissionConfig) error {
 	route := config.Model.RequestedRoute
-	if config.AnalysisRunID == "" || config.ExtractorName == "" || config.ExtractorVersion == "" ||
+	if config.AnalysisRunID == "" || config.ProcessingKey == "" || config.ExtractorName == "" || config.ExtractorVersion == "" ||
 		config.SchemaVersion <= 0 || config.PromptVersion == "" || config.Model.PromptVersion != config.PromptVersion ||
 		route.Alias == "" || route.Gateway == "" || route.Model == "" || route.Provider == "" ||
 		route.RouteVersion == "" || route.PrivacyPolicyVersion == "" || config.CreatedAt.IsZero() {
@@ -410,13 +394,4 @@ func validateClaimAdmissionConfig(config ClaimAdmissionConfig) error {
 
 func boundedUTF8(value string, limit int) bool {
 	return value != "" && utf8.ValidString(value) && len([]byte(value)) <= limit
-}
-
-func oneOfString(value string, allowed ...string) bool {
-	for _, candidate := range allowed {
-		if value == candidate {
-			return true
-		}
-	}
-	return false
 }

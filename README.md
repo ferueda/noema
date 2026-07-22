@@ -24,9 +24,13 @@ Noema is in early implementation. It can process one explicitly selected,
 already-indexed Sessions snapshot into deterministic, inspectable facts without
 a model call. Exact unchanged reruns reuse the prior analysis, changed document
 digests create a new analysis, and stored evidence resolves only while Sessions
-can return the recorded revision. The local producer-to-worker spine also
-persists its foundation records in SQLite; `worker --once` remains fail-closed
-until the later agent-runtime milestone.
+can return the recorded revision. Its local semantic durability path can also
+prepare bounded input, reuse an exact completed analysis, and atomically retain
+validated claims and knowledge events through an injected fake generator. The
+real Gateway adapter and semantic-analysis creation command are intentionally
+still absent. The local producer-to-worker spine also persists its foundation
+records in SQLite; `worker --once` remains fail-closed until the later
+agent-runtime milestone.
 
 The foundation still contains Content Scout-specific request, worker, and
 completion seams used by its fake end-to-end proof. The accepted architecture

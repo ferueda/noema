@@ -6,8 +6,8 @@ implementation.
 ## Active
 
 - [260721-milestone-2-semantic-claims.md](260721-milestone-2-semantic-claims.md) —
-  admission is implemented; next persist validated claims and durable knowledge
-  events before adding the explicitly approved remote model request.
+  admission and durability are implemented; next add the explicitly approved
+  remote model request.
 
 ## Superseded
 
