@@ -1,7 +1,7 @@
 # Project intent
 
 - Status: accepted product baseline
-- Date: 2026-07-20
+- Date: 2026-07-21
 
 ## Purpose
 
@@ -144,7 +144,7 @@ by Sessions is not a separate Noema source integration.
   inputs.
 - Sessions is the canonical evidence plane for coding-agent history. It owns
   provider discovery, parsing, structural extraction, normalization,
-  validation, retention, and transcript retrieval.
+  validation, retention, revision inventory, and transcript retrieval.
 - Noema consumes Sessions only through its versioned CLI JSON or JSONL
   contract. It does not import Sessions internals, open its SQLite database, or
   parse Codex or Cursor histories directly.
@@ -157,6 +157,11 @@ by Sessions is not a separate Noema source integration.
 - Noema never resolves stored coordinates against a different Sessions document
   digest. If the referenced revision is no longer retained, resolution fails
   closed rather than substituting evidence from the latest snapshot.
+- A future explicit multi-session operation may select one transcript-free,
+  ordered Sessions manifest cohort before hydrating individual documents.
+  Noema owns that operation and its processing outcomes; it does not treat the
+  manifest as a transcript archive, historical pin, or proof that provider
+  capture was complete.
 
 ### Derived state
 
@@ -340,6 +345,10 @@ evidence.
   identifier.
 - Sessions retains every raw provider revision or can always reproduce an
   earlier canonical snapshot.
+- A Sessions manifest pins the listed document bodies or makes an older body
+  addressable by digest.
+- An empty or successfully returned retained-library cohort proves that no
+  applicable provider sessions were missed.
 - Repeated text represents independent evidence.
 - Similarity represents truth, usefulness, or novelty.
 - A popular-looking idea is aligned with the user's voice or goals.

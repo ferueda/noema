@@ -6,8 +6,8 @@ implementation.
 ## Active
 
 - [260721-milestone-2-semantic-claims.md](260721-milestone-2-semantic-claims.md) —
-  turn one completed fact analysis into validated semantic claims and durable
-  knowledge events through an explicitly approved, bounded model request.
+  admission is implemented; next persist validated claims and durable knowledge
+  events before adding the explicitly approved remote model request.
 
 ## Superseded
 

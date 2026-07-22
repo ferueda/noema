@@ -1,7 +1,7 @@
 # Roadmap
 
 - Status: accepted product roadmap
-- Date: 2026-07-20
+- Date: 2026-07-21
 
 ## Purpose and authority
 
@@ -339,8 +339,9 @@ The expected order after V0 is:
    support approve, decline, and defer for non-content proposals.
 2. **Knowledge units when needed.** Consolidate claims only if individual
    claims are too granular or lessons recur across sessions.
-3. **Multi-session analysis.** Add explicit sets, time ranges, correlation, and
-   revisable episodes after one-session processing is trustworthy.
+3. **Multi-session analysis.** Add explicit manifest-backed evidence sets,
+   bounded time ranges, correlation, and revisable episodes after one-session
+   processing is trustworthy.
 4. **Coding Evaluation.** Use bounded multi-session evidence to identify
    development patterns and propose concrete learning goals without treating
    every failure as a user weakness.
@@ -362,6 +363,42 @@ The expected order after V0 is:
    missed.
 11. **Remote execution.** Consider Inngest or Cloudflare only when local durable
     execution, waiting, approval, or access becomes the actual constraint.
+
+### Multi-session analysis milestone
+
+This phase starts only after the one-session fact, claim, and Content Scout
+path is useful and inspectable. It adds one inventory-first operation:
+
+1. Select and validate one atomic, transcript-free Sessions manifest with
+   explicit supported filters.
+2. Persist a Noema `EvidenceSet` only for that explicit operation, including
+   normalized selection, capture scope, ordered revision identities, document
+   counts, and operation outcomes.
+3. Match each revision against the exact completed processing identities for
+   the requested stages. Canonical identity plus document digest answers
+   whether source evidence changed; the full processing key answers whether a
+   stage must rerun.
+4. Hydrate only stage misses. Accept a full export only when canonical identity
+   and document digest match the selected revision, with document counts checked
+   as an additional consistency guard.
+5. Mark unavailable or mismatched hydration incomplete without substituting a
+   newer body. A refreshed manifest starts a new evidence set rather than
+   changing the selected cohort in place.
+6. Keep deterministic facts and initial semantic claims per revision. Later
+   cohort-level analyses and agents reference the evidence set and reuse those
+   per-revision analyses instead of combining transcripts into one document.
+
+Manifest completeness, Sessions capture scope, Noema hydration outcomes, and
+per-document analysis coverage remain separate. An empty manifest with
+incomplete or uninitialized capture scope does not prove that no applicable
+sessions exist. Roots and lineage remain source metadata, not episodes or
+semantic relationships.
+
+The cohort selector will be a separate application port from the existing
+single-document reader when this phase begins. Do not add that port, an evidence
+set table, or a manifest call during V0. Project-scoped selection also remains
+deferred: the current manifest contract has no workspace or privacy-safe project
+facet, so Noema must not infer project identity from roots or other metadata.
 
 ### Coding Evaluation milestone
 
