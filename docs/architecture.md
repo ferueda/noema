@@ -1,7 +1,7 @@
 # Architecture
 
 - Status: accepted design baseline
-- Date: 2026-07-20
+- Date: 2026-07-21
 - Scope: local-first foundation and staged V0
 
 ## Executive summary
@@ -193,6 +193,13 @@ The local subprocess reader enforces a 64 MiB operational ceiling and records an
 inspectable failure rather than accepting a partial export or buffering input
 without a bound.
 
+Later multi-session work becomes inventory-first. One explicit operation reads
+a transcript-free `sessions manifest` cohort from a single retained-library
+snapshot, records its fixed selection and capture scope, and then hydrates only
+the revisions needed by requested processing stages. The current single-session
+path does not add this extra read: direct full export already returns the
+identity and digest it must validate.
+
 Canonical content is transient in Noema. The durable source snapshot remains in
 Sessions. Noema persists only the evidence coordinates and processing identity
 needed to explain and rerun its own derived stages, plus bounded selected fact
@@ -344,7 +351,7 @@ require a separate explicit approval path.
 
 | Component | Owns | Does not own |
 | --- | --- | --- |
-| Sessions | Provider capture, parsing, structural normalization, canonical retention, transcript retrieval | Semantic claims, agent behavior, Noema storage |
+| Sessions | Provider capture, parsing, structural normalization, canonical retention, revision inventory, transcript retrieval | Semantic claims, agent behavior, Noema storage |
 | Sessions evidence reader | Supported CLI invocation, explicit-session selection, output-contract validation, bounded transient input | Provider parsing, Sessions storage, semantic interpretation |
 | Fact extractor | Deterministic observations, evidence links, extractor version | Semantic interpretation or source retention |
 | Semantic extractor | Candidate claims and model metadata | Admission, canonical evidence, publication decisions |
@@ -392,6 +399,40 @@ Selection is an `AnalysisRun` responsibility. A run records whether it selected
 the complete retained snapshot or a bounded range, together with omissions,
 truncation, and available coverage. Several runs may select different parts of
 the same `EvidenceRevision` without creating new source revisions.
+
+### Evidence set
+
+`EvidenceSet` is the future Noema-owned selection record for one explicit
+multi-revision operation. It is not needed by the single-session V0 path and
+does not justify a domain type, port, or table until multi-session work begins.
+
+An evidence set records:
+
+- the source contract schema and trust disposition;
+- normalized cohort filters, fixed canonical order, and maximum cohort bound;
+- the Sessions `captureScope` returned with that cohort;
+- ordered canonical identities, document digests, and complete-document counts;
+- per-revision hydration and requested-stage processing outcomes.
+
+It contains no transcript body and does not pin a retained Sessions document.
+It also does not claim that its revisions form one episode. A later
+multi-session analysis references the evidence set and reuses per-revision fact
+and claim analyses rather than concatenating transcripts into one source
+document.
+
+Four coverage statements remain distinct:
+
+1. A successful manifest is complete for its query over one retained-library
+   snapshot and is never paged or truncated.
+2. Sessions `captureScope` describes whether applicable provider evidence may
+   be missing from that retained library.
+3. The evidence set's hydration outcome describes which selected revisions
+   Noema could still load and validate.
+4. Each document analysis separately records complete-retained-snapshot or
+   partial selection coverage.
+
+An empty manifest with incomplete or uninitialized capture scope does not prove
+that no applicable source sessions exist.
 
 ### Evidence reference
 
@@ -633,7 +674,10 @@ another source.
 
 ## Sessions boundary
 
-Sessions is the canonical local library for coding-agent history.
+Sessions is the external, local, revision-identified evidence plane for
+coding-agent history. A revision is verified by canonical identity plus
+document digest; it is not directly addressable by digest and a manifest does
+not pin its body.
 
 Noema:
 
@@ -641,6 +685,20 @@ Noema:
 - Uses versioned JSON or JSONL commands.
 - Validates the structured-output schema and trust disposition.
 - Starts V0 from one explicit canonical session identity.
+- In later explicit multi-session work, selects one atomic transcript-free
+  cohort with `sessions manifest --format jsonl` instead of paging `list`.
+- Preserves the manifest's normalized filters, canonical order, cohort bound,
+  capture scope, ordered revision identities, and document counts as one
+  Noema-owned evidence set only when an explicit operation requests it.
+- Matches each revision against the exact completed stage processing identity.
+  An unchanged source revision may still require hydration when an extractor,
+  schema, prompt, route, privacy policy, or other stage input changed.
+- Accepts hydrated content only when canonical identity and document digest
+  match the selected revision. Matching complete-document counts is an
+  additional consistency check, not a second revision identity.
+- Marks a mismatched or unavailable hydration incomplete and fails that
+  revision closed. It never refreshes the cohort or substitutes a newer body
+  inside the same operation; a new selection creates a new evidence set.
 - Uses canonical source identity, document digests, and exact entry and segment
   coordinates for incremental processing.
 - Reads the full export-eligible retained snapshot locally for Milestone 1;
@@ -666,6 +724,9 @@ Noema does not:
 - Parse Cursor or Codex storage.
 - Duplicate complete transcripts or create a second transcript-search archive.
 - Assume a session or lineage root is a complete work episode.
+- Treat manifest roots or lineage as Noema episodes or semantic relationships.
+- Infer project or workspace cohorts from manifest data; those facets are not
+  present in the current contract.
 
 ## Event and queue semantics
 
@@ -762,6 +823,15 @@ Model aliases resolve through configuration. A route includes:
 - Required capabilities, including JSON Schema structured output.
 - Privacy requirements such as zero data retention and no prompt training.
 - Timeouts, token limits, and retry policy.
+
+Milestone 2 resolves the V0 semantic-route boundary with one strict JSON route
+file supplied explicitly to the manual command. The file contains the
+non-secret route values above; the API key remains in `AI_GATEWAY_API_KEY`.
+The composition root accepts only the reviewed `semantic-v1` profile before it
+constructs the adapter. A missing or invalid file means there is no configured
+route and no remote request. This is a narrow route boundary, not a generic
+provider or plugin configuration system; the milestone plan owns its exact
+shape.
 
 Beginning in Milestone 2, initial evaluation routes use `openai/gpt-oss-120b`
 served by Cerebras for semantic extraction and `openai/gpt-5.4-mini` served by
@@ -935,6 +1005,15 @@ to remote infrastructure without a separate privacy design.
   runs, and outputs.
 - One explicit canonical Sessions identity is processed before time-range or
   ambient scans.
+- Later multi-session operations select one transcript-free manifest cohort and
+  persist a Noema evidence set only for an explicit operation; they do not add
+  manifest handling to the single-session V0 path.
+- Evidence sets keep manifest completeness, Sessions capture scope, Noema
+  hydration outcomes, and per-document analysis coverage distinct.
+- Initial fact and claim processing remains per revision. Cohort-level work
+  reuses exact completed stage identities instead of concatenating transcripts.
+- A manifest is revision inventory, not a body pin, project facet, episode, or
+  proof of complete provider capture.
 - Deterministic facts precede semantic extraction, and facts and claims remain
   separate authority classes.
 - Deterministic facts stay literal and preserve unknown outcomes; repeatable
@@ -976,6 +1055,8 @@ to remote infrastructure without a separate privacy design.
 - The initial gateway transport is OpenAI-compatible Chat Completions.
 - Models and inference providers are selected through explicit, configurable
   routes rather than agent code.
+- The V0 semantic route is supplied through one strict explicit route file;
+  credentials remain separate and no valid configured route means no request.
 - Gateway output is validated locally before it enters Noema's derived state.
 - The first Content Scout subscription uses one completed-analysis batch event
   so one selected analysis creates at most one Content Scout job.
@@ -989,7 +1070,6 @@ to remote infrastructure without a separate privacy design.
 The implementation plan must either resolve these choices or keep them behind a
 small boundary:
 
-- Exact gateway authentication and configuration file shape.
 - Schema migration tool.
 - Structured-output validation library.
 - The semantic-claim persistence projection and queries.
@@ -998,4 +1078,5 @@ small boundary:
 - How later artifact-specific previews build on Milestone 1's digest-locked,
   bounded evidence resolution.
 - How the privacy filter combines deterministic rules and model review.
-- The configuration-file format for remote semantic and agent routes.
+- Whether later agent routes reuse the V0 semantic route file or require a
+  broader shared configuration format.
