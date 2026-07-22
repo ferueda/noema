@@ -30,6 +30,7 @@ func validateCompletedSemanticRecord(record application.SemanticAnalysisRecord) 
 	}
 	if run.Revision == nil || run.Selection == nil || run.Model == nil ||
 		!reflect.DeepEqual(run.Model, record.Details.Model) ||
+		(record.Details.Model.CostUSD != nil && !domain.ValidModelCostUSD(*record.Details.Model.CostUSD)) ||
 		run.SchemaVersion != record.Details.Schema.Version ||
 		record.Details.Privacy.PolicyVersion != record.Details.Route.Requested.PrivacyPolicyVersion ||
 		record.Details.Model.RequestedRoute != record.Details.Route.Requested {
@@ -140,6 +141,10 @@ func validateFailedSemanticRecord(record application.SemanticAnalysisRecord) err
 	}
 	if record.Details.Model != nil && record.Details.AttemptedProcessingKey == nil {
 		return errors.New("failed semantic analysis model lacks processing identity")
+	}
+	if record.Details.Model != nil && record.Details.Model.CostUSD != nil &&
+		!domain.ValidModelCostUSD(*record.Details.Model.CostUSD) {
+		return errors.New("failed semantic analysis model cost is invalid")
 	}
 	if record.Details.AttemptedProcessingKey != nil {
 		if err := application.ValidateSemanticAttemptedProcessingLineage(run, record.Details); err != nil {

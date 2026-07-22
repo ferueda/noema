@@ -4,7 +4,8 @@
 - Implemented: admission slice in PR #11 (`56981fc`)
 - Implemented: durability slice in PR #13 (`265938e`)
 - Implemented: [behavior-preserving durability cleanup](260721-semantic-durability-cleanup.md)
-- Next: remote Gateway slice
+- Implemented: remote Gateway adapter, explicit CLI path, and offline acceptance
+- Next: one explicitly approved real-session evaluation after local review gates
 - Roadmap: [V0 Milestone 2](../../docs/roadmap.md#v0-milestone-2-validated-semantic-claims)
 
 ## Goal
@@ -443,9 +444,9 @@ path:
 3. **Durability cleanup — implemented:** make preparation state private, split the
    semantic store by responsibility, and share event fingerprint construction
    without changing any durable or observable contract.
-4. **Remote slice:** Vercel adapter, explicit CLI approval/configuration,
-   documentation, and offline end-to-end acceptance. Run one real approved
-   session only after every local gate passes.
+4. **Remote slice — implemented:** Vercel adapter, explicit CLI
+   approval/configuration, documentation, and offline end-to-end acceptance.
+   Run one real approved session only after every local gate passes.
 
 Keep one plan and one integration owner because selection, processing identity,
 claim validation, model metadata, and atomic events form one admission

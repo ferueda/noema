@@ -25,6 +25,15 @@ func main() {
 }
 
 func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
+	return runWithDependencies(ctx, args, stdout, stderr, defaultCommandDependencies())
+}
+
+func runWithDependencies(
+	ctx context.Context,
+	args []string,
+	stdout, stderr io.Writer,
+	dependencies commandDependencies,
+) error {
 	if len(args) == 0 {
 		writeUsage(stderr)
 		return errors.New("a command is required")
@@ -34,6 +43,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		return runScan(ctx, args[1:], stdout, stderr)
 	case "analyses":
 		return runAnalyses(ctx, args[1:], stdout, stderr)
+	case "analyze":
+		return runAnalyze(ctx, args[1:], stdout, stderr, dependencies)
 	case "worker":
 		return runWorker(ctx, args[1:], stdout, stderr)
 	case "jobs":
@@ -257,6 +268,7 @@ func writeUsage(writer io.Writer) {
 
 commands:
   scan sessions   process one retained Sessions snapshot into deterministic facts
+  analyze claims  derive validated semantic claims with explicit remote approval
   analyses show   inspect a stored analysis; optionally resolve its evidence
   worker --once   process one pending agent job (next milestone)
   jobs list       list durable jobs

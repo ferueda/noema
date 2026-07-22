@@ -111,6 +111,47 @@ func TestSemanticAnalyzerFiltersBoundedInputAndBuildsCompletedAnalysis(t *testin
 	}
 }
 
+func TestSemanticAnalyzerRejectsInvalidGeneratorMetadata(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		mutate func(*domain.ModelExecutionMetadata)
+	}{
+		{name: "resolved provider", mutate: func(metadata *domain.ModelExecutionMetadata) {
+			metadata.ResolvedProvider = "other"
+		}},
+		{name: "resolved model", mutate: func(metadata *domain.ModelExecutionMetadata) {
+			metadata.ResolvedModel = "openai/other"
+		}},
+		{name: "malformed cost", mutate: func(metadata *domain.ModelExecutionMetadata) {
+			value := "1e-4"
+			metadata.CostUSD = &value
+		}},
+		{name: "negative tokens", mutate: func(metadata *domain.ModelExecutionMetadata) {
+			value := -1
+			metadata.OutputTokens = &value
+		}},
+		{name: "inconsistent tokens", mutate: func(metadata *domain.ModelExecutionMetadata) {
+			value := 23
+			metadata.TotalTokens = &value
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			analysis, document := semanticAnalysisFixture(t, "Inspect the behavior.")
+			generator := &recordingSemanticGenerator{generate: func(SemanticGenerationRequest) (SemanticGenerationResult, error) {
+				metadata := semanticModelMetadata()
+				test.mutate(&metadata)
+				return SemanticGenerationResult{Candidates: []domain.ClaimCandidate{}, Model: metadata}, nil
+			}}
+			_, err := semanticTestAnalyzer(generator).Run(context.Background(), SemanticAnalysisRequest{
+				FactAnalysis: analysis, Document: document, Route: semanticTestRoute(),
+			})
+			if err == nil || !strings.Contains(err.Error(), "generation metadata") {
+				t.Fatalf("error = %v, want generation metadata failure", err)
+			}
+		})
+	}
+}
+
 func TestSemanticAnalyzerPreparesCompleteIdentityBeforeGeneration(t *testing.T) {
 	analysis, document := semanticAnalysisFixture(t,
 		"Investigate /Users/example/dev/project/main.go",
@@ -575,8 +616,11 @@ func TestValidateSemanticGenerationRequestSizeCapsCompleteEnvelope(t *testing.T)
 func TestSemanticAnalyzerIdentitiesTrackInputAndRoute(t *testing.T) {
 	analysis, document := semanticAnalysisFixture(t, "Inspect the current behavior.", "Record the result.")
 	generator := &recordingSemanticGenerator{
-		generate: func(SemanticGenerationRequest) (SemanticGenerationResult, error) {
-			return SemanticGenerationResult{Candidates: []domain.ClaimCandidate{}, Model: semanticModelMetadata()}, nil
+		generate: func(request SemanticGenerationRequest) (SemanticGenerationResult, error) {
+			metadata := semanticModelMetadata()
+			metadata.ResolvedProvider = request.Route.Provider
+			metadata.ResolvedModel = request.Route.Model
+			return SemanticGenerationResult{Candidates: []domain.ClaimCandidate{}, Model: metadata}, nil
 		},
 	}
 	analyzer := semanticTestAnalyzer(generator)
@@ -666,7 +710,7 @@ func semanticModelMetadata() domain.ModelExecutionMetadata {
 	inputTokens, outputTokens, totalTokens := 17, 5, 22
 	latency := int64(31)
 	return domain.ModelExecutionMetadata{
-		ResolvedProvider: "cerebras", ResolvedModel: "provider/model", RequestID: "request-1",
+		ResolvedProvider: "cerebras", ResolvedModel: "openai/gpt-oss-120b", RequestID: "request-1",
 		InputTokens: &inputTokens, OutputTokens: &outputTokens, TotalTokens: &totalTokens,
 		LatencyMilliseconds: &latency,
 	}

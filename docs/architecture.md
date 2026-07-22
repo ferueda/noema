@@ -843,6 +843,31 @@ route and no remote request. This is a narrow route boundary, not a generic
 provider or plugin configuration system; the milestone plan owns its exact
 shape.
 
+The implemented V0 file is
+[`config/semantic-route.example.json`](../config/semantic-route.example.json).
+Its `semantic-v1` profile is an exact allowlist: Vercel AI Gateway at the
+reviewed base URL, `openai/gpt-oss-120b` through Cerebras, strict JSON Schema,
+zero data retention, no prompt training, a 60-second timeout, 4,096 output
+tokens, and zero retries. Unknown fields, alternate route aliases, extra
+providers, changed limits, and weaker controls are rejected before adapter
+construction. Canonicalizing the accepted profile produces the stable route
+configuration digest; credentials never enter that value.
+
+The manual composition path is:
+
+```text
+noema analyze claims <fact-analysis-id> --allow-remote \
+  --route-config <path> [--first-entry <n> --last-entry <n>] \
+  [--database <path>]
+```
+
+Without an explicit range, the complete retained snapshot must fit every
+semantic input budget without truncation. A paired inclusive range may be
+bounded and is recorded as partial coverage. After deterministic privacy
+filtering, only the selected structural entry data, bounded text,
+deterministic facts, evidence IDs, omissions, and coverage cross the model
+boundary. Source identity and transcript storage do not.
+
 Beginning in Milestone 2, initial evaluation routes use `openai/gpt-oss-120b`
 served by Cerebras for semantic extraction and `openai/gpt-5.4-mini` served by
 Azure for Content Scout. Both request zero data retention and no prompt
@@ -867,6 +892,13 @@ applies its deterministic privacy filter and checks the configured route. If a
 required retention, training, provider, or structured-output guarantee cannot
 be requested, the call fails. V0 has no weaker-policy override. No configured
 remote route means no remote request.
+
+The Gateway adapter rejects missing or rewritten resolved provider/model
+metadata, non-`stop` completions, refusals, tool calls, malformed usage or cost,
+and output outside the application-owned schema. It rejects every HTTP redirect
+and caps both successful and error response bodies at 2 MiB before the SDK can
+read them. Requested Gateway retention and training controls constrain routing
+but are not local proof of provider behavior.
 
 Semantic extraction and agent runs record enough information to explain and
 compare model behavior:

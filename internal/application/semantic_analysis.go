@@ -84,7 +84,7 @@ type preparedSemanticAnalysis struct {
 }
 
 // SemanticAnalyzer owns semantic preparation, generation, and local admission.
-// SemanticWorkflow owns durable reuse; a concrete remote generator comes later.
+// SemanticWorkflow owns durable reuse; the injected generator owns provider execution.
 type SemanticAnalyzer struct {
 	Generator SemanticGenerator
 	Privacy   PrivacyPolicy
@@ -127,6 +127,9 @@ func (analyzer SemanticAnalyzer) generatePrepared(
 	}
 	generation.Model.RequestedRoute = prepared.Route.Requested
 	generation.Model.PromptVersion = SemanticPromptVersion
+	if err := validateSemanticModelExecution(generation.Model, prepared.Route.Requested); err != nil {
+		return SemanticGenerationResult{}, errors.New("semantic generation metadata is invalid")
+	}
 	return generation, nil
 }
 
@@ -148,7 +151,7 @@ func (analyzer SemanticAnalyzer) admitPrepared(
 		return SemanticAnalysisResult{}, err
 	}
 	metadata := generation.Model
-	if metadata.RequestedRoute != prepared.Route.Requested || metadata.PromptVersion != SemanticPromptVersion {
+	if err := validateSemanticModelExecution(metadata, prepared.Route.Requested); err != nil {
 		return SemanticAnalysisResult{}, errors.New("semantic generation metadata is invalid")
 	}
 	createdAt := analyzer.now()
@@ -542,6 +545,36 @@ func validateSemanticGenerationRequestSize(request SemanticGenerationRequest, li
 		return fmt.Errorf("%w: generation request", ErrSemanticInputTooLarge)
 	}
 	return nil
+}
+
+func validateSemanticModelExecution(
+	metadata domain.ModelExecutionMetadata,
+	route domain.RequestedModelRoute,
+) error {
+	if metadata.RequestedRoute != route || metadata.PromptVersion != SemanticPromptVersion ||
+		metadata.ResolvedProvider != route.Provider || metadata.ResolvedModel != route.Model ||
+		(metadata.CostUSD != nil && !domain.ValidModelCostUSD(*metadata.CostUSD)) ||
+		!validOptionalModelCount(metadata.InputTokens) ||
+		!validOptionalModelCount(metadata.OutputTokens) ||
+		!validOptionalModelCount(metadata.TotalTokens) ||
+		(metadata.LatencyMilliseconds != nil && *metadata.LatencyMilliseconds < 0) ||
+		len(metadata.RequestID) > 256 {
+		return errors.New("invalid model execution metadata")
+	}
+	if metadata.InputTokens != nil && metadata.OutputTokens != nil && metadata.TotalTokens != nil &&
+		*metadata.InputTokens+*metadata.OutputTokens != *metadata.TotalTokens {
+		return errors.New("invalid model usage metadata")
+	}
+	for _, char := range metadata.RequestID {
+		if char < 0x21 || char == 0x7f {
+			return errors.New("invalid model request identity")
+		}
+	}
+	return nil
+}
+
+func validOptionalModelCount(value *int) bool {
+	return value == nil || (*value >= 0 && *value <= 1_000_000_000)
 }
 
 func (analyzer SemanticAnalyzer) now() time.Time {
