@@ -236,7 +236,7 @@ func TestSemanticWorkflowReusesExactCompletedAnalysisWithoutGenerationOrIdentity
 	analysis, document := semanticAnalysisFixture(t, "Inspect the current behavior.")
 	generator := &recordingSemanticGenerator{}
 	analyzer := semanticTestAnalyzer(generator)
-	prepared, err := analyzer.Prepare(SemanticAnalysisRequest{
+	prepared, err := analyzer.prepare(SemanticAnalysisRequest{
 		FactAnalysis: analysis,
 		Document:     document,
 		Route:        semanticTestRoute(),

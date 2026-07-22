@@ -1,6 +1,6 @@
 # Simplify semantic durability internals
 
-- Status: ready
+- Status: implemented
 - Follows: Milestone 2 durability slice
 - Precedes: Milestone 2 remote Gateway slice
 - Parent plan: [Admit evidence-backed semantic claims](260721-milestone-2-semantic-claims.md)

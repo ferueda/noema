@@ -351,12 +351,7 @@ func (scanner Scanner) newEvent(
 	payload map[string]any,
 	evidence []domain.EvidenceRef,
 ) (domain.Event, error) {
-	fingerprint, err := platform.Fingerprint(struct {
-		Type        string
-		SubjectType string
-		SubjectID   string
-		Payload     map[string]any
-	}{Type: eventType, SubjectType: subjectType, SubjectID: subjectID, Payload: payload})
+	fingerprint, err := EventFingerprint(eventType, subjectType, subjectID, payload)
 	if err != nil {
 		return domain.Event{}, err
 	}
