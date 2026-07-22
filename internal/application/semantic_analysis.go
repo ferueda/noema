@@ -65,9 +65,9 @@ type SemanticAnalysisResult struct {
 	Route       domain.ValidatedModelRoute            `json:"route"`
 }
 
-// PreparedSemanticAnalysis contains every value that controls reuse and claim
+// preparedSemanticAnalysis contains every value that controls reuse and claim
 // identity. It is complete before a generator can be called.
-type PreparedSemanticAnalysis struct {
+type preparedSemanticAnalysis struct {
 	Input             PreparedSemanticInput
 	GenerationRequest SemanticGenerationRequest
 	Schema            domain.StructuredOutputSchemaIdentity
@@ -94,7 +94,7 @@ type SemanticAnalyzer struct {
 
 func (analyzer SemanticAnalyzer) Run(ctx context.Context, request SemanticAnalysisRequest) (SemanticAnalysisResult, error) {
 	startedAt := analyzer.now()
-	prepared, err := analyzer.Prepare(request)
+	prepared, err := analyzer.prepare(request)
 	if err != nil {
 		return SemanticAnalysisResult{}, err
 	}
@@ -102,18 +102,18 @@ func (analyzer SemanticAnalyzer) Run(ctx context.Context, request SemanticAnalys
 	if err != nil {
 		return SemanticAnalysisResult{}, errors.New("semantic analysis identity is unavailable")
 	}
-	generation, err := analyzer.GeneratePrepared(ctx, prepared)
+	generation, err := analyzer.generatePrepared(ctx, prepared)
 	if err != nil {
 		return SemanticAnalysisResult{}, err
 	}
-	return analyzer.AdmitPrepared(prepared, generation, analysisID, startedAt)
+	return analyzer.admitPrepared(prepared, generation, analysisID, startedAt)
 }
 
-// GeneratePrepared invokes only the injected provider-neutral generator. It
+// generatePrepared invokes only the injected provider-neutral generator. It
 // returns model metadata even when later local admission rejects the output.
-func (analyzer SemanticAnalyzer) GeneratePrepared(
+func (analyzer SemanticAnalyzer) generatePrepared(
 	ctx context.Context,
-	prepared PreparedSemanticAnalysis,
+	prepared preparedSemanticAnalysis,
 ) (SemanticGenerationResult, error) {
 	if analyzer.Generator == nil {
 		return SemanticGenerationResult{}, errors.New("semantic generator is unavailable")
@@ -130,10 +130,10 @@ func (analyzer SemanticAnalyzer) GeneratePrepared(
 	return generation, nil
 }
 
-// AdmitPrepared applies postflight and claim validation, then builds the
+// admitPrepared applies postflight and claim validation, then builds the
 // completed in-memory analysis. Persistence remains a separate responsibility.
-func (analyzer SemanticAnalyzer) AdmitPrepared(
-	prepared PreparedSemanticAnalysis,
+func (analyzer SemanticAnalyzer) admitPrepared(
+	prepared preparedSemanticAnalysis,
 	generation SemanticGenerationResult,
 	analysisID string,
 	startedAt time.Time,
@@ -182,11 +182,11 @@ func (analyzer SemanticAnalyzer) AdmitPrepared(
 	}, nil
 }
 
-// Prepare computes the complete processing identity and outbound request
+// prepare computes the complete processing identity and outbound request
 // before generation. Persistence can use the key for exact reuse without
 // rebuilding or re-filtering the input.
-func (analyzer SemanticAnalyzer) Prepare(request SemanticAnalysisRequest) (PreparedSemanticAnalysis, error) {
-	prepared := PreparedSemanticAnalysis{
+func (analyzer SemanticAnalyzer) prepare(request SemanticAnalysisRequest) (preparedSemanticAnalysis, error) {
+	prepared := preparedSemanticAnalysis{
 		Route: request.Route, SourceSelection: request.Document.Selection,
 		SourceOmissions: request.FactAnalysis.Run.Omissions,
 	}
@@ -281,7 +281,7 @@ func SemanticProcessingKey(
 	})
 }
 
-func validateCompleteSemanticPreparation(prepared PreparedSemanticAnalysis) error {
+func validateCompleteSemanticPreparation(prepared preparedSemanticAnalysis) error {
 	if prepared.InputFactIDs == nil || prepared.InputDigest == nil || prepared.Selection == nil ||
 		prepared.RunSelection == nil ||
 		prepared.Privacy == nil || prepared.ProcessingKey == nil || *prepared.ProcessingKey == "" {

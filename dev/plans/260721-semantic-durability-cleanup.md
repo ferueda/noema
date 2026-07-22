@@ -1,6 +1,6 @@
 # Simplify semantic durability internals
 
-- Status: ready
+- Status: implemented
 - Follows: Milestone 2 durability slice
 - Precedes: Milestone 2 remote Gateway slice
 - Parent plan: [Admit evidence-backed semantic claims](260721-milestone-2-semantic-claims.md)
@@ -30,7 +30,11 @@ must remain unchanged.
    generation and again before admission: the first protects the remote-call
    boundary, while the second detects mutation by an injected generator before
    claims are admitted. Keep `SemanticAnalyzer.Run` and
-   `SemanticWorkflow.Run` as the stable application entry points.
+   `SemanticWorkflow.Run` as the stable application entry points. Extend
+   `internal/application/semantic_analysis_test.go` with a generator that
+   mutates an aliased request value during `Generate`, returns otherwise valid
+   output, and proves the second validation rejects admission before claims or
+   events can commit.
 
 2. `internal/application/semantic_workflow.go:semanticDetailsFromPreparation`
    — consume the package-private progressive value when recording failures;
@@ -50,11 +54,23 @@ must remain unchanged.
    validation. This is a file-ownership cleanup, not a new repository layer.
 
 4. Add `internal/application/event_identity.go` with one canonical
-   `EventFingerprint` function over event type, subject type, subject identity,
-   and payload. Use it from `Scanner.newEvent`, semantic event construction, and
-   SQLite semantic event verification. Preserve the existing foundation and
-   semantic event ID derivation rules and all retained fingerprints; do not
-   rewrite or migrate events merely to make their ID formats uniform.
+   `EventFingerprint(eventType, subjectType, subjectID string, payload
+   map[string]any) (string, error)` function. It is a pure wrapper around the
+   exact current fingerprint input: event type, subject type, subject identity,
+   and payload in their existing serialized shape. It does not validate the
+   event, include evidence or time, or derive an event ID. Use it from
+   `Scanner.newEvent`, semantic event construction, and SQLite semantic event
+   verification. Preserve the existing foundation and semantic event ID
+   derivation rules and all retained fingerprints; do not rewrite or migrate
+   events merely to make their ID formats uniform.
+
+   Before replacing the three call sites, add fixed compatibility vectors in
+   `internal/application/event_identity_test.go` for one foundation event and
+   one semantic event. Hard-code the pre-cleanup fingerprint and ID values; do
+   not calculate the expected values with `EventFingerprint` or either current
+   constructor. The vectors must prove both existing ID rules remain unchanged:
+   foundation events use `"evt_" + fingerprint[:32]`, while semantic events use
+   `platform.DerivedID("evt_", fingerprint)`.
 
 5. Update the existing application, SQLite, integration, and CLI tests beside
    the moved code. Consolidate repeated fixtures only within their current
@@ -62,7 +78,20 @@ must remain unchanged.
    preparation progress, exact reuse, two-database-handle serialization,
    rollback, tamper rejection, migration compatibility, known-empty results,
    CLI inspection, and digest-locked resolution. Do not introduce a shared
-   test-support package solely to reduce line count.
+   test-support package solely to reduce line count. Add one focused
+   workflow-to-SQLite round trip under `internal/integration/` in which an
+   analysis with zero selected input facts fails after preparation. Reload the
+   failed run and require `Details.InputFactIDs` and `Run.InputFactIDs` to be
+   non-nil empty lists while `Details.ClaimIDs` remains unavailable.
+
+## Delivery order
+
+1. Capture the pre-cleanup event compatibility vectors, add
+   `EventFingerprint`, and cut over all three fingerprint call sites together.
+2. Make the preparation value and phase methods package-private, updating their
+   package-local callers and the two mutation-boundary tests atomically.
+3. Split the SQLite store mechanically, then consolidate only test setup whose
+   ownership remains obvious inside its current package.
 
 ## Verify
 

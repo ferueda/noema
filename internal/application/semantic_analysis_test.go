@@ -119,7 +119,7 @@ func TestSemanticAnalyzerPreparesCompleteIdentityBeforeGeneration(t *testing.T) 
 	generator := &recordingSemanticGenerator{}
 	analyzer := semanticTestAnalyzer(generator)
 
-	prepared, err := analyzer.Prepare(SemanticAnalysisRequest{
+	prepared, err := analyzer.prepare(SemanticAnalysisRequest{
 		FactAnalysis: analysis, Document: document, Route: semanticTestRoute(),
 	})
 	if err != nil {
@@ -154,7 +154,7 @@ func TestSemanticAnalyzerPreparesCompleteIdentityBeforeGeneration(t *testing.T) 
 	if err != nil {
 		t.Fatalf("fingerprint route configuration: %v", err)
 	}
-	changed, err := analyzer.Prepare(changedRequest)
+	changed, err := analyzer.prepare(changedRequest)
 	if err != nil {
 		t.Fatalf("prepare changed route configuration: %v", err)
 	}
@@ -168,7 +168,7 @@ func TestSemanticAnalyzerPreparePreservesProgressOnPrivacyFailure(t *testing.T) 
 	analysis, document := semanticAnalysisFixture(t, "Inspect "+secret)
 	generator := &recordingSemanticGenerator{}
 
-	prepared, err := semanticTestAnalyzer(generator).Prepare(SemanticAnalysisRequest{
+	prepared, err := semanticTestAnalyzer(generator).prepare(SemanticAnalysisRequest{
 		FactAnalysis: analysis, Document: document, Route: semanticTestRoute(),
 	})
 	var violation PrivacyViolation
@@ -191,7 +191,7 @@ func TestSemanticAnalyzerPreparePreservesKnownEmptyFactSelection(t *testing.T) {
 	document := semanticDocument()
 	analysis := semanticAnalysisForDocument(t, document, nil)
 
-	prepared, err := semanticTestAnalyzer(nil).Prepare(SemanticAnalysisRequest{
+	prepared, err := semanticTestAnalyzer(nil).prepare(SemanticAnalysisRequest{
 		FactAnalysis: analysis, Document: document, Route: semanticTestRoute(),
 	})
 	if err != nil {
@@ -207,7 +207,7 @@ func TestSemanticAnalyzerRejectsMutatedPreparationBeforeGeneration(t *testing.T)
 	analysis, document := semanticAnalysisFixture(t, "Inspect the current behavior.")
 	generator := &recordingSemanticGenerator{}
 	analyzer := semanticTestAnalyzer(generator)
-	prepared, err := analyzer.Prepare(SemanticAnalysisRequest{
+	prepared, err := analyzer.prepare(SemanticAnalysisRequest{
 		FactAnalysis: analysis, Document: document, Route: semanticTestRoute(),
 	})
 	if err != nil {
@@ -215,12 +215,50 @@ func TestSemanticAnalyzerRejectsMutatedPreparationBeforeGeneration(t *testing.T)
 	}
 	prepared.GenerationRequest.Input.Entries[0].Kind = "mutated"
 
-	_, err = analyzer.GeneratePrepared(context.Background(), prepared)
+	_, err = analyzer.generatePrepared(context.Background(), prepared)
 	if !errors.Is(err, ErrSemanticInputInvalid) {
 		t.Fatalf("error = %v, want ErrSemanticInputInvalid", err)
 	}
 	if len(generator.requests) != 0 {
 		t.Fatalf("generation calls = %d, want 0", len(generator.requests))
+	}
+}
+
+func TestSemanticAnalyzerRejectsPreparationMutatedDuringGeneration(t *testing.T) {
+	analysis, document := semanticAnalysisFixture(t, "Inspect the current behavior.")
+	generator := &recordingSemanticGenerator{generate: func(request SemanticGenerationRequest) (SemanticGenerationResult, error) {
+		support := request.Input.Entries[0].Segments[0].EvidenceID
+		request.Input.Entries[0].Kind = "mutated-by-generator"
+		return SemanticGenerationResult{
+			Candidates: []domain.ClaimCandidate{{
+				Type: domain.ClaimTypeLesson, Statement: "A second validation boundary detects aliased mutations.",
+				Status: domain.ClaimStatusInferred, Confidence: 0.8,
+				SupportingEvidenceIDs: []string{support},
+			}},
+			Model: semanticModelMetadata(),
+		}, nil
+	}}
+	analyzer := semanticTestAnalyzer(generator)
+	prepared, err := analyzer.prepare(SemanticAnalysisRequest{
+		FactAnalysis: analysis, Document: document, Route: semanticTestRoute(),
+	})
+	if err != nil {
+		t.Fatalf("prepare semantic analysis: %v", err)
+	}
+	generation, err := analyzer.generatePrepared(context.Background(), prepared)
+	if err != nil {
+		t.Fatalf("generate semantic analysis: %v", err)
+	}
+	if len(generation.Candidates) != 1 || len(generator.requests) != 1 {
+		t.Fatalf("generation result/calls = %#v / %d, want one candidate from one call", generation, len(generator.requests))
+	}
+
+	result, err := analyzer.admitPrepared(prepared, generation, "semantic-mutated", analyzer.now())
+	if !errors.Is(err, ErrSemanticInputInvalid) {
+		t.Fatalf("error = %v, want ErrSemanticInputInvalid", err)
+	}
+	if result.Analysis.Run.ID != "" || len(result.Analysis.Claims) != 0 {
+		t.Fatalf("mutated preparation produced admitted claims: %#v", result)
 	}
 }
 
@@ -503,7 +541,7 @@ func TestSemanticAnalyzerRejectsInvalidRouteConfigurationIdentityBeforeGeneratio
 			route := semanticTestRoute()
 			test.change(&route)
 
-			prepared, err := semanticTestAnalyzer(generator).Prepare(SemanticAnalysisRequest{
+			prepared, err := semanticTestAnalyzer(generator).prepare(SemanticAnalysisRequest{
 				FactAnalysis: analysis, Document: document, Route: route,
 			})
 			if !errors.Is(err, ErrSemanticInputInvalid) {

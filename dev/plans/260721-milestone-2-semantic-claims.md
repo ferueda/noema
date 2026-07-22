@@ -2,9 +2,9 @@
 
 - Status: in progress
 - Implemented: admission slice in PR #11 (`56981fc`)
-- Implemented: durability slice in this change
-- Next: [behavior-preserving durability cleanup](260721-semantic-durability-cleanup.md),
-  then the remote Gateway slice
+- Implemented: durability slice in PR #13 (`265938e`)
+- Implemented: [behavior-preserving durability cleanup](260721-semantic-durability-cleanup.md)
+- Next: remote Gateway slice
 - Roadmap: [V0 Milestone 2](../../docs/roadmap.md#v0-milestone-2-validated-semantic-claims)
 
 ## Goal
@@ -440,7 +440,7 @@ path:
 2. **Durability slice — implemented:** processing identity before generation, SQLite
    claims/details, atomic semantic events, exact reuse, failure recording,
    semantic inspection, and digest-locked resolution.
-3. **Durability cleanup — next:** make preparation state private, split the
+3. **Durability cleanup — implemented:** make preparation state private, split the
    semantic store by responsibility, and share event fingerprint construction
    without changing any durable or observable contract.
 4. **Remote slice:** Vercel adapter, explicit CLI approval/configuration,

@@ -64,7 +64,7 @@ func (workflow SemanticWorkflow) Run(
 		)
 	}
 
-	prepared, err := workflow.Analyzer.Prepare(SemanticAnalysisRequest{
+	prepared, err := workflow.Analyzer.prepare(SemanticAnalysisRequest{
 		FactAnalysis: factAnalysis,
 		Document:     document,
 		Bounds:       request.Bounds,
@@ -98,7 +98,7 @@ func (workflow SemanticWorkflow) Run(
 	if err != nil || analysisID == "" {
 		return SemanticWorkflowResult{}, errors.New("semantic analysis identity is unavailable")
 	}
-	generation, err := workflow.Analyzer.GeneratePrepared(ctx, prepared)
+	generation, err := workflow.Analyzer.generatePrepared(ctx, prepared)
 	if err != nil {
 		return SemanticWorkflowResult{}, workflow.recordFailure(
 			ctx, attempt, factAnalysis, details, prepared.RunSelection,
@@ -108,7 +108,7 @@ func (workflow SemanticWorkflow) Run(
 	}
 	model := generation.Model
 	details.Model = &model
-	result, err := workflow.Analyzer.AdmitPrepared(prepared, generation, analysisID, startedAt)
+	result, err := workflow.Analyzer.admitPrepared(prepared, generation, analysisID, startedAt)
 	if err != nil {
 		return SemanticWorkflowResult{}, workflow.recordFailure(
 			ctx, attempt, factAnalysis, details, prepared.RunSelection,
@@ -137,7 +137,7 @@ func (workflow SemanticWorkflow) Run(
 
 func semanticDetailsFromPreparation(
 	base SemanticAnalysisDetails,
-	prepared PreparedSemanticAnalysis,
+	prepared preparedSemanticAnalysis,
 ) SemanticAnalysisDetails {
 	details := base
 	if prepared.Schema.Name != "" {
@@ -310,12 +310,7 @@ func newSemanticEvent(
 		(subjectType != "claim" && subjectType != "analysis") || createdAt.IsZero() {
 		return domain.Event{}, errors.New("semantic event is invalid")
 	}
-	fingerprint, err := platform.Fingerprint(struct {
-		Type        string
-		SubjectType string
-		SubjectID   string
-		Payload     map[string]any
-	}{eventType, subjectType, subjectID, payload})
+	fingerprint, err := EventFingerprint(eventType, subjectType, subjectID, payload)
 	if err != nil {
 		return domain.Event{}, errors.New("semantic event identity is unavailable")
 	}

@@ -177,8 +177,8 @@ Understand one explicitly selected Sessions session without a model call.
 
 ## V0 Milestone 2: validated semantic claims
 
-- Status: in progress — admission and durability implemented; explicit remote
-  execution pending
+- Status: in progress — admission, durability, and the bounded cleanup are
+  implemented; explicit remote execution pending
 
 ### Goal
 
