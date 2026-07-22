@@ -69,7 +69,7 @@ func TestGeneratorSendsLockedStructuredGatewayRequest(t *testing.T) {
 		t.Fatalf("model metadata = %#v", result.Model)
 	}
 
-	assertGatewayRequest(t, outbound, request)
+	assertGatewayRequest(t, outbound, request, route)
 }
 
 func TestGeneratorAcceptsAbsentCost(t *testing.T) {
@@ -144,21 +144,45 @@ func TestGeneratorRejectsUnsafeResponseMetadataAndCompletionState(t *testing.T) 
 }
 
 func TestGeneratorSanitizesRemoteFailure(t *testing.T) {
-	route := loadedTestRoute(t)
-	client := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
-		return &http.Response{
-			StatusCode: http.StatusInternalServerError,
-			Header:     make(http.Header),
-			Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"secret transcript"}}`)),
-		}, nil
-	})}
-	generator, err := NewGenerator(route, "private-api-key", client)
-	if err != nil {
-		t.Fatalf("new generator: %v", err)
-	}
-	_, err = generator.Generate(context.Background(), testGenerationRequest(t, route))
-	if !errors.Is(err, ErrRequestFailed) || strings.Contains(err.Error(), "secret") || strings.Contains(err.Error(), "private") {
-		t.Fatalf("error = %v, want sanitized request failure", err)
+	for _, test := range []struct {
+		name     string
+		status   int
+		message  string
+		category string
+	}{
+		{name: "authentication", status: http.StatusUnauthorized, category: application.SemanticGenerationFailureAuthentication},
+		{name: "permission", status: http.StatusForbidden, category: application.SemanticGenerationFailurePermission},
+		{name: "rate limited", status: http.StatusTooManyRequests, category: application.SemanticGenerationFailureRateLimited},
+		{name: "request rejected", status: http.StatusUnprocessableEntity, category: application.SemanticGenerationFailureRequest},
+		{name: "schema rejected", status: http.StatusBadRequest, message: "Invalid fields for schema", category: application.SemanticGenerationFailureSchema},
+		{name: "context too large", status: http.StatusBadRequest, message: "Maximum context length exceeded", category: application.SemanticGenerationFailureContext},
+		{name: "content rejected", status: http.StatusBadRequest, message: "Content policy blocked the prompt", category: application.SemanticGenerationFailureContent},
+		{name: "upstream unavailable", status: http.StatusInternalServerError, category: application.SemanticGenerationFailureUpstream},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			route := loadedTestRoute(t)
+			client := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+				message := test.message
+				if message == "" {
+					message = "secret transcript"
+				}
+				body, _ := json.Marshal(map[string]any{"error": map[string]any{"message": message}})
+				return &http.Response{
+					StatusCode: test.status,
+					Header:     make(http.Header),
+					Body:       io.NopCloser(strings.NewReader(string(body))),
+				}, nil
+			})}
+			generator, err := NewGenerator(route, "private-api-key", client)
+			if err != nil {
+				t.Fatalf("new generator: %v", err)
+			}
+			_, err = generator.Generate(context.Background(), testGenerationRequest(t, route))
+			if !errors.Is(err, ErrRequestFailed) || strings.Contains(err.Error(), "secret") ||
+				strings.Contains(err.Error(), "private") || generationFailureCategory(err) != test.category {
+				t.Fatalf("error = %v, category = %q", err, generationFailureCategory(err))
+			}
+		})
 	}
 }
 
@@ -257,17 +281,21 @@ func TestNewGeneratorRejectsMissingCredentialsAndZeroRoute(t *testing.T) {
 	}
 }
 
-func assertGatewayRequest(t *testing.T, body map[string]any, request application.SemanticGenerationRequest) {
+func assertGatewayRequest(
+	t *testing.T,
+	body map[string]any,
+	request application.SemanticGenerationRequest,
+	route Route,
+) {
 	t.Helper()
 	if body["model"] != semanticModel || body["stream"] != false || body["store"] != false ||
 		body["n"] != float64(1) || body["max_completion_tokens"] != float64(semanticMaxOutputTokens) {
 		t.Fatalf("request controls = %#v", body)
 	}
 	options := body["providerOptions"].(map[string]any)["gateway"].(map[string]any)
-	for _, field := range []string{"zeroDataRetention", "disallowPromptTraining"} {
-		if options[field] != true {
-			t.Fatalf("provider option %s = %#v", field, options[field])
-		}
+	if options["zeroDataRetention"] != *route.profile.ZeroDataRetention ||
+		options["disallowPromptTraining"] != *route.profile.DisallowPromptTraining {
+		t.Fatalf("provider privacy options = %#v", options)
 	}
 	for _, field := range []string{"only", "order"} {
 		values := options[field].([]any)
@@ -285,6 +313,11 @@ func assertGatewayRequest(t *testing.T, body map[string]any, request application
 	if got := definition["schema"]; !sameJSON(t, got, wantSchema) {
 		t.Fatalf("schema = %#v, want %#v", got, wantSchema)
 	}
+	properties := definition["schema"].(map[string]any)["properties"].(map[string]any)
+	confidence := properties["confidence"].(map[string]any)
+	if confidence["minimum"] != float64(0) || confidence["maximum"] != float64(1) {
+		t.Fatalf("numeric schema constraints = %#v", confidence)
+	}
 	messages := body["messages"].([]any)
 	if len(messages) != 2 || messages[0].(map[string]any)["role"] != "system" ||
 		messages[1].(map[string]any)["role"] != "user" ||
@@ -294,9 +327,19 @@ func assertGatewayRequest(t *testing.T, body map[string]any, request application
 	}
 }
 
+func generationFailureCategory(err error) string {
+	var categorized interface {
+		SemanticGenerationFailureCategory() string
+	}
+	if errors.As(err, &categorized) {
+		return categorized.SemanticGenerationFailureCategory()
+	}
+	return ""
+}
+
 func testGenerationRequest(t *testing.T, route Route) application.SemanticGenerationRequest {
 	t.Helper()
-	schemaJSON := json.RawMessage(`{"type":"object","additionalProperties":false,"required":["claims"],"properties":{"claims":{"type":"array"}}}`)
+	schemaJSON := json.RawMessage(`{"type":"object","additionalProperties":false,"required":["claims","confidence"],"properties":{"claims":{"type":"array"},"confidence":{"type":"number","minimum":0,"maximum":1}}}`)
 	digest, err := platform.Fingerprint(schemaJSON)
 	if err != nil {
 		t.Fatalf("fingerprint schema: %v", err)
@@ -333,10 +376,12 @@ func validGatewayResponse(cost string) map[string]any {
 		"id": "chat_test", "object": "chat.completion", "created": 1, "model": semanticModel,
 		"choices": []any{map[string]any{
 			"index": 0, "finish_reason": "stop", "logprobs": nil,
-			"message": map[string]any{"role": "assistant", "content": string(content), "refusal": nil},
+			"message": map[string]any{
+				"role": "assistant", "content": string(content), "refusal": nil,
+				"provider_metadata": map[string]any{"gateway": gateway},
+			},
 		}},
-		"usage":             map[string]any{"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
-		"provider_metadata": map[string]any{"gateway": gateway},
+		"usage": map[string]any{"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
 	}
 }
 
@@ -375,7 +420,9 @@ func routingObject(response map[string]any) map[string]any {
 }
 
 func gatewayObject(response map[string]any) map[string]any {
-	return response["provider_metadata"].(map[string]any)["gateway"].(map[string]any)
+	choice := response["choices"].([]any)[0].(map[string]any)
+	message := choice["message"].(map[string]any)
+	return message["provider_metadata"].(map[string]any)["gateway"].(map[string]any)
 }
 
 func setCompletionContent(t *testing.T, response map[string]any, content string) {

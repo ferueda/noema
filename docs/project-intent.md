@@ -1,7 +1,7 @@
 # Project intent
 
 - Status: accepted product baseline
-- Date: 2026-07-21
+- Date: 2026-07-22
 
 ## Purpose
 
@@ -194,6 +194,10 @@ by Sessions is not a separate Noema source integration.
 - Events carry evidence references and bounded metadata, not raw transcript
   bodies.
 - Raw private evidence stays local by default.
+- Every remote run requires explicit user control and records whether upstream
+  zero-retention and no-training controls were requested. Those controls may be
+  disabled for early experiments; disabling them never makes remote processing
+  implicit or equivalent to local processing.
 - Public work may be described specifically. Private work is generalized
   unless the user explicitly approves the details.
 - Secrets, tokens, private URLs, local paths, personal data, security details,

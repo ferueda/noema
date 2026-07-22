@@ -49,8 +49,8 @@ type routeProfile struct {
 	ProviderAllowlist      []string `json:"providerAllowlist"`
 	ProviderOrder          []string `json:"providerOrder"`
 	RequiredCapabilities   []string `json:"requiredCapabilities"`
-	ZeroDataRetention      bool     `json:"zeroDataRetention"`
-	DisallowPromptTraining bool     `json:"disallowPromptTraining"`
+	ZeroDataRetention      *bool    `json:"zeroDataRetention"`
+	DisallowPromptTraining *bool    `json:"disallowPromptTraining"`
 	TimeoutMilliseconds    int      `json:"timeoutMilliseconds"`
 	MaxOutputTokens        int      `json:"maxOutputTokens"`
 	MaxRetries             int      `json:"maxRetries"`
@@ -110,7 +110,7 @@ func acceptedProfile(profile routeProfile) bool {
 		slices.Equal(profile.ProviderAllowlist, []string{semanticProvider}) &&
 		slices.Equal(profile.ProviderOrder, profile.ProviderAllowlist) &&
 		slices.Equal(profile.RequiredCapabilities, []string{semanticCapability}) &&
-		profile.ZeroDataRetention && profile.DisallowPromptTraining &&
+		profile.ZeroDataRetention != nil && profile.DisallowPromptTraining != nil &&
 		profile.TimeoutMilliseconds == semanticTimeoutMilliseconds &&
 		profile.MaxOutputTokens == semanticMaxOutputTokens &&
 		profile.MaxRetries == semanticMaxRetries &&

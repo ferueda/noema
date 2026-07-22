@@ -77,7 +77,12 @@ func TestSemanticAnalyzerFiltersBoundedInputAndBuildsCompletedAnalysis(t *testin
 	if request.PromptVersion != SemanticPromptVersion || request.Schema.Identity.Version != SemanticClaimSchemaVersion ||
 		request.Schema.Identity.Name != SemanticClaimSchemaName ||
 		request.Schema.Identity.Disposition != domain.StructuredOutputDispositionStrict ||
-		len(request.Schema.CanonicalJSON) == 0 || request.Instructions == "" ||
+		len(request.Schema.CanonicalJSON) == 0 ||
+		!strings.Contains(request.Instructions, "technical artifact or observed behavior") ||
+		!strings.Contains(request.Instructions, "A required check never started") ||
+		!strings.Contains(request.Instructions, "Actor and origin must be null") ||
+		!strings.Contains(request.Instructions, "Outcome must be failure for a failed-attempt claim") ||
+		!strings.Contains(request.Instructions, "otherwise omit that claim entirely") ||
 		request.Route != semanticTestRoute().Requested {
 		t.Fatalf("generation request metadata = %#v", request)
 	}

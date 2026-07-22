@@ -109,13 +109,23 @@ retained snapshot exceeds a fixed budget, the command fails before the request.
 Use `--first-entry <n> --last-entry <n>` together to approve a smaller
 contiguous range; that result is stored with partial coverage.
 
-The route pins Cerebras and requests zero data retention, no prompt training,
-strict JSON Schema output, no fallback, and no SDK retries. Those are requested
-Gateway controls, not local proof of provider behavior. Noema verifies the
-resolved provider and canonical model before it admits output. It stores the
-sanitized route and digest, prompt and schema versions, token counts, latency,
+The route pins Cerebras and requests strict JSON Schema output, no fallback, and
+no SDK retries. Zero data retention and no prompt training are explicit route
+choices; the example currently disables both so it can run on a Vercel Hobby
+team. Noema records those choices in the sanitized route and processing
+identity, but they are Gateway requests rather than local proof of provider
+behavior. Noema verifies the resolved provider and canonical model before it
+admits output. It stores prompt and schema versions, token counts, latency,
 Gateway request identity, and decimal USD cost when returned. The API key,
 outbound prompt, raw response, and resolved evidence text are not persisted.
+Remote failures retain only a fixed operational category such as permission
+denied, schema rejected, context too large, content rejected, rate limited,
+timeout, or invalid response; provider messages and response bodies are
+discarded.
+Local claim-admission failures follow the same rule: inspection reports fixed
+categories for evidence and fact reference failures, attribution, provenance,
+duplicates, values, or outcome failures (wrong claim type, unsupported result,
+or conflicting result) without retaining rejected model prose.
 
 The test suite includes both the foundation's fake source/agent spine and a
 generic fake Sessions executable that proves revision-safe fact processing:

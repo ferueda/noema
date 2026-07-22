@@ -46,6 +46,33 @@ func TestLoadRouteAcceptsOnlyReviewedSemanticProfile(t *testing.T) {
 	}
 }
 
+func TestLoadRouteAcceptsExplicitPrivacyPolicyChoices(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		retention bool
+		training  bool
+	}{
+		{name: "neither requested"},
+		{name: "retention requested", retention: true},
+		{name: "training requested", training: true},
+		{name: "both requested", retention: true, training: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			config := acceptedRouteObject()
+			profileObject(config)["zeroDataRetention"] = test.retention
+			profileObject(config)["disallowPromptTraining"] = test.training
+			route, err := LoadRoute(writeRouteFile(t, config))
+			if err != nil {
+				t.Fatalf("load route: %v", err)
+			}
+			if route.profile.ZeroDataRetention == nil || *route.profile.ZeroDataRetention != test.retention ||
+				route.profile.DisallowPromptTraining == nil || *route.profile.DisallowPromptTraining != test.training {
+				t.Fatalf("privacy choices = %#v", route.profile)
+			}
+		})
+	}
+}
+
 func TestLoadRouteRejectsUnavailableAndUnknownConfiguration(t *testing.T) {
 	if _, err := LoadRoute(""); !errors.Is(err, ErrRouteUnavailable) {
 		t.Fatalf("empty path error = %v", err)
@@ -67,6 +94,12 @@ func TestLoadRouteRejectsUnavailableAndUnknownConfiguration(t *testing.T) {
 		}},
 		{name: "missing semantic route", mutate: func(config map[string]any) {
 			delete(config["routes"].(map[string]any), semanticRouteAlias)
+		}},
+		{name: "missing retention choice", mutate: func(config map[string]any) {
+			delete(profileObject(config), "zeroDataRetention")
+		}},
+		{name: "missing training choice", mutate: func(config map[string]any) {
+			delete(profileObject(config), "disallowPromptTraining")
 		}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -91,8 +124,6 @@ func TestLoadRouteRejectsEveryChangedPolicyField(t *testing.T) {
 		{name: "provider allowlist", field: "providerAllowlist", value: []string{"cerebras", "other"}},
 		{name: "provider order", field: "providerOrder", value: []string{"other"}},
 		{name: "capability", field: "requiredCapabilities", value: []string{"json"}},
-		{name: "retention", field: "zeroDataRetention", value: false},
-		{name: "training", field: "disallowPromptTraining", value: false},
 		{name: "timeout", field: "timeoutMilliseconds", value: 59_999},
 		{name: "output tokens", field: "maxOutputTokens", value: 2_048},
 		{name: "retries", field: "maxRetries", value: 1},
@@ -117,8 +148,8 @@ func acceptedProfileObject() map[string]any {
 	return map[string]any{
 		"gateway": semanticGateway, "baseUrl": semanticBaseURL, "model": semanticModel,
 		"providerAllowlist": []string{semanticProvider}, "providerOrder": []string{semanticProvider},
-		"requiredCapabilities": []string{semanticCapability}, "zeroDataRetention": true,
-		"disallowPromptTraining": true, "timeoutMilliseconds": semanticTimeoutMilliseconds,
+		"requiredCapabilities": []string{semanticCapability}, "zeroDataRetention": false,
+		"disallowPromptTraining": false, "timeoutMilliseconds": semanticTimeoutMilliseconds,
 		"maxOutputTokens": semanticMaxOutputTokens, "maxRetries": semanticMaxRetries,
 		"routeVersion": semanticRouteVersion, "privacyPolicyVersion": semanticPrivacy,
 	}

@@ -71,6 +71,56 @@ func TestRemoteSemanticAnalysisEndToEndThroughCLI(t *testing.T) {
 	}
 }
 
+func TestRemoteSemanticFailurePersistsSanitizedPermissionCategory(t *testing.T) {
+	ctx := context.Background()
+	temp := t.TempDir()
+	databasePath, exportPath := prepareFakeSessions(t, temp)
+	writeExportFixture(t, exportPath, strings.Repeat("d", 64))
+	fact := runScanForTest(t, ctx, databasePath)
+	routePath := writeSemanticRouteConfig(t, temp)
+	t.Setenv("AI_GATEWAY_API_KEY", "test-gateway-key")
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusForbidden)
+		_, _ = writer.Write([]byte(`{"error":{"message":"private provider detail","type":"permission_denied"}}`))
+	}))
+	defer server.Close()
+
+	var stdout, stderr bytes.Buffer
+	err := runWithDependencies(
+		ctx,
+		remoteClaimsArgs(fact.AnalysisID, routePath, databasePath),
+		&stdout,
+		&stderr,
+		gatewayTestDependencies(t, server.URL),
+	)
+	var analysisError application.AnalysisError
+	if !errors.As(err, &analysisError) ||
+		analysisError.Category != application.SemanticGenerationFailurePermission ||
+		strings.Contains(err.Error(), "private provider detail") {
+		t.Fatalf("semantic error = %v", err)
+	}
+
+	database, openErr := sqlitestore.Open(ctx, databasePath)
+	if openErr != nil {
+		t.Fatalf("open semantic database: %v", openErr)
+	}
+	defer database.Close()
+	record, loadErr := sqlitestore.NewStore(database).LoadSemanticAnalysis(ctx, analysisError.AnalysisID)
+	if loadErr != nil {
+		t.Fatalf("load failed analysis: %v", loadErr)
+	}
+	encoded, encodeErr := json.Marshal(record)
+	if encodeErr != nil {
+		t.Fatalf("encode failed analysis: %v", encodeErr)
+	}
+	if record.Analysis.Run.Error != application.SemanticGenerationFailurePermission ||
+		bytes.Contains(encoded, []byte("private provider detail")) {
+		t.Fatalf("stored failed analysis = %s", encoded)
+	}
+}
+
 func TestAnalyzeClaimsRejectsRemoteGatesBeforeConstruction(t *testing.T) {
 	temp := t.TempDir()
 	routePath := writeSemanticRouteConfig(t, temp)
@@ -272,16 +322,18 @@ func serveSemanticGateway(writer http.ResponseWriter, request *http.Request) err
 		"id": "chat_cli_test", "object": "chat.completion", "created": 1, "model": "openai/gpt-oss-120b",
 		"choices": []any{map[string]any{
 			"index": 0, "finish_reason": "stop", "logprobs": nil,
-			"message": map[string]any{"role": "assistant", "content": string(content), "refusal": nil},
+			"message": map[string]any{
+				"role": "assistant", "content": string(content), "refusal": nil,
+				"provider_metadata": map[string]any{"gateway": map[string]any{
+					"routing": map[string]any{
+						"originalModelId": "openai/gpt-oss-120b", "resolvedProvider": "cerebras",
+						"canonicalSlug": "openai/gpt-oss-120b",
+					},
+					"generationId": "gen_cli_test", "cost": "0.00042",
+				}},
+			},
 		}},
 		"usage": map[string]any{"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150},
-		"provider_metadata": map[string]any{"gateway": map[string]any{
-			"routing": map[string]any{
-				"originalModelId": "openai/gpt-oss-120b", "resolvedProvider": "cerebras",
-				"canonicalSlug": "openai/gpt-oss-120b",
-			},
-			"generationId": "gen_cli_test", "cost": "0.00042",
-		}},
 	}
 	writer.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(writer).Encode(response); err != nil {
@@ -305,7 +357,7 @@ func writeSemanticRouteConfig(t *testing.T, directory string) string {
 		"gateway": "vercel-ai-gateway", "baseUrl": "https://ai-gateway.vercel.sh/v1",
 		"model": "openai/gpt-oss-120b", "providerAllowlist": []string{"cerebras"},
 		"providerOrder": []string{"cerebras"}, "requiredCapabilities": []string{"strict-json-schema"},
-		"zeroDataRetention": true, "disallowPromptTraining": true, "timeoutMilliseconds": 60000,
+		"zeroDataRetention": false, "disallowPromptTraining": false, "timeoutMilliseconds": 60000,
 		"maxOutputTokens": 4096, "maxRetries": 0, "routeVersion": "route-v1",
 		"privacyPolicyVersion": "deterministic-privacy-v1",
 	}}}

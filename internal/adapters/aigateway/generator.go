@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"regexp"
 	"strings"
@@ -40,6 +41,23 @@ var (
 type Generator struct {
 	route  Route
 	client openai.ChatService
+}
+
+type generationFailure struct {
+	cause    error
+	category string
+}
+
+func (failure generationFailure) Error() string {
+	return failure.cause.Error()
+}
+
+func (failure generationFailure) Unwrap() error {
+	return failure.cause
+}
+
+func (failure generationFailure) SemanticGenerationFailureCategory() string {
+	return failure.category
 }
 
 func NewGenerator(route Route, apiKey string, httpClient *http.Client) (*Generator, error) {
@@ -76,15 +94,21 @@ func (generator *Generator) Generate(
 	request application.SemanticGenerationRequest,
 ) (application.SemanticGenerationResult, error) {
 	if generator == nil || validateRoute(generator.route) != nil {
-		return application.SemanticGenerationResult{}, ErrGeneratorUnavailable
+		return application.SemanticGenerationResult{}, generationFailure{
+			cause: ErrGeneratorUnavailable, category: application.SemanticGenerationFailureRequest,
+		}
 	}
 	schema, err := validateGenerationRequest(request, generator.route)
 	if err != nil {
-		return application.SemanticGenerationResult{}, err
+		return application.SemanticGenerationResult{}, generationFailure{
+			cause: err, category: application.SemanticGenerationFailureRequest,
+		}
 	}
 	input, err := json.Marshal(request.Input)
 	if err != nil {
-		return application.SemanticGenerationResult{}, ErrRequestInvalid
+		return application.SemanticGenerationResult{}, generationFailure{
+			cause: ErrRequestInvalid, category: application.SemanticGenerationFailureRequest,
+		}
 	}
 	system := fmt.Sprintf(
 		"Prompt version: %s\nOutput schema: %s version %d\n\n%s",
@@ -111,8 +135,8 @@ func (generator *Generator) Generate(
 	providerOptions := map[string]any{
 		"only":                   append([]string(nil), generator.route.profile.ProviderAllowlist...),
 		"order":                  append([]string(nil), generator.route.profile.ProviderOrder...),
-		"zeroDataRetention":      generator.route.profile.ZeroDataRetention,
-		"disallowPromptTraining": generator.route.profile.DisallowPromptTraining,
+		"zeroDataRetention":      *generator.route.profile.ZeroDataRetention,
+		"disallowPromptTraining": *generator.route.profile.DisallowPromptTraining,
 	}
 	started := time.Now()
 	response, err := generator.client.Completions.New(
@@ -122,13 +146,59 @@ func (generator *Generator) Generate(
 	)
 	latency := time.Since(started).Milliseconds()
 	if err != nil {
-		return application.SemanticGenerationResult{}, ErrRequestFailed
+		return application.SemanticGenerationResult{}, classifyRequestFailure(err)
 	}
 	result, err := decodeResponse(response, generator.route, latency)
 	if err != nil {
-		return application.SemanticGenerationResult{}, err
+		return application.SemanticGenerationResult{}, generationFailure{
+			cause: err, category: application.SemanticGenerationFailureResponse,
+		}
 	}
 	return result, nil
+}
+
+func classifyRequestFailure(err error) error {
+	category := application.SemanticGenerationFailureTransport
+	var apiError *openai.Error
+	var networkError net.Error
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		category = application.SemanticGenerationFailureTimeout
+	case errors.As(err, &apiError):
+		switch {
+		case apiError.StatusCode == http.StatusUnauthorized:
+			category = application.SemanticGenerationFailureAuthentication
+		case apiError.StatusCode == http.StatusPaymentRequired || apiError.StatusCode == http.StatusForbidden:
+			category = application.SemanticGenerationFailurePermission
+		case apiError.StatusCode == http.StatusRequestTimeout:
+			category = application.SemanticGenerationFailureTimeout
+		case apiError.StatusCode == http.StatusTooManyRequests:
+			category = application.SemanticGenerationFailureRateLimited
+		case apiError.StatusCode >= http.StatusInternalServerError:
+			category = application.SemanticGenerationFailureUpstream
+		case apiError.StatusCode >= http.StatusBadRequest:
+			category = rejectedRequestCategory(apiError.Message)
+		}
+	case errors.As(err, &networkError) && networkError.Timeout():
+		category = application.SemanticGenerationFailureTimeout
+	}
+	return generationFailure{cause: ErrRequestFailed, category: category}
+}
+
+func rejectedRequestCategory(message string) string {
+	message = strings.ToLower(message)
+	switch {
+	case strings.Contains(message, "schema") || strings.Contains(message, "response_format"):
+		return application.SemanticGenerationFailureSchema
+	case strings.Contains(message, "context length") || strings.Contains(message, "maximum context") ||
+		strings.Contains(message, "context window") || strings.Contains(message, "too many tokens"):
+		return application.SemanticGenerationFailureContext
+	case strings.Contains(message, "content policy") || strings.Contains(message, "safety policy") ||
+		strings.Contains(message, "moderation"):
+		return application.SemanticGenerationFailureContent
+	default:
+		return application.SemanticGenerationFailureRequest
+	}
 }
 
 func validateGenerationRequest(request application.SemanticGenerationRequest, route Route) (any, error) {
@@ -144,7 +214,6 @@ func validateGenerationRequest(request application.SemanticGenerationRequest, ro
 		return nil, ErrRequestInvalid
 	}
 	decoder := json.NewDecoder(bytes.NewReader(request.Schema.CanonicalJSON))
-	decoder.UseNumber()
 	var schema map[string]any
 	if err := decoder.Decode(&schema); err != nil || schema == nil || requireJSONEOF(decoder) != nil {
 		return nil, ErrRequestInvalid
@@ -153,8 +222,16 @@ func validateGenerationRequest(request application.SemanticGenerationRequest, ro
 }
 
 type gatewayResponseMetadata struct {
+	Choices []gatewayChoiceMetadata `json:"choices"`
+	Usage   *gatewayUsage           `json:"usage"`
+}
+
+type gatewayChoiceMetadata struct {
+	Message gatewayMessageMetadata `json:"message"`
+}
+
+type gatewayMessageMetadata struct {
 	ProviderMetadata gatewayProviderMetadata `json:"provider_metadata"`
-	Usage            *gatewayUsage           `json:"usage"`
 }
 
 type gatewayProviderMetadata struct {
@@ -196,17 +273,21 @@ func decodeResponse(
 	if err := json.Unmarshal([]byte(response.RawJSON()), &extra); err != nil {
 		return application.SemanticGenerationResult{}, ErrResponseInvalid
 	}
-	routing := extra.ProviderMetadata.Gateway.Routing
+	if len(extra.Choices) != 1 {
+		return application.SemanticGenerationResult{}, ErrResponseInvalid
+	}
+	gateway := extra.Choices[0].Message.ProviderMetadata.Gateway
+	routing := gateway.Routing
 	if routing.OriginalModelID != route.profile.Model ||
 		routing.CanonicalSlug != route.profile.Model ||
 		routing.ResolvedProvider != route.profile.ProviderAllowlist[0] {
 		return application.SemanticGenerationResult{}, ErrResponseInvalid
 	}
-	cost, err := parseCost(extra.ProviderMetadata.Gateway.Cost)
+	cost, err := parseCost(gateway.Cost)
 	if err != nil {
 		return application.SemanticGenerationResult{}, err
 	}
-	requestID, err := boundedRequestID(extra.ProviderMetadata.Gateway.GenerationID, response.ID)
+	requestID, err := boundedRequestID(gateway.GenerationID, response.ID)
 	if err != nil {
 		return application.SemanticGenerationResult{}, err
 	}

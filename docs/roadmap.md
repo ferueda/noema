@@ -1,7 +1,7 @@
 # Roadmap
 
 - Status: accepted product roadmap
-- Date: 2026-07-21
+- Date: 2026-07-22
 
 ## Purpose and authority
 
@@ -215,8 +215,8 @@ It records:
 
 - Add the provider-neutral structured-generation boundary.
 - Add explicit remote opt-in, one pinned provider per route, bounded inputs,
-  deterministic privacy filtering, and configured retention and training
-  requirements.
+  deterministic privacy filtering, and recorded retention and training
+  choices.
 - Treat model output as untrusted candidate claims.
 - Validate schema, evidence identities, confidence, status, contradictions,
   privacy, and consistency with deterministic facts.
@@ -243,6 +243,8 @@ It records:
   cited text entails the claim.
 - Deterministic facts remain distinguishable from model interpretations.
 - Protected content is blocked before remote transmission and after generation.
+- Remote failures expose a useful fixed operational category without retaining
+  provider messages, response bodies, prompts, or credentials.
 - A reviewed generic fixture set and one explicitly approved local session
   produce inspectable results.
 - A changed semantic configuration can rerun without reindexing or reading raw

@@ -14,14 +14,12 @@ const SemanticClaimSchemaName = "semantic-claim-candidates"
 // The application owns this contract. Adapters transmit it and decode its
 // response, but do not redefine which candidate fields Noema accepts.
 const semanticClaimSchemaJSON = `{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "additionalProperties": false,
   "required": ["claims"],
   "properties": {
     "claims": {
       "type": "array",
-      "maxItems": 64,
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -39,38 +37,30 @@ const semanticClaimSchemaJSON = `{
               "root-cause", "decision", "solution", "verification", "lesson"
             ]
           },
-          "statement": {"type": "string", "minLength": 1, "maxLength": 2048},
+          "statement": {"type": "string"},
           "status": {"type": "string", "enum": ["observed", "inferred", "uncertain"]},
           "confidence": {"type": "number", "minimum": 0, "maximum": 1},
           "supportingEvidenceIds": {
-            "type": "array", "minItems": 1, "maxItems": 512,
-            "uniqueItems": true, "items": {"type": "string", "minLength": 1}
+            "type": "array", "items": {"type": "string"}
           },
           "contradictingEvidenceIds": {
-            "type": "array", "maxItems": 512,
-            "uniqueItems": true, "items": {"type": "string", "minLength": 1}
+            "type": "array", "items": {"type": "string"}
           },
           "supportingFactIds": {
-            "type": ["array", "null"], "maxItems": 256,
-            "uniqueItems": true, "items": {"type": "string", "minLength": 1}
+            "type": ["array", "null"], "items": {"type": "string"}
           },
           "outcome": {
             "type": ["string", "null"],
             "enum": ["success", "failure", "unknown", null]
           },
           "actor": {
-            "type": ["string", "null"],
-            "enum": ["human", "model", "tool", "system", null]
+            "type": "null"
           },
           "origin": {
-            "type": ["string", "null"],
-            "enum": [
-              "human", "injected", "delegated", "replayed-copied",
-              "model", "tool", "system", null
-            ]
+            "type": "null"
           },
-          "subject": {"type": ["string", "null"], "maxLength": 512},
-          "scope": {"type": ["string", "null"], "maxLength": 512},
+          "subject": {"type": ["string", "null"]},
+          "scope": {"type": ["string", "null"]},
           "attribution": {"type": ["string", "null"], "enum": ["unknown", null]}
         }
       }
