@@ -4,6 +4,7 @@
       "gateway": "vercel-ai-gateway",
       "baseUrl": "https://ai-gateway.vercel.sh/v1",
       "model": "openai/gpt-oss-120b",
+      "temperature": 0,
       "providerAllowlist": ["cerebras"],
       "providerOrder": ["cerebras"],
       "requiredCapabilities": ["strict-json-schema"],

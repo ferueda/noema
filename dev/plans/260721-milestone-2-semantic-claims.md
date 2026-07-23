@@ -44,7 +44,7 @@
 - Live validation: an approved partial real-session selection completed with
   three evidence-backed claims, and an exact rerun reused the stored result
   without another model call
-- Next: review the resulting claim quality and close the change-review gate
+- Next: run the public-data route conformance check and reviewed generic corpus
 - Roadmap: [V0 Milestone 2](../../docs/roadmap.md#v0-milestone-2-validated-semantic-claims)
 
 ## Goal
@@ -223,6 +223,7 @@ The V0 file has one strict shape; unknown route fields or aliases fail:
       "gateway": "vercel-ai-gateway",
       "baseUrl": "https://ai-gateway.vercel.sh/v1",
       "model": "openai/gpt-oss-120b",
+      "temperature": 0,
       "providerAllowlist": ["cerebras"],
       "providerOrder": ["cerebras"],
       "requiredCapabilities": ["strict-json-schema"],

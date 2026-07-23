@@ -869,6 +869,7 @@ is an initial transport and routing choice, not part of Noema's domain model.
 Model aliases resolve through configuration. A route includes:
 
 - The gateway and canonical model identifier.
+- Explicit sampling controls required by the reviewed route.
 - An explicit provider allowlist and order.
 - Required capabilities, including JSON Schema structured output.
 - Explicit privacy choices such as zero data retention and no prompt training.
@@ -887,13 +888,15 @@ The implemented V0 file is
 [`config/semantic-route.example.json`](../config/semantic-route.example.json).
 Its `semantic-v1` profile is an exact allowlist: Vercel AI Gateway at the
 reviewed base URL, `openai/gpt-oss-120b` through Cerebras, strict JSON Schema, a
-60-second timeout, 4,096 output tokens, and zero retries. Zero data retention
-and no prompt training remain explicit booleans in that profile, but either
-choice is valid; the example disables both for the current Hobby-plan
-experiment. Unknown fields, alternate route aliases, extra providers, and
-changed routing or execution limits are rejected before adapter construction.
-Canonicalizing the accepted profile, including both privacy choices, produces
-the stable route configuration digest; credentials never enter that value.
+numeric temperature of zero, a 60-second timeout, 4,096 output tokens, and zero
+retries. Temperature zero reduces sampling variation but does not guarantee
+identical output. Zero data retention and no prompt training remain explicit
+booleans in that profile, but either choice is valid; the example disables both
+for the current Hobby-plan experiment. Unknown fields, alternate route aliases,
+extra providers, missing or changed sampling controls, and changed routing or
+execution limits are rejected before adapter construction. Canonicalizing the
+accepted profile, including sampling and both privacy choices, produces the
+stable route configuration digest; credentials never enter that value.
 
 The manual composition path is:
 

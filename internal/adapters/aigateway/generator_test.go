@@ -289,8 +289,12 @@ func assertGatewayRequest(
 ) {
 	t.Helper()
 	if body["model"] != semanticModel || body["stream"] != false || body["store"] != false ||
-		body["n"] != float64(1) || body["max_completion_tokens"] != float64(semanticMaxOutputTokens) {
+		body["n"] != float64(1) || body["max_completion_tokens"] != float64(semanticMaxOutputTokens) ||
+		body["temperature"] != float64(0) {
 		t.Fatalf("request controls = %#v", body)
+	}
+	if _, ok := body["seed"]; ok {
+		t.Fatalf("request unexpectedly pins seed: %#v", body)
 	}
 	options := body["providerOptions"].(map[string]any)["gateway"].(map[string]any)
 	if options["zeroDataRetention"] != *route.profile.ZeroDataRetention ||
