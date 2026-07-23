@@ -86,8 +86,8 @@ func scoreReviews(report evaluationReport, reviews reviewTemplate) (evaluationSc
 	reportDigest := sha256Hex(reportJSON)
 	profile, reviewed := reviewedCorpora[report.Corpus.Digest]
 	if report.SchemaVersion != reportSchemaVersion || report.Corpus.SchemaVersion != corpusSchemaVersion ||
-		!reviewed || len(report.Corpus.CaseOrder) != profile.CaseCount ||
-		len(report.Cases) != profile.CaseCount || reviews.SchemaVersion != reviewSchemaVersion ||
+		!reviewed || !reportMatchesCorpusProfile(report, profile) ||
+		reviews.SchemaVersion != reviewSchemaVersion ||
 		reviews.CorpusDigest != report.Corpus.Digest || reviews.ReportDigest != reportDigest {
 		return evaluationScore{}, errors.New("evaluation review does not match the report")
 	}
@@ -193,6 +193,25 @@ func scoreReviews(report evaluationReport, reviews reviewTemplate) (evaluationSc
 		}
 	}
 	return score, nil
+}
+
+func reportMatchesCorpusProfile(report evaluationReport, profile reviewedCorpus) bool {
+	if len(report.Corpus.CaseOrder) != len(profile.CaseIDs) ||
+		len(report.Corpus.HumanCriteria) != len(profile.CaseIDs) ||
+		len(report.Cases) != len(profile.CaseIDs) {
+		return false
+	}
+	for index, caseID := range profile.CaseIDs {
+		criteria := report.Corpus.HumanCriteria[index]
+		if report.Corpus.CaseOrder[index] != caseID ||
+			report.Cases[index].ID != caseID ||
+			criteria.CaseID != caseID ||
+			len(criteria.Criteria) != 1 ||
+			criteria.Criteria[0].ID != profile.CriterionIDs[index] {
+			return false
+		}
+	}
+	return true
 }
 
 func labelCounts(labels ...string) map[string]int {

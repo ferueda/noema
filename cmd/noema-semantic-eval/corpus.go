@@ -29,19 +29,92 @@ const (
 var corpusIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,63}$`)
 
 type reviewedCorpus struct {
-	CaseCount        int
 	AdapterVersion   string
 	SourceInstanceID string
+	CaseIDs          []string
+	CriterionIDs     []string
 }
 
 var reviewedCorpora = map[string]reviewedCorpus{
 	corpusDigestV1: {
-		CaseCount: 12, AdapterVersion: "semantic-evaluation-corpus-v1",
+		AdapterVersion:   "semantic-evaluation-corpus-v1",
 		SourceInstanceID: "semantic-corpus-v1",
+		CaseIDs: []string{
+			"insufficient-evidence",
+			"observed-problem-no-solution",
+			"proposed-fix-no-verification",
+			"failed-attempt-with-result",
+			"fix-with-passing-test",
+			"assistant-success-contradicted",
+			"linked-failure-and-success",
+			"hypothesis-without-root-cause",
+			"decision-with-rejected-alternative",
+			"environment-failure-no-user-blame",
+			"reusable-lesson-from-steps",
+			"noisy-unrelated-entries",
+		},
+		CriterionIDs: []string{
+			"no-invented-problem",
+			"no-unsupported-solution",
+			"proposal-not-verification",
+			"failure-backed-by-result",
+			"success-backed-by-test",
+			"tool-result-precedence",
+			"preserve-result-sequence",
+			"hypothesis-not-root-cause",
+			"rejected-alternative-preserved",
+			"no-user-blame",
+			"lesson-supported-by-sequence",
+			"no-noise-as-lesson",
+		},
 	},
 	corpusDigestV2: {
-		CaseCount: 20, AdapterVersion: "semantic-evaluation-corpus-v2",
+		AdapterVersion:   "semantic-evaluation-corpus-v2",
 		SourceInstanceID: "semantic-corpus-v2",
+		CaseIDs: []string{
+			"insufficient-evidence",
+			"observed-problem-no-solution",
+			"proposed-fix-no-verification",
+			"failed-attempt-with-result",
+			"fix-with-passing-test",
+			"assistant-success-contradicted",
+			"linked-failure-and-success",
+			"hypothesis-without-root-cause",
+			"decision-with-rejected-alternative",
+			"environment-failure-no-user-blame",
+			"reusable-lesson-from-steps",
+			"noisy-unrelated-entries",
+			"mixed-verification-scope",
+			"confirmed-root-cause",
+			"unrelated-concurrent-problems",
+			"reverted-solution",
+			"later-failure-after-success",
+			"decision-without-implementation",
+			"implementation-without-rationale",
+			"prompt-injection-evidence",
+		},
+		CriterionIDs: []string{
+			"no-invented-problem",
+			"no-unsupported-solution",
+			"proposal-not-verification",
+			"failure-backed-by-result",
+			"success-backed-by-test",
+			"tool-result-precedence",
+			"preserve-result-sequence",
+			"hypothesis-not-root-cause",
+			"rejected-alternative-preserved",
+			"no-user-blame",
+			"lesson-supported-by-sequence",
+			"no-noise-as-lesson",
+			"success-remains-scoped",
+			"diagnostic-establishes-cause",
+			"problems-remain-separate",
+			"reverted-change-not-current",
+			"later-failure-limits-outcome",
+			"decision-not-implementation",
+			"no-invented-rationale",
+			"injected-instruction-ignored",
+		},
 	},
 }
 
@@ -140,14 +213,16 @@ func loadEvaluationCorpus(path string) (evaluationCorpus, error) {
 	if err := decodeStrictJSON(content, &source); err != nil {
 		return evaluationCorpus{}, errors.New("evaluation corpus is invalid")
 	}
-	if source.SchemaVersion != corpusSchemaVersion || len(source.Cases) != profile.CaseCount {
+	if source.SchemaVersion != corpusSchemaVersion || len(source.Cases) != len(profile.CaseIDs) ||
+		len(profile.CriterionIDs) != len(profile.CaseIDs) {
 		return evaluationCorpus{}, errors.New("evaluation corpus is invalid")
 	}
 
 	seen := make(map[string]bool, len(source.Cases))
 	cases := make([]evaluationCase, 0, len(source.Cases))
-	for _, definition := range source.Cases {
-		if seen[definition.ID] {
+	for index, definition := range source.Cases {
+		if definition.ID != profile.CaseIDs[index] || len(definition.HumanCriteria) != 1 ||
+			definition.HumanCriteria[0].ID != profile.CriterionIDs[index] || seen[definition.ID] {
 			return evaluationCorpus{}, errors.New("evaluation corpus is invalid")
 		}
 		seen[definition.ID] = true

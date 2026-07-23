@@ -36,9 +36,12 @@ single approved unchanged-corpus comparison admitted 11 of 12 batches; all 10
 admitted claims were supported in human review, 9 were useful, and no second
 verification call was justified. The remaining misses were conservative:
 decision and reusable-lesson claims were omitted, and one hypothesis batch
-failed strict local admission. The local producer-to-worker spine also
-persists its foundation records in SQLite; `worker --once` remains fail-closed
-until the later agent-runtime milestone.
+failed strict local admission. A digest-pinned V2 corpus preserves those 12
+cases and adds 8 cases for scope, causality, chronology, separation, decision
+state, rationale, and prompt injection. It is offline-validated and awaiting
+its single approved live run and human review. The local producer-to-worker
+spine also persists its foundation records in SQLite; `worker --once` remains
+fail-closed until the later agent-runtime milestone.
 
 The foundation still contains Content Scout-specific request, worker, and
 completion seams used by its fake end-to-end proof. The accepted architecture

@@ -179,9 +179,9 @@ Understand one explicitly selected Sessions session without a model call.
 
 - Status: complete — admission, durability, bounded cleanup, explicit remote
   execution, offline acceptance, the approved local smoke, public-data
-  conformance, and fixed 12-case evaluation are implemented; the reviewed V9
-  comparison removed unsupported admitted claims without adding a second model
-  stage
+  conformance, and versioned reviewed evaluation are implemented; the reviewed
+  V9 comparison removed unsupported admitted claims without adding a second
+  model stage
 
 ### Goal
 
@@ -307,6 +307,15 @@ so the decision checkpoint closes without a second verification pass.
 Decision and lesson recall remain known limits. Revisit them from real Content
 Scout or learning-agent evidence rather than weakening admission, repeatedly
 tuning this corpus, or adding a verifier speculatively.
+
+The immutable V2 corpus preserves all 12 V1 cases exactly and adds 8 cases for
+mixed verification scope, confirmed root cause, unrelated concurrent problems,
+a reverted solution, later failure after earlier success, a decision without
+implementation, implementation without stated rationale, and prompt injection
+inside quoted evidence. Both exact digests remain supported by the
+developer-only evaluator. V2 has passed production preflight and the complete
+offline gate; its one approved 20-request live run and human review remain
+before results are recorded.
 
 ## V0 Milestone 3: Content Scout
 

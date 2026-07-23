@@ -44,8 +44,8 @@ func (failure categorizedGenerationError) SemanticGenerationFailureCategory() st
 func TestReviewedCorporaPassProductionPreflight(t *testing.T) {
 	for _, path := range []string{testCorpusPath(), testCorpusV2Path()} {
 		corpus := testCorpusAtPath(t, path)
-		if len(corpus.Cases) != corpus.Profile.CaseCount {
-			t.Fatalf("%s case count = %d, want %d", path, len(corpus.Cases), corpus.Profile.CaseCount)
+		if len(corpus.Cases) != len(corpus.Profile.CaseIDs) {
+			t.Fatalf("%s case count = %d, want %d", path, len(corpus.Cases), len(corpus.Profile.CaseIDs))
 		}
 		route := testRoute(t)
 		if err := preflightCorpus(corpus, route.Validated()); err != nil {
@@ -182,6 +182,86 @@ func TestEvaluationReportsAdmittedAndEmptyBatchesWithExactAggregates(t *testing.
 	}
 	if len(review.ClaimReviews) != 1 || len(review.CaseCriteria) != caseCount {
 		t.Fatalf("review template sizes = %d/%d", len(review.ClaimReviews), len(review.CaseCriteria))
+	}
+}
+
+func TestV2ExecutionReportReviewAndScoreUseTwentyCases(t *testing.T) {
+	corpus := testCorpusAtPath(t, testCorpusV2Path())
+	generator := &fakeGenerator{}
+	report := executeEvaluation(
+		context.Background(), corpus, testRoute(t).Validated(), generator, testClock(),
+	)
+	expectationCount := 0
+	for _, fixture := range corpus.Cases {
+		expectationCount += len(fixture.Definition.MachineExpectations)
+	}
+	if !report.Complete || generator.calls != 20 || len(report.Cases) != 20 ||
+		report.Aggregates.CaseCount != 20 ||
+		report.Aggregates.ValidBatchRate != (countRatio{Numerator: 20, Denominator: 20}) ||
+		report.Aggregates.ExpectationCount != expectationCount {
+		t.Fatalf("unexpected V2 report: %#v", report)
+	}
+	reviews, err := buildReviewTemplate(report, corpus)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(reviews.CaseCriteria) != 20 {
+		t.Fatalf("V2 review criteria = %d, want 20", len(reviews.CaseCriteria))
+	}
+	score, err := scoreReviews(report, reviews)
+	if err != nil {
+		t.Fatalf("score V2 report: %v", err)
+	}
+	if !score.ReportComplete || score.CaseCriteria.Total != 20 ||
+		len(score.MachineExpectations) != 20 {
+		t.Fatalf("unexpected V2 score: %#v", score)
+	}
+}
+
+func TestScoreRejectsChangedReviewedCaseIdentities(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		mutate func(*evaluationReport)
+	}{
+		{
+			name: "unknown",
+			mutate: func(report *evaluationReport) {
+				report.Cases[0].ID = "unknown-case"
+			},
+		},
+		{
+			name: "duplicate",
+			mutate: func(report *evaluationReport) {
+				report.Cases[1].ID = report.Cases[0].ID
+			},
+		},
+		{
+			name: "missing",
+			mutate: func(report *evaluationReport) {
+				report.Cases = report.Cases[:len(report.Cases)-1]
+			},
+		},
+		{
+			name: "reordered",
+			mutate: func(report *evaluationReport) {
+				report.Cases[0], report.Cases[1] = report.Cases[1], report.Cases[0]
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			corpus := testCorpus(t)
+			report := executeEvaluation(
+				context.Background(), corpus, testRoute(t).Validated(), &fakeGenerator{}, testClock(),
+			)
+			test.mutate(&report)
+			reviews, err := buildReviewTemplate(report, corpus)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := scoreReviews(report, reviews); err == nil {
+				t.Fatal("score accepted changed reviewed case identities")
+			}
+		})
 	}
 }
 
