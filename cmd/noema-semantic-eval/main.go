@@ -71,7 +71,7 @@ func runLiveEvaluation(
 	routePath := flags.String("route-config", "", "reviewed semantic route configuration")
 	outputPath := flags.String("output", "", "new path for the machine report")
 	reviewPath := flags.String("review-output", "", "new path for the human review template")
-	allowRemote := flags.Bool("allow-remote", false, "allow the fixed 12-case remote evaluation")
+	allowRemote := flags.Bool("allow-remote", false, "allow the selected digest-pinned remote evaluation")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}

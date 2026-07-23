@@ -21,13 +21,29 @@ import (
 
 const (
 	corpusSchemaVersion = 1
-	corpusCaseCount     = 12
 	corpusMaxBytes      = 1 << 20
 	corpusDigestV1      = "9c5014491c4018b54c839d5313e594361b177f0396c3b892d06b36e69f8be83f"
-	corpusAdapter       = "semantic-evaluation-corpus-v1"
+	corpusDigestV2      = "1dbd77515436b86dde68abac07f2fa158394a9fcecf69258c3ab644ffa6ee07f"
 )
 
 var corpusIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,63}$`)
+
+type reviewedCorpus struct {
+	CaseCount        int
+	AdapterVersion   string
+	SourceInstanceID string
+}
+
+var reviewedCorpora = map[string]reviewedCorpus{
+	corpusDigestV1: {
+		CaseCount: 12, AdapterVersion: "semantic-evaluation-corpus-v1",
+		SourceInstanceID: "semantic-corpus-v1",
+	},
+	corpusDigestV2: {
+		CaseCount: 20, AdapterVersion: "semantic-evaluation-corpus-v2",
+		SourceInstanceID: "semantic-corpus-v2",
+	},
+}
 
 type corpusFile struct {
 	SchemaVersion int          `json:"schemaVersion"`
@@ -105,8 +121,9 @@ type evaluationCase struct {
 }
 
 type evaluationCorpus struct {
-	Digest string
-	Cases  []evaluationCase
+	Digest  string
+	Profile reviewedCorpus
+	Cases   []evaluationCase
 }
 
 func loadEvaluationCorpus(path string) (evaluationCorpus, error) {
@@ -115,14 +132,15 @@ func loadEvaluationCorpus(path string) (evaluationCorpus, error) {
 		return evaluationCorpus{}, errors.New("evaluation corpus is unavailable")
 	}
 	digest := sha256Hex(content)
-	if digest != corpusDigestV1 {
+	profile, reviewed := reviewedCorpora[digest]
+	if !reviewed {
 		return evaluationCorpus{}, errors.New("evaluation corpus digest does not match the reviewed corpus")
 	}
 	var source corpusFile
 	if err := decodeStrictJSON(content, &source); err != nil {
 		return evaluationCorpus{}, errors.New("evaluation corpus is invalid")
 	}
-	if source.SchemaVersion != corpusSchemaVersion || len(source.Cases) != corpusCaseCount {
+	if source.SchemaVersion != corpusSchemaVersion || len(source.Cases) != profile.CaseCount {
 		return evaluationCorpus{}, errors.New("evaluation corpus is invalid")
 	}
 
@@ -133,16 +151,16 @@ func loadEvaluationCorpus(path string) (evaluationCorpus, error) {
 			return evaluationCorpus{}, errors.New("evaluation corpus is invalid")
 		}
 		seen[definition.ID] = true
-		fixture, err := buildEvaluationCase(definition)
+		fixture, err := buildEvaluationCase(definition, profile)
 		if err != nil {
 			return evaluationCorpus{}, fmt.Errorf("evaluation corpus case %q is invalid", definition.ID)
 		}
 		cases = append(cases, fixture)
 	}
-	return evaluationCorpus{Digest: digest, Cases: cases}, nil
+	return evaluationCorpus{Digest: digest, Profile: profile, Cases: cases}, nil
 }
 
-func buildEvaluationCase(definition corpusCase) (evaluationCase, error) {
+func buildEvaluationCase(definition corpusCase, profile reviewedCorpus) (evaluationCase, error) {
 	if !corpusIDPattern.MatchString(definition.ID) || !boundedText(definition.Intent, 512) ||
 		len(definition.Entries) == 0 || len(definition.Entries) > 50 {
 		return evaluationCase{}, errors.New("invalid case identity")
@@ -158,10 +176,10 @@ func buildEvaluationCase(definition corpusCase) (evaluationCase, error) {
 	capturedAt := time.Date(2026, 7, 1, 12, 0, 0, 0, time.UTC)
 	revision := domain.EvidenceRevision{
 		SourceKind: domain.EvidenceSourceSessions, CanonicalID: "evaluation:" + definition.ID,
-		NativeSourceKind: "synthetic", SourceInstanceID: "semantic-corpus-v1", NativeID: definition.ID,
+		NativeSourceKind: "synthetic", SourceInstanceID: profile.SourceInstanceID, NativeID: definition.ID,
 		SchemaVersion: 1, Disposition: "untrusted-history",
 		DocumentDigest: domain.Digest{Scheme: "sha256-json-v1", Digest: documentDigest},
-		AdapterVersion: corpusAdapter, SourceState: "stable", Freshness: "captured",
+		AdapterVersion: profile.AdapterVersion, SourceState: "stable", Freshness: "captured",
 		CapturedAt: capturedAt, SourceObservedAt: capturedAt, LineageCoverage: "complete",
 	}
 
@@ -240,7 +258,7 @@ func buildEvaluationCase(definition corpusCase) (evaluationCase, error) {
 		facts[index] = domain.Fact{
 			ID: factID, Fingerprint: fingerprint, AnalysisRunID: runID, Kind: sourceFact.Kind,
 			SchemaVersion: 1, Value: value, Outcome: sourceFact.Outcome,
-			ExtractorName: corpusAdapter, ExtractorVersion: "1", ParseRule: corpusAdapter,
+			ExtractorName: profile.AdapterVersion, ExtractorVersion: "1", ParseRule: profile.AdapterVersion,
 			Evidence: refs, CreatedAt: capturedAt,
 		}
 		factIDs[index] = factID
@@ -249,7 +267,7 @@ func buildEvaluationCase(definition corpusCase) (evaluationCase, error) {
 	analysis := domain.FactAnalysis{
 		Run: domain.AnalysisRun{
 			ID: runID, Stage: domain.AnalysisStageFacts, RequestedSourceIdentity: revision.CanonicalID,
-			Revision: &revisionCopy, Selection: &selectionCopy, ExtractorName: corpusAdapter,
+			Revision: &revisionCopy, Selection: &selectionCopy, ExtractorName: profile.AdapterVersion,
 			ExtractorVersion: "1", SchemaVersion: 1, FactIDs: factIDs,
 			Omissions: domain.AnalysisOmissions{}, Status: domain.AnalysisCompleted,
 			StartedAt: capturedAt, FinishedAt: capturedAt,

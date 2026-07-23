@@ -182,9 +182,10 @@ func newEvaluationReport(
 
 func finalizeReport(report *evaluationReport, finishedAt time.Time) {
 	report.FinishedAt = finishedAt.UTC()
-	report.Complete = report.StopCategory == "" && len(report.Cases) == corpusCaseCount
+	caseCount := len(report.Corpus.CaseOrder)
+	report.Complete = report.StopCategory == "" && len(report.Cases) == caseCount
 	aggregates := evaluationAggregates{
-		CaseCount: corpusCaseCount, FailureCounts: make(map[string]int),
+		CaseCount: caseCount, FailureCounts: make(map[string]int),
 	}
 	latencies := []int64{}
 	totalCost := new(big.Rat)

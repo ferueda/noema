@@ -282,11 +282,12 @@ lesson claims remain known recall limits to revisit only when real downstream
 use shows they matter. Do not weaken deterministic admission to improve
 recall.
 
-Milestone 2 uses one digest-pinned synthetic corpus as a development check.
-Automatic measures cover valid structure, execution, cost, and latency.
-Whether admitted claims are supported and useful remains a separate human
-review. The evaluator does not become a product stage or write to Noema's
-evidence, analysis, event, or artifact stores.
+Milestone 2 uses a closed set of immutable, digest-pinned synthetic corpora as
+development checks. V1 remains the 12-case baseline; V2 preserves those cases
+and adds eight meaning-focused cases. Automatic measures cover valid structure,
+execution, cost, and latency. Whether admitted claims are supported and useful
+remains a separate human review. The evaluator does not become a product stage
+or write to Noema's evidence, analysis, event, or artifact stores.
 
 ### Milestone 3: Content Scout
 

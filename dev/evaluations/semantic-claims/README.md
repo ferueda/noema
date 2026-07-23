@@ -1,9 +1,15 @@
 # Semantic-claim evaluation corpus
 
-`corpus-v1.json` is the single reviewed synthetic corpus for the V0 semantic
-claim baseline. It contains no private Sessions data and is accepted only when
-its exact content digest matches the value compiled into
-`cmd/noema-semantic-eval`.
+The evaluator accepts a closed set of reviewed synthetic corpora only when
+their exact content digests match values compiled into
+`cmd/noema-semantic-eval`:
+
+- `corpus-v1.json` is the immutable 12-case V0 baseline.
+- `corpus-v2.json` preserves all V1 cases exactly and adds eight cases for
+  scope, causality, chronology, separation, decision state, rationale, and
+  prompt injection inside quoted evidence.
+
+Neither corpus contains private Sessions data.
 
 The live runner invokes each case once through Noema's production semantic
 preflight, prompt, schema, privacy rules, Gateway adapter, and local claim
@@ -32,5 +38,5 @@ Notes are optional and bounded. The offline score command rejects stale corpus,
 claim, case, or criterion identities and reports missing decisions as
 unreviewed. It does not treat missing reviews as failures or use a model judge.
 
-Do not replace, extend, or regenerate this corpus merely to improve a score.
-Changes require a new reviewed corpus version and digest.
+Do not replace, extend, or regenerate a reviewed corpus merely to improve a
+score. Changes require a new reviewed corpus file, review, and compiled digest.

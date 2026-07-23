@@ -87,14 +87,17 @@ credential.
 ## Live semantic evaluation
 
 The semantic evaluation command is a development tool, not a Noema analysis
-stage. It accepts only the reviewed 12-case synthetic corpus at its compiled
-content digest. It does not use Sessions, SQLite, events, or private evidence.
+stage. It accepts only the reviewed V1 or V2 synthetic corpus at its compiled
+content digest. V1 is the immutable 12-case baseline; V2 preserves V1 and adds
+eight meaning-focused cases. It does not use Sessions, SQLite, events, or
+private evidence.
 
-After obtaining fresh approval for the 12 remote requests, run:
+After obtaining fresh approval for every request in the selected corpus, run,
+for example, the 20-case V2 corpus:
 
 ```sh
 go run ./cmd/noema-semantic-eval run \
-  --corpus ./dev/evaluations/semantic-claims/corpus-v1.json \
+  --corpus ./dev/evaluations/semantic-claims/corpus-v2.json \
   --allow-remote \
   --route-config ./config/semantic-route.example.json \
   --output /tmp/noema-semantic-eval.json \

@@ -5,7 +5,8 @@ implementation.
 
 ## Active
 
-None.
+- [260723-expand-semantic-evaluation-corpus.md](260723-expand-semantic-evaluation-corpus.md) —
+  preserve the immutable V1 baseline and add one reviewed 20-case V2 expansion.
 
 ## Queued
 

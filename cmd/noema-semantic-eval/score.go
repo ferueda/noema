@@ -84,8 +84,10 @@ func scoreReviews(report evaluationReport, reviews reviewTemplate) (evaluationSc
 		return evaluationScore{}, errors.New("evaluation report is invalid")
 	}
 	reportDigest := sha256Hex(reportJSON)
+	profile, reviewed := reviewedCorpora[report.Corpus.Digest]
 	if report.SchemaVersion != reportSchemaVersion || report.Corpus.SchemaVersion != corpusSchemaVersion ||
-		report.Corpus.Digest != corpusDigestV1 || reviews.SchemaVersion != reviewSchemaVersion ||
+		!reviewed || len(report.Corpus.CaseOrder) != profile.CaseCount ||
+		len(report.Cases) != profile.CaseCount || reviews.SchemaVersion != reviewSchemaVersion ||
 		reviews.CorpusDigest != report.Corpus.Digest || reviews.ReportDigest != reportDigest {
 		return evaluationScore{}, errors.New("evaluation review does not match the report")
 	}

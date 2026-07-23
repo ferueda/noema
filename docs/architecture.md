@@ -933,14 +933,17 @@ The first explicitly approved run passed on 2026-07-23 against Cerebras and
 `openai/gpt-oss-120b` with the current strict schema and zero candidates.
 
 The separate developer-only `noema-semantic-eval` command measures semantic
-behavior over one digest-pinned 12-case synthetic corpus. Every case passes the
-same production preparation, privacy, schema, Gateway, and claim-admission path,
-but the evaluator does not read Sessions, open Noema's database, publish
-events, or persist product analysis. Machine checks measure structural and
-operational behavior. A separate human sidecar records evidence support,
-usefulness, and case criteria, then an offline scorer reports review coverage
-without a model judge. This evaluation harness is evidence about the semantic
-stage; it is not another runtime layer.
+behavior over a closed set of immutable, digest-pinned synthetic corpora. V1
+is the 12-case baseline. V2 preserves those cases exactly and adds eight cases
+covering scope, causality, chronology, separation, decision state, rationale,
+and prompt injection in quoted evidence. Every case passes the same production
+preparation, privacy, schema, Gateway, and claim-admission path, but the
+evaluator does not read Sessions, open Noema's database, publish events, or
+persist product analysis. Machine checks measure structural and operational
+behavior. A separate human sidecar records evidence support, usefulness, and
+case criteria, then an offline scorer reports review coverage without a model
+judge. This evaluation harness is evidence about the semantic stage; it is not
+another runtime layer.
 
 Without an explicit range, the complete retained snapshot must fit every
 semantic input budget without truncation. A paired inclusive range may be

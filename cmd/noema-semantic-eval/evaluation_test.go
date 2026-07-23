@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -40,21 +41,65 @@ func (failure categorizedGenerationError) SemanticGenerationFailureCategory() st
 	return string(failure)
 }
 
-func TestReviewedCorpusPassesProductionPreflight(t *testing.T) {
-	corpus := testCorpus(t)
-	if len(corpus.Cases) != corpusCaseCount {
-		t.Fatalf("case count = %d, want %d", len(corpus.Cases), corpusCaseCount)
-	}
-	route := testRoute(t)
-	if err := preflightCorpus(corpus, route.Validated()); err != nil {
-		t.Fatalf("preflight corpus: %v", err)
-	}
-	for _, fixture := range corpus.Cases {
-		if len(fixture.Document.Entries) == 0 ||
-			fixture.FactAnalysis.Run.Revision == nil ||
-			fixture.FactAnalysis.Run.Revision.Identity() != fixture.Document.Revision.Identity() {
-			t.Fatalf("invalid fixture lineage for %s", fixture.Definition.ID)
+func TestReviewedCorporaPassProductionPreflight(t *testing.T) {
+	for _, path := range []string{testCorpusPath(), testCorpusV2Path()} {
+		corpus := testCorpusAtPath(t, path)
+		if len(corpus.Cases) != corpus.Profile.CaseCount {
+			t.Fatalf("%s case count = %d, want %d", path, len(corpus.Cases), corpus.Profile.CaseCount)
 		}
+		route := testRoute(t)
+		if err := preflightCorpus(corpus, route.Validated()); err != nil {
+			t.Fatalf("preflight corpus %s: %v", path, err)
+		}
+		for _, fixture := range corpus.Cases {
+			if len(fixture.Document.Entries) == 0 ||
+				fixture.FactAnalysis.Run.Revision == nil ||
+				fixture.FactAnalysis.Run.Revision.Identity() != fixture.Document.Revision.Identity() {
+				t.Fatalf("invalid fixture lineage for %s", fixture.Definition.ID)
+			}
+		}
+	}
+}
+
+func TestCorpusV2PreservesV1AndAddsReviewedCases(t *testing.T) {
+	var v1, v2 corpusFile
+	for _, input := range []struct {
+		path   string
+		target *corpusFile
+	}{
+		{path: testCorpusPath(), target: &v1},
+		{path: testCorpusV2Path(), target: &v2},
+	} {
+		content, err := os.ReadFile(input.path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := decodeStrictJSON(content, input.target); err != nil {
+			t.Fatalf("decode %s: %v", input.path, err)
+		}
+	}
+	if len(v1.Cases) != 12 || len(v2.Cases) != 20 ||
+		!reflect.DeepEqual(v1.Cases, v2.Cases[:len(v1.Cases)]) {
+		t.Fatal("V2 does not preserve the 12 V1 cases exactly")
+	}
+	expected := map[string]bool{
+		"mixed-verification-scope":         true,
+		"confirmed-root-cause":             true,
+		"unrelated-concurrent-problems":    true,
+		"reverted-solution":                true,
+		"later-failure-after-success":      true,
+		"decision-without-implementation":  true,
+		"implementation-without-rationale": true,
+		"prompt-injection-evidence":        true,
+	}
+	for _, definition := range v2.Cases[len(v1.Cases):] {
+		if !expected[definition.ID] || len(definition.HumanCriteria) != 1 {
+			t.Fatalf("unexpected V2 case contract: %#v", definition)
+		}
+		delete(expected, definition.ID)
+	}
+	if len(expected) != 0 {
+		t.Fatalf("missing V2 cases: %#v", expected)
 	}
 }
 
@@ -92,6 +137,7 @@ func TestRunRejectsWrongCorpusDigestBeforeGeneratorConstruction(t *testing.T) {
 
 func TestEvaluationReportsAdmittedAndEmptyBatchesWithExactAggregates(t *testing.T) {
 	corpus := testCorpus(t)
+	caseCount := len(corpus.Cases)
 	route := testRoute(t).Validated()
 	generator := &fakeGenerator{generate: func(
 		call int,
@@ -111,18 +157,18 @@ func TestEvaluationReportsAdmittedAndEmptyBatchesWithExactAggregates(t *testing.
 	}}
 	clock := testClock()
 	report := executeEvaluation(context.Background(), corpus, route, generator, clock)
-	if !report.Complete || len(report.Cases) != corpusCaseCount || generator.calls != corpusCaseCount {
+	if !report.Complete || len(report.Cases) != caseCount || generator.calls != caseCount {
 		t.Fatalf("complete/cases/calls = %v/%d/%d", report.Complete, len(report.Cases), generator.calls)
 	}
 	if report.Cases[1].CandidateCount != 1 || report.Cases[1].AdmittedCount != 1 ||
-		len(report.Cases[1].Evidence) != 1 || report.Aggregates.ValidBatchCount != corpusCaseCount ||
-		report.Aggregates.EmptyBatchCount != corpusCaseCount-1 {
+		len(report.Cases[1].Evidence) != 1 || report.Aggregates.ValidBatchCount != caseCount ||
+		report.Aggregates.EmptyBatchCount != caseCount-1 {
 		t.Fatalf("unexpected batch results: %#v / %#v", report.Cases[1], report.Aggregates)
 	}
 	if report.Aggregates.TotalCostUSD == nil || *report.Aggregates.TotalCostUSD != "0.0012" ||
 		report.Aggregates.AverageCostUSD == nil || *report.Aggregates.AverageCostUSD != "0.0001" ||
-		report.Aggregates.TokenMetadataCount != corpusCaseCount ||
-		report.Aggregates.LatencyMetadataCount != corpusCaseCount {
+		report.Aggregates.TokenMetadataCount != caseCount ||
+		report.Aggregates.LatencyMetadataCount != caseCount {
 		t.Fatalf("unexpected aggregates: %#v", report.Aggregates)
 	}
 	for _, result := range report.Cases {
@@ -134,12 +180,13 @@ func TestEvaluationReportsAdmittedAndEmptyBatchesWithExactAggregates(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(review.ClaimReviews) != 1 || len(review.CaseCriteria) != corpusCaseCount {
+	if len(review.ClaimReviews) != 1 || len(review.CaseCriteria) != caseCount {
 		t.Fatalf("review template sizes = %d/%d", len(review.ClaimReviews), len(review.CaseCriteria))
 	}
 }
 
 func TestEvaluationUsesExactStopAndContinueCategories(t *testing.T) {
+	caseCount := len(testCorpus(t).Cases)
 	for _, test := range []struct {
 		name         string
 		category     string
@@ -148,7 +195,7 @@ func TestEvaluationUsesExactStopAndContinueCategories(t *testing.T) {
 	}{
 		{
 			name: "timeout continues", category: application.SemanticGenerationFailureTimeout,
-			wantCalls: corpusCaseCount, wantComplete: true,
+			wantCalls: caseCount, wantComplete: true,
 		},
 		{
 			name: "authentication stops", category: application.SemanticGenerationFailureAuthentication,
@@ -173,7 +220,7 @@ func TestEvaluationUsesExactStopAndContinueCategories(t *testing.T) {
 				t.Fatalf("calls/complete/category = %d/%v/%q", generator.calls, report.Complete, report.Cases[0].FailureCategory)
 			}
 			if test.category == application.SemanticGenerationFailureAuthentication {
-				if len(report.Cases) != corpusCaseCount ||
+				if len(report.Cases) != caseCount ||
 					report.Cases[1].Status != "not-attempted" ||
 					report.Aggregates.ExpectationCount != 8 ||
 					report.Aggregates.EvaluatedExpectations != 0 ||
@@ -240,10 +287,11 @@ func TestEvaluationContinuesAfterAdmissionFailureAndScoresPartialReviews(t *test
 		return fakeGeneration(call, request, candidates), nil
 	}}
 	corpus := testCorpus(t)
+	caseCount := len(corpus.Cases)
 	report := executeEvaluation(
 		context.Background(), corpus, testRoute(t).Validated(), generator, testClock(),
 	)
-	if !report.Complete || generator.calls != corpusCaseCount ||
+	if !report.Complete || generator.calls != caseCount ||
 		report.Cases[0].FailureCategory != "claim-free-text-attribution-invalid" {
 		t.Fatalf("admission continuation failed: %#v", report)
 	}
@@ -261,7 +309,7 @@ func TestEvaluationContinuesAfterAdmissionFailureAndScoresPartialReviews(t *test
 	}
 	if score.Claims.Reviewed != 1 || score.Claims.UsefulCaseCount != 1 ||
 		score.CaseCriteria.Reviewed != 1 ||
-		score.CaseCriteria.Verdicts["unreviewed"] != corpusCaseCount-1 {
+		score.CaseCriteria.Verdicts["unreviewed"] != caseCount-1 {
 		t.Fatalf("unexpected score: %#v", score)
 	}
 	reviews.ReportDigest = "stale"
@@ -293,7 +341,12 @@ func fakeGeneration(
 
 func testCorpus(t *testing.T) evaluationCorpus {
 	t.Helper()
-	corpus, err := loadEvaluationCorpus(testCorpusPath())
+	return testCorpusAtPath(t, testCorpusPath())
+}
+
+func testCorpusAtPath(t *testing.T, path string) evaluationCorpus {
+	t.Helper()
+	corpus, err := loadEvaluationCorpus(path)
 	if err != nil {
 		t.Fatalf("load corpus: %v", err)
 	}
@@ -311,6 +364,10 @@ func testRoute(t *testing.T) aigateway.Route {
 
 func testCorpusPath() string {
 	return filepath.Join("..", "..", "dev", "evaluations", "semantic-claims", "corpus-v1.json")
+}
+
+func testCorpusV2Path() string {
+	return filepath.Join("..", "..", "dev", "evaluations", "semantic-claims", "corpus-v2.json")
 }
 
 func testRoutePath() string {
