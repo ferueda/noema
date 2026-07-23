@@ -906,6 +906,16 @@ noema analyze claims <fact-analysis-id> --allow-remote \
   [--database <path>]
 ```
 
+The separate manual `noema gateway check` command exercises the same prompt,
+output schema, route loader, and Gateway adapter with fixed public synthetic
+input containing no entries or facts. It makes no Sessions call, opens no
+database, and admits or persists no claim. A successful empty result proves the
+current live transport contract and bounded model metadata path; it does not
+measure semantic support quality or prove provider privacy behavior.
+Conformance is an operational check, not an evidence or knowledge stage.
+The first explicitly approved run passed on 2026-07-23 against Cerebras and
+`openai/gpt-oss-120b` with the current strict schema and zero candidates.
+
 Without an explicit range, the complete retained snapshot must fit every
 semantic input budget without truncation. A paired inclusive range may be
 bounded and is recorded as partial coverage. After deterministic privacy

@@ -27,10 +27,11 @@ digests create a new analysis, and stored evidence resolves only while Sessions
 can return the recorded revision. With explicit approval, the semantic path can
 send bounded, privacy-filtered evidence and facts through a pinned Vercel AI
 Gateway route, then atomically retain locally validated claims and knowledge
-events. Live route conformance and a reviewed generic evaluation corpus still
-gate completion of this milestone. The local producer-to-worker spine also
-persists its foundation records in SQLite; `worker --once` remains fail-closed
-until the later agent-runtime milestone.
+events. The public-data conformance command has passed against the pinned
+Cerebras route; a reviewed generic evaluation corpus still gates completion of
+this milestone. The local producer-to-worker spine also persists its foundation
+records in SQLite; `worker --once` remains fail-closed until the later
+agent-runtime milestone.
 
 The foundation still contains Content Scout-specific request, worker, and
 completion seams used by its fake end-to-end proof. The accepted architecture
@@ -80,6 +81,14 @@ go run ./cmd/noema jobs list --database /path/to/noema.db
 go run ./cmd/noema ideas list --database /path/to/noema.db
 ```
 
+Check the live semantic route without loading Sessions or opening SQLite:
+
+```sh
+export AI_GATEWAY_API_KEY='<gateway-key>'
+go run ./cmd/noema gateway check --allow-remote \
+  --route-config ./config/semantic-route.example.json
+```
+
 Noema never runs `sessions index` implicitly. `scan sessions` invokes
 `sessions export '<canonical-id>' --format jsonl --full`; `--full` means the
 complete export-eligible retained Sessions snapshot, not proof that the source
@@ -99,7 +108,18 @@ The Milestone 1 scan and inspection path is local and makes no model or other
 remote request. Set `NOEMA_SESSIONS_COMMAND` only when the Sessions executable
 is not available as `sessions` on `PATH`.
 
-`analyze claims` is the only current remote path. It requires both
+`gateway check` sends fixed public synthetic input with no evidence entries or
+facts through the production semantic prompt, schema, route loader, and Gateway
+adapter. It requires explicit `--allow-remote`, `AI_GATEWAY_API_KEY`, and the
+reviewed route file; it makes one small paid request. It does not invoke
+Sessions, open or create a Noema database, admit claims, or write a report.
+Success proves the current authentication, request encoding, pinned routing,
+schema acceptance, response metadata, and empty-envelope decoding path. It does
+not measure semantic quality or prove provider retention, training, or other
+privacy behavior. The command reports bounded route, schema, provider, model,
+request, usage, latency, and cost metadata, or one sanitized failure category.
+
+`analyze claims` is the remote private-evidence path. It requires both
 `--allow-remote` and `AI_GATEWAY_API_KEY`, plus the exact reviewed route in
 [config/semantic-route.example.json](config/semantic-route.example.json). It
 sends only the selected entries, deterministic facts, evidence IDs, omissions,
@@ -122,6 +142,7 @@ key, outbound prompt, raw response, and resolved evidence text are not
 persisted.
 Previously copied route files must add the explicit numeric `temperature` value
 before Noema will accept them.
+
 Remote failures retain only a fixed operational category such as permission
 denied, schema rejected, context too large, content rejected, rate limited,
 timeout, or invalid response; provider messages and response bodies are

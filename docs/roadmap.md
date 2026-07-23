@@ -179,7 +179,8 @@ Understand one explicitly selected Sessions session without a model call.
 
 - Status: in progress — admission, durability, bounded cleanup, explicit
   remote execution, offline acceptance, and the first approved local smoke are
-  implemented; live route conformance and a reviewed generic corpus remain
+  implemented; the public-data conformance check passed against the pinned
+  route, while a reviewed generic corpus remains
 
 ### Goal
 

@@ -64,3 +64,22 @@ go test ./internal/integration
 
 Before handoff, report tests added or changed, `make check`, and any explicit
 checks skipped with the reason.
+
+## Live semantic-route check
+
+The explicit live canary is:
+
+```sh
+go run ./cmd/noema gateway check --allow-remote \
+  --route-config ./config/semantic-route.example.json
+```
+
+It requires fresh authority, `AI_GATEWAY_API_KEY`, network access, and awareness
+of the small model cost. It uses only fixed public synthetic input and makes no
+Sessions or SQLite call. Run it manually when the production semantic route,
+schema, prompt, SDK, or provider contract needs live confirmation.
+
+Routine tests inject a fake generator and prove the command's approval gates,
+fixed empty input, production contract reuse, safe output, and sanitized
+failures. `make check` and CI must never invoke the live command or require its
+credential.
