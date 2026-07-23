@@ -44,7 +44,9 @@
 - Live validation: an approved partial real-session selection completed with
   three evidence-backed claims, and an exact rerun reused the stored result
   without another model call
-- Next: run the public-data route conformance check and reviewed generic corpus
+- Live conformance: the public-data check passed against the pinned Cerebras
+  route, production schema, and temperature-zero request with no candidates
+- Next: establish and review the generic semantic evaluation corpus
 - Roadmap: [V0 Milestone 2](../../docs/roadmap.md#v0-milestone-2-validated-semantic-claims)
 
 ## Goal

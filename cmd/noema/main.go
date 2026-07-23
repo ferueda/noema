@@ -45,6 +45,8 @@ func runWithDependencies(
 		return runAnalyses(ctx, args[1:], stdout, stderr)
 	case "analyze":
 		return runAnalyze(ctx, args[1:], stdout, stderr, dependencies)
+	case "gateway":
+		return runGateway(ctx, args[1:], stdout, stderr, dependencies)
 	case "worker":
 		return runWorker(ctx, args[1:], stdout, stderr)
 	case "jobs":
@@ -269,6 +271,7 @@ func writeUsage(writer io.Writer) {
 commands:
   scan sessions   process one retained Sessions snapshot into deterministic facts
   analyze claims  derive validated semantic claims with explicit remote approval
+  gateway check   check the live semantic route with fixed public input
   analyses show   inspect a stored analysis; optionally resolve its evidence
   worker --once   process one pending agent job (next milestone)
   jobs list       list durable jobs

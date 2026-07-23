@@ -1,6 +1,10 @@
 # Add a live semantic-route conformance check
 
-- Status: approved
+- Status: completed
+- Live validation: 2026-07-23 — Cerebras resolved `openai/gpt-oss-120b`,
+  accepted the production strict schema and temperature-zero route, returned
+  zero candidates, and created no repository or database state
+- Live metadata: 980 total tokens, 1,477 ms latency, $0.0003754
 
 ## Goal
 

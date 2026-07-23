@@ -54,3 +54,24 @@ SQLite databases.
 Live integration checks require an explicit command, explicit user authority,
 documented credentials, a bounded target, and cleanup. They are not part of the
 normal local or CI gate.
+
+## Manual Gateway conformance
+
+After obtaining explicit approval, check the pinned semantic route with fixed
+public input:
+
+```sh
+export AI_GATEWAY_API_KEY='<gateway-key>'
+go run ./cmd/noema gateway check --allow-remote \
+  --route-config ./config/semantic-route.example.json
+```
+
+The command makes one small paid request through the production semantic prompt,
+schema, route loader, and Gateway adapter. It does not read Sessions, open
+SQLite, create a Noema record, or write a report. Success identifies the
+resolved provider and model and reports bounded request, usage, latency, and
+cost metadata. It proves the current live protocol path, not semantic quality
+or provider privacy guarantees.
+
+Never add this command to `make check`, CI, setup, or an automatic hook. Do not
+run it without fresh authority merely because credentials are available.
