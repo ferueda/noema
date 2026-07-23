@@ -103,7 +103,7 @@ func (workflow SemanticWorkflow) Run(
 	if err != nil {
 		return SemanticWorkflowResult{}, workflow.recordFailure(
 			ctx, attempt, factAnalysis, details, prepared.RunSelection,
-			semanticGenerationFailureCategory(err), startedAt,
+			SemanticGenerationFailureCategory(err), startedAt,
 			analysisID,
 		)
 	}
@@ -113,7 +113,7 @@ func (workflow SemanticWorkflow) Run(
 	if err != nil {
 		return SemanticWorkflowResult{}, workflow.recordFailure(
 			ctx, attempt, factAnalysis, details, prepared.RunSelection,
-			semanticAdmissionFailureCategory(err), startedAt,
+			SemanticAdmissionFailureCategory(err), startedAt,
 			analysisID,
 		)
 	}
@@ -307,6 +307,12 @@ func semanticAdmissionFailureCategory(err error) string {
 		}
 	}
 	return "semantic-admission-invalid"
+}
+
+// SemanticAdmissionFailureCategory returns the same safe category used by
+// durable semantic workflow failures without exposing generated content.
+func SemanticAdmissionFailureCategory(err error) string {
+	return semanticAdmissionFailureCategory(err)
 }
 
 func buildSemanticEvents(analysis domain.SemanticAnalysis) ([]domain.Event, error) {

@@ -1,6 +1,6 @@
 # Admit evidence-backed semantic claims
 
-- Status: in progress
+- Status: completed
 - Implemented: admission slice in PR #11 (`56981fc`)
 - Implemented: durability slice in PR #13 (`265938e`)
 - Implemented: [behavior-preserving durability cleanup](260721-semantic-durability-cleanup.md)
@@ -46,7 +46,19 @@
   without another model call
 - Live conformance: the public-data check passed against the pinned Cerebras
   route, production schema, and temperature-zero request with no candidates
-- Next: establish and review the generic semantic evaluation corpus
+- Evaluation harness: the digest-pinned 12-case corpus, production-path runner,
+  human review sidecar, and offline scorer are implemented
+- Evaluation baseline: the approved 12-case run and complete human review are
+  recorded; 7 batches passed admission, 5 failed admission, and 1 of 14
+  admitted claims was unsupported
+- Verification checkpoint: V9 applies the smallest one-pass correction without
+  weakening admission or adding a second model stage
+- Comparison: the one approved unchanged-corpus V9 run admitted 11 of 12
+  batches; all 10 admitted claims were supported in human review, 9 were
+  useful, and 1 was weak
+- Decision: close the checkpoint without a second verification pass; retain
+  omitted decision and lesson claims as known recall limits for downstream
+  evidence
 - Roadmap: [V0 Milestone 2](../../docs/roadmap.md#v0-milestone-2-validated-semantic-claims)
 
 ## Goal

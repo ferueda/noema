@@ -5,11 +5,7 @@ implementation.
 
 ## Active
 
-- [260721-milestone-2-semantic-claims.md](260721-milestone-2-semantic-claims.md) —
-  the remote claim path and live route conformance are implemented; reviewed
-  semantic evaluation remains before the milestone closes.
-- [260722-semantic-evaluation-corpus.md](260722-semantic-evaluation-corpus.md) —
-  establish a 12-case synthetic corpus with machine metrics and human review.
+None.
 
 ## Queued
 
@@ -27,6 +23,15 @@ implementation.
 
 ## Completed
 
+- [260723-tighten-semantic-claim-prompt.md](260723-tighten-semantic-claim-prompt.md) —
+  applies and evaluates the smallest V9 one-pass correction; all admitted
+  comparison claims were supported, so no second verifier was added.
+- [260721-milestone-2-semantic-claims.md](260721-milestone-2-semantic-claims.md) —
+  admits, retains, resolves, and evaluates semantic claims through the pinned
+  remote route.
+- [260722-semantic-evaluation-corpus.md](260722-semantic-evaluation-corpus.md) —
+  implements the fixed 12-case corpus, machine report, human review, offline
+  score, first recorded baseline, and V9 comparison.
 - [260722-live-semantic-route-conformance.md](260722-live-semantic-route-conformance.md) —
   adds and validates the public-data-only manual canary for the pinned Gateway
   route and production schema.

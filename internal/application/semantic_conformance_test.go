@@ -14,6 +14,9 @@ import (
 func TestSemanticConformanceUsesProductionContractAndFixedPublicInput(t *testing.T) {
 	route := semanticTestRoute()
 	wantSchema := mustSemanticClaimOutputSchema(t)
+	if SemanticPromptVersion != "semantic-claims-v9" {
+		t.Fatalf("prompt version = %q, want semantic-claims-v9", SemanticPromptVersion)
+	}
 	generator := &recordingSemanticGenerator{
 		generate: func(request SemanticGenerationRequest) (SemanticGenerationResult, error) {
 			if request.Instructions != semanticInstructions ||

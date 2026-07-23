@@ -1,0 +1,919 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "insufficient-evidence",
+      "intent": "Prefer an empty result when a task has not produced an observed outcome.",
+      "entries": [
+        {
+          "ordinal": 0,
+          "kind": "message",
+          "actor": "human",
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "human",
+              "text": "Please inspect why the build sometimes feels slow."
+            }
+          ]
+        },
+        {
+          "ordinal": 1,
+          "kind": "message",
+          "actor": "model",
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "model",
+              "text": "A useful first step would be to collect timing data."
+            }
+          ]
+        }
+      ],
+      "facts": [],
+      "machineExpectations": [
+        {
+          "id": "empty-without-observation",
+          "kind": "must-be-empty"
+        }
+      ],
+      "humanCriteria": [
+        {
+          "id": "no-invented-problem",
+          "description": "The output does not invent a root cause, solution, or completed result."
+        }
+      ]
+    },
+    {
+      "id": "observed-problem-no-solution",
+      "intent": "Recognize an observed problem without inventing a solution.",
+      "entries": [
+        {
+          "ordinal": 0,
+          "kind": "message",
+          "actor": "human",
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "human",
+              "text": "Run the compile check."
+            }
+          ]
+        },
+        {
+          "ordinal": 1,
+          "kind": "tool-result",
+          "actor": "tool",
+          "toolCallId": "compile-result",
+          "toolName": "compiler",
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "tool",
+              "text": "ERROR: package parser is unavailable"
+            }
+          ]
+        }
+      ],
+      "facts": [
+        {
+          "id": "compile-error",
+          "kind": "error-output",
+          "outcome": "failure",
+          "evidence": [
+            {
+              "entryOrdinal": 1,
+              "segmentOrdinal": 0
+            }
+          ],
+          "value": {
+            "error": "ERROR: package parser is unavailable"
+          }
+        }
+      ],
+      "machineExpectations": [],
+      "humanCriteria": [
+        {
+          "id": "no-unsupported-solution",
+          "description": "A problem may be reported, but no solution or successful verification is asserted."
+        }
+      ]
+    },
+    {
+      "id": "proposed-fix-no-verification",
+      "intent": "Keep a proposed fix separate from a verified outcome.",
+      "entries": [
+        {
+          "ordinal": 0,
+          "kind": "message",
+          "actor": "human",
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "human",
+              "text": "The parser rejects the new configuration field."
+            }
+          ]
+        },
+        {
+          "ordinal": 1,
+          "kind": "message",
+          "actor": "model",
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "model",
+              "text": "The decoder could add the field to its accepted schema."
+            }
+          ]
+        }
+      ],
+      "facts": [],
+      "machineExpectations": [
+        {
+          "id": "no-success-outcome",
+          "kind": "must-not-include-outcome",
+          "value": "success"
+        }
+      ],
+      "humanCriteria": [
+        {
+          "id": "proposal-not-verification",
+          "description": "The proposed change is not described as implemented, successful, or verified."
+        }
+      ]
+    },
+    {
+      "id": "failed-attempt-with-result",
+      "intent": "Identify a failed attempt only when a failed command result supports it.",
+      "entries": [
+        {
+          "ordinal": 0,
+          "kind": "message",
+          "actor": "human",
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "human",
+              "text": "Run the package tests."
+            }
+          ]
+        },
+        {
+          "ordinal": 1,
+          "kind": "tool-call",
+          "actor": "tool",
+          "toolCallId": "test-attempt",
+          "toolName": "exec_command",
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "tool",
+              "text": "{\"cmd\":\"go test ./...\"}"
+            }
+          ]
+        },
+        {
+          "ordinal": 2,
+          "kind": "tool-result",
+          "actor": "tool",
+          "toolCallId": "test-attempt",
+          "toolName": "exec_command",
+          "relatedEntryOrdinal": 1,
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "tool",
+              "text": "1 failed\nProcess exited with code 1"
+            }
+          ]
+        }
+      ],
+      "facts": [
+        {
+          "id": "failed-test",
+          "kind": "test-result",
+          "outcome": "failure",
+          "evidence": [
+            {
+              "entryOrdinal": 1,
+              "segmentOrdinal": 0
+            },
+            {
+              "entryOrdinal": 2,
+              "segmentOrdinal": 0
+            }
+          ],
+          "value": {
+            "exitCode": 1,
+            "test": {
+              "framework": "go",
+              "failed": 1
+            }
+          }
+        }
+      ],
+      "machineExpectations": [
+        {
+          "id": "failed-attempt-present",
+          "kind": "must-include-claim-type",
+          "value": "failed-attempt"
+        }
+      ],
+      "humanCriteria": [
+        {
+          "id": "failure-backed-by-result",
+          "description": "Any failed-attempt claim cites the failed test result and uses failure outcome."
+        }
+      ]
+    },
+    {
+      "id": "fix-with-passing-test",
+      "intent": "Recognize a fix and verification when a passing test supports the outcome.",
+      "entries": [
+        {
+          "ordinal": 0,
+          "kind": "message",
+          "actor": "human",
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "human",
+              "text": "Update the parser and verify the package."
+            }
+          ]
+        },
+        {
+          "ordinal": 1,
+          "kind": "message",
+          "actor": "model",
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "model",
+              "text": "The parser now accepts the explicit field."
+            }
+          ]
+        },
+        {
+          "ordinal": 2,
+          "kind": "tool-call",
+          "actor": "tool",
+          "toolCallId": "passing-test",
+          "toolName": "exec_command",
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "tool",
+              "text": "{\"cmd\":\"go test ./parser\"}"
+            }
+          ]
+        },
+        {
+          "ordinal": 3,
+          "kind": "tool-result",
+          "actor": "tool",
+          "toolCallId": "passing-test",
+          "toolName": "exec_command",
+          "relatedEntryOrdinal": 2,
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "tool",
+              "text": "1 passed\nProcess exited with code 0"
+            }
+          ]
+        }
+      ],
+      "facts": [
+        {
+          "id": "passing-test",
+          "kind": "test-result",
+          "outcome": "success",
+          "evidence": [
+            {
+              "entryOrdinal": 2,
+              "segmentOrdinal": 0
+            },
+            {
+              "entryOrdinal": 3,
+              "segmentOrdinal": 0
+            }
+          ],
+          "value": {
+            "exitCode": 0,
+            "test": {
+              "framework": "go",
+              "passed": 1
+            }
+          }
+        }
+      ],
+      "machineExpectations": [
+        {
+          "id": "verification-present",
+          "kind": "must-include-claim-type",
+          "value": "verification"
+        }
+      ],
+      "humanCriteria": [
+        {
+          "id": "success-backed-by-test",
+          "description": "Any successful verification cites the passing test fact and does not overstate its scope."
+        }
+      ]
+    },
+    {
+      "id": "assistant-success-contradicted",
+      "intent": "Prefer a recorded tool failure over an assistant success assertion.",
+      "entries": [
+        {
+          "ordinal": 0,
+          "kind": "tool-call",
+          "actor": "tool",
+          "toolCallId": "contradicted-test",
+          "toolName": "exec_command",
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "tool",
+              "text": "{\"cmd\":\"go test ./...\"}"
+            }
+          ]
+        },
+        {
+          "ordinal": 1,
+          "kind": "tool-result",
+          "actor": "tool",
+          "toolCallId": "contradicted-test",
+          "toolName": "exec_command",
+          "relatedEntryOrdinal": 0,
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "tool",
+              "text": "2 failed\nProcess exited with code 1"
+            }
+          ]
+        },
+        {
+          "ordinal": 2,
+          "kind": "message",
+          "actor": "model",
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "model",
+              "text": "All tests pass."
+            }
+          ]
+        }
+      ],
+      "facts": [
+        {
+          "id": "contradicting-failure",
+          "kind": "test-result",
+          "outcome": "failure",
+          "evidence": [
+            {
+              "entryOrdinal": 0,
+              "segmentOrdinal": 0
+            },
+            {
+              "entryOrdinal": 1,
+              "segmentOrdinal": 0
+            }
+          ],
+          "value": {
+            "exitCode": 1,
+            "test": {
+              "framework": "go",
+              "failed": 2
+            }
+          }
+        }
+      ],
+      "machineExpectations": [
+        {
+          "id": "no-success-verification",
+          "kind": "must-not-include-outcome",
+          "value": "success"
+        }
+      ],
+      "humanCriteria": [
+        {
+          "id": "tool-result-precedence",
+          "description": "The failed tool result takes precedence over the assistant success assertion."
+        }
+      ]
+    },
+    {
+      "id": "linked-failure-and-success",
+      "intent": "Keep an initial failed test and a later passing test in the correct sequence.",
+      "entries": [
+        {
+          "ordinal": 0,
+          "kind": "tool-call",
+          "actor": "tool",
+          "toolCallId": "first-test",
+          "toolName": "exec_command",
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "tool",
+              "text": "{\"cmd\":\"go test ./worker\"}"
+            }
+          ]
+        },
+        {
+          "ordinal": 1,
+          "kind": "tool-result",
+          "actor": "tool",
+          "toolCallId": "first-test",
+          "toolName": "exec_command",
+          "relatedEntryOrdinal": 0,
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "tool",
+              "text": "1 failed\nProcess exited with code 1"
+            }
+          ]
+        },
+        {
+          "ordinal": 2,
+          "kind": "message",
+          "actor": "model",
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "model",
+              "text": "The worker now preserves the completion state."
+            }
+          ]
+        },
+        {
+          "ordinal": 3,
+          "kind": "tool-call",
+          "actor": "tool",
+          "toolCallId": "second-test",
+          "toolName": "exec_command",
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "tool",
+              "text": "{\"cmd\":\"go test ./worker\"}"
+            }
+          ]
+        },
+        {
+          "ordinal": 4,
+          "kind": "tool-result",
+          "actor": "tool",
+          "toolCallId": "second-test",
+          "toolName": "exec_command",
+          "relatedEntryOrdinal": 3,
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "tool",
+              "text": "1 passed\nProcess exited with code 0"
+            }
+          ]
+        }
+      ],
+      "facts": [
+        {
+          "id": "initial-failure",
+          "kind": "test-result",
+          "outcome": "failure",
+          "evidence": [
+            {
+              "entryOrdinal": 0,
+              "segmentOrdinal": 0
+            },
+            {
+              "entryOrdinal": 1,
+              "segmentOrdinal": 0
+            }
+          ],
+          "value": {
+            "exitCode": 1,
+            "test": {
+              "framework": "go",
+              "failed": 1
+            }
+          }
+        },
+        {
+          "id": "later-success",
+          "kind": "test-result",
+          "outcome": "success",
+          "evidence": [
+            {
+              "entryOrdinal": 3,
+              "segmentOrdinal": 0
+            },
+            {
+              "entryOrdinal": 4,
+              "segmentOrdinal": 0
+            }
+          ],
+          "value": {
+            "exitCode": 0,
+            "test": {
+              "framework": "go",
+              "passed": 1
+            }
+          }
+        }
+      ],
+      "machineExpectations": [],
+      "humanCriteria": [
+        {
+          "id": "preserve-result-sequence",
+          "description": "The output preserves the initial failure and later success without treating them as contradictory final outcomes."
+        }
+      ]
+    },
+    {
+      "id": "hypothesis-without-root-cause",
+      "intent": "Keep a plausible explanation as a hypothesis when no root cause is established.",
+      "entries": [
+        {
+          "ordinal": 0,
+          "kind": "tool-result",
+          "actor": "tool",
+          "toolCallId": "cache-check",
+          "toolName": "exec_command",
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "tool",
+              "text": "ERROR: cached metadata is unavailable"
+            }
+          ]
+        },
+        {
+          "ordinal": 1,
+          "kind": "message",
+          "actor": "model",
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "model",
+              "text": "A stale cache might explain the missing metadata."
+            }
+          ]
+        }
+      ],
+      "facts": [
+        {
+          "id": "cache-error",
+          "kind": "error-output",
+          "outcome": "failure",
+          "evidence": [
+            {
+              "entryOrdinal": 0,
+              "segmentOrdinal": 0
+            }
+          ],
+          "value": {
+            "error": "ERROR: cached metadata is unavailable"
+          }
+        }
+      ],
+      "machineExpectations": [],
+      "humanCriteria": [
+        {
+          "id": "hypothesis-not-root-cause",
+          "description": "The cache explanation remains uncertain or hypothetical rather than an established root cause."
+        }
+      ]
+    },
+    {
+      "id": "decision-with-rejected-alternative",
+      "intent": "Capture a decision and its explicitly rejected alternative.",
+      "entries": [
+        {
+          "ordinal": 0,
+          "kind": "message",
+          "actor": "human",
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "human",
+              "text": "Use the standard parser and reject the wrapper because the wrapper hides errors."
+            }
+          ]
+        },
+        {
+          "ordinal": 1,
+          "kind": "message",
+          "actor": "model",
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "model",
+              "text": "The implementation will keep the standard parser boundary."
+            }
+          ]
+        }
+      ],
+      "facts": [],
+      "machineExpectations": [
+        {
+          "id": "decision-present",
+          "kind": "must-include-claim-type",
+          "value": "decision"
+        }
+      ],
+      "humanCriteria": [
+        {
+          "id": "rejected-alternative-preserved",
+          "description": "The selected standard parser and rejected wrapper remain distinguishable."
+        }
+      ]
+    },
+    {
+      "id": "environment-failure-no-user-blame",
+      "intent": "Do not attribute an environmental failure to the user.",
+      "entries": [
+        {
+          "ordinal": 0,
+          "kind": "message",
+          "actor": "human",
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "human",
+              "text": "Download the dependency."
+            }
+          ]
+        },
+        {
+          "ordinal": 1,
+          "kind": "tool-result",
+          "actor": "tool",
+          "toolCallId": "download-result",
+          "toolName": "network",
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "tool",
+              "text": "ERROR: remote service timed out"
+            }
+          ]
+        }
+      ],
+      "facts": [
+        {
+          "id": "network-timeout",
+          "kind": "error-output",
+          "outcome": "failure",
+          "evidence": [
+            {
+              "entryOrdinal": 1,
+              "segmentOrdinal": 0
+            }
+          ],
+          "value": {
+            "error": "ERROR: remote service timed out"
+          }
+        }
+      ],
+      "machineExpectations": [],
+      "humanCriteria": [
+        {
+          "id": "no-user-blame",
+          "description": "The remote timeout is attributed to the environment or left unknown, never presented as a user weakness."
+        }
+      ]
+    },
+    {
+      "id": "reusable-lesson-from-steps",
+      "intent": "Derive a reusable lesson only from several observed steps.",
+      "entries": [
+        {
+          "ordinal": 0,
+          "kind": "tool-call",
+          "actor": "tool",
+          "toolCallId": "config-test-before",
+          "toolName": "exec_command",
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "tool",
+              "text": "{\"cmd\":\"go test ./config\"}"
+            }
+          ]
+        },
+        {
+          "ordinal": 1,
+          "kind": "tool-result",
+          "actor": "tool",
+          "toolCallId": "config-test-before",
+          "toolName": "exec_command",
+          "relatedEntryOrdinal": 0,
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "tool",
+              "text": "1 failed\nProcess exited with code 1"
+            }
+          ]
+        },
+        {
+          "ordinal": 2,
+          "kind": "message",
+          "actor": "model",
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "model",
+              "text": "The route now records every sampling control explicitly."
+            }
+          ]
+        },
+        {
+          "ordinal": 3,
+          "kind": "tool-call",
+          "actor": "tool",
+          "toolCallId": "config-test-after",
+          "toolName": "exec_command",
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "tool",
+              "text": "{\"cmd\":\"go test ./config\"}"
+            }
+          ]
+        },
+        {
+          "ordinal": 4,
+          "kind": "tool-result",
+          "actor": "tool",
+          "toolCallId": "config-test-after",
+          "toolName": "exec_command",
+          "relatedEntryOrdinal": 3,
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "tool",
+              "text": "1 passed\nProcess exited with code 0"
+            }
+          ]
+        }
+      ],
+      "facts": [
+        {
+          "id": "configuration-failure",
+          "kind": "test-result",
+          "outcome": "failure",
+          "evidence": [
+            {
+              "entryOrdinal": 0,
+              "segmentOrdinal": 0
+            },
+            {
+              "entryOrdinal": 1,
+              "segmentOrdinal": 0
+            }
+          ],
+          "value": {
+            "exitCode": 1,
+            "test": {
+              "framework": "go",
+              "failed": 1
+            }
+          }
+        },
+        {
+          "id": "configuration-success",
+          "kind": "test-result",
+          "outcome": "success",
+          "evidence": [
+            {
+              "entryOrdinal": 3,
+              "segmentOrdinal": 0
+            },
+            {
+              "entryOrdinal": 4,
+              "segmentOrdinal": 0
+            }
+          ],
+          "value": {
+            "exitCode": 0,
+            "test": {
+              "framework": "go",
+              "passed": 1
+            }
+          }
+        }
+      ],
+      "machineExpectations": [
+        {
+          "id": "lesson-present",
+          "kind": "must-include-claim-type",
+          "value": "lesson"
+        }
+      ],
+      "humanCriteria": [
+        {
+          "id": "lesson-supported-by-sequence",
+          "description": "Any lesson is grounded in the failed check, explicit configuration change, and later passing check."
+        }
+      ]
+    },
+    {
+      "id": "noisy-unrelated-entries",
+      "intent": "Prefer an empty result for unrelated conversational noise.",
+      "entries": [
+        {
+          "ordinal": 0,
+          "kind": "message",
+          "actor": "human",
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "human",
+              "text": "Thanks for the update."
+            }
+          ]
+        },
+        {
+          "ordinal": 1,
+          "kind": "message",
+          "actor": "model",
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "model",
+              "text": "The next step can begin when more evidence is available."
+            }
+          ]
+        },
+        {
+          "ordinal": 2,
+          "kind": "system",
+          "actor": "system",
+          "segments": [
+            {
+              "ordinal": 0,
+              "kind": "text",
+              "origin": "system",
+              "text": "Session context refreshed."
+            }
+          ]
+        }
+      ],
+      "facts": [],
+      "machineExpectations": [
+        {
+          "id": "empty-for-noise",
+          "kind": "must-be-empty"
+        }
+      ],
+      "humanCriteria": [
+        {
+          "id": "no-noise-as-lesson",
+          "description": "Conversational or system noise is not promoted into a lesson, decision, or outcome."
+        }
+      ]
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # Establish a reviewed semantic-claim evaluation corpus
 
-- Status: approved
+- Status: completed
 
 ## Goal
 
@@ -177,6 +177,47 @@ not enter SQLite, events, artifacts, or source evidence.
   approval for one live 12-case run, review every admitted claim, score the
   sidecar, and record the baseline summary without committing transient model
   output or private data.
+
+Implementation status:
+
+- The digest-pinned corpus, production preflight seam, sequential runner,
+  bounded report, human review sidecar, offline scorer, and fake-generator
+  coverage are implemented.
+- The first explicitly approved live corpus run completed on 2026-07-23
+  against `openai/gpt-oss-120b` through Cerebras. It made exactly 12 requests
+  and was not rerun.
+- All 12 requests returned bounded model metadata. Seven candidate batches
+  passed local admission; five failed locally: two
+  `claim-outcome-unsupported`, two
+  `claim-free-text-attribution-invalid`, and one
+  `claim-outcome-type-invalid`.
+- Six of eight machine expectations were evaluable. Five passed; the preferred
+  empty result for insufficient evidence failed. Two expectations belonged to
+  rejected batches and remained explicitly unevaluated.
+- Human review covered all 14 admitted claims: 10 supported, 3 partly
+  supported, and 1 unsupported. Nine were useful, 3 weak, and 2 not useful,
+  across 6 cases with at least one useful claim.
+- Human review covered all 12 case criteria: 5 pass, 6 partial, and 1 fail.
+  The failed criterion was the reusable lesson, which cited the assistant
+  statement without the failed and passing checks required to ground it.
+- The run used 27,298 tokens, cost $0.0135267, and recorded mean/p50/p95
+  latency of 943/844/1,580 milliseconds.
+- Transient report, review, and score files remain outside the repository.
+  Only this bounded baseline summary is committed.
+- The unsupported admitted claim activates the Milestone 2 verification
+  decision checkpoint. This plan does not choose the follow-up design.
+- The separately approved V9 comparison ran the unchanged corpus exactly once
+  on 2026-07-23. Eleven batches passed admission and one failed locally; all 8
+  machine expectations were evaluated and 6 passed.
+- Human review covered all 10 V9 admitted claims: all 10 were supported, 9 were
+  useful, and 1 was weak, across 7 cases with at least one useful claim. Eight
+  case criteria passed, 2 were partial, and 2 failed.
+- V9 used 29,444 tokens, cost $0.0132706, and recorded mean/p50/p95 latency of
+  1,198/895/4,505 milliseconds. The transient comparison files remain outside
+  the repository.
+- The comparison closes the unsupported-claim checkpoint without a second
+  verifier. It also records a conservative recall tradeoff: the expected
+  decision and reusable lesson were omitted.
 
 ## Boundaries
 

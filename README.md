@@ -28,10 +28,17 @@ can return the recorded revision. With explicit approval, the semantic path can
 send bounded, privacy-filtered evidence and facts through a pinned Vercel AI
 Gateway route, then atomically retain locally validated claims and knowledge
 events. The public-data conformance command has passed against the pinned
-Cerebras route; a reviewed generic evaluation corpus still gates completion of
-this milestone. The local producer-to-worker spine also persists its foundation
-records in SQLite; `worker --once` remains fail-closed until the later
-agent-runtime milestone.
+Cerebras route. The first digest-pinned 12-case synthetic evaluation and human
+review are complete. Seven batches were admitted, five failed local admission,
+and one of 14 admitted claims was judged unsupported. A versioned V9 one-pass
+correction now makes evidence and outcome checks explicit before output. Its
+single approved unchanged-corpus comparison admitted 11 of 12 batches; all 10
+admitted claims were supported in human review, 9 were useful, and no second
+verification call was justified. The remaining misses were conservative:
+decision and reusable-lesson claims were omitted, and one hypothesis batch
+failed strict local admission. The local producer-to-worker spine also
+persists its foundation records in SQLite; `worker --once` remains fail-closed
+until the later agent-runtime milestone.
 
 The foundation still contains Content Scout-specific request, worker, and
 completion seams used by its fake end-to-end proof. The accepted architecture

@@ -177,10 +177,11 @@ Understand one explicitly selected Sessions session without a model call.
 
 ## V0 Milestone 2: validated semantic claims
 
-- Status: in progress — admission, durability, bounded cleanup, explicit
-  remote execution, offline acceptance, and the first approved local smoke are
-  implemented; the public-data conformance check passed against the pinned
-  route, while a reviewed generic corpus remains
+- Status: complete — admission, durability, bounded cleanup, explicit remote
+  execution, offline acceptance, the approved local smoke, public-data
+  conformance, and fixed 12-case evaluation are implemented; the reviewed V9
+  comparison removed unsupported admitted claims without adding a second model
+  stage
 
 ### Goal
 
@@ -269,6 +270,43 @@ Add a session or phase summary only when it materially improves inspection or
 bounded retrieval. Its initial sections are problem, root cause, decisions,
 attempts, solution, outcome, verification, lessons, and unknowns; it must not
 become a second extraction schema or an input requirement for focused agents.
+
+The generic fixture gate uses the developer-only
+`cmd/noema-semantic-eval` command and the digest-pinned corpus under
+`dev/evaluations/semantic-claims/`. Its automatic measures cover structure and
+execution. Evidence support, usefulness, and case-specific meaning remain
+human judgments in a separate review sidecar. Building this tool does not
+complete the gate by itself. The first approved live run, fully reviewed
+sidecar, and offline score established the baseline on 2026-07-23. The run
+completed all 12 requests, admitted 7 batches, and rejected 5 batches locally:
+2 for unsupported outcomes, 2 for forbidden actor language, and 1 for an
+outcome not allowed by the claim type. Human review covered all 14 admitted
+claims: 10 were supported, 3 partly supported, and 1 unsupported; 9 were
+useful, 3 weak, and 2 not useful. Five case criteria passed, 6 were partial,
+and 1 failed. This is a baseline, not an automatic release threshold.
+
+The baseline activated the existing verification decision checkpoint because
+an unsupported claim survived local admission. The smallest first response was
+the versioned V9 one-pass correction: clearer evidence authority, relationship
+fidelity, result-fact, lesson, actor-language, and pre-output omission rules
+without weakening local admission.
+
+The one approved V9 comparison ran the same 12 cases exactly once on
+2026-07-23. Eleven batches passed admission and one hypothesis batch failed
+with `claim-outcome-unsupported`; the V8 baseline admitted 7 and rejected 5.
+All 8 machine expectations were evaluated and 6 passed. Human review covered
+all 10 admitted claims: all 10 were supported, 9 were useful, and 1 was weak,
+across 7 cases with at least one useful claim. Eight case criteria passed, 2
+were partial, and 2 failed. The failed criteria were omissions: no decision was
+produced for the rejected-alternative case, and no reusable lesson was produced
+from the failed-change-passing sequence. The run used 29,444 tokens, cost
+$0.0132706, and recorded mean/p50/p95 latency of 1,198/895/4,505 milliseconds.
+
+No unsupported or stronger-evidence-contradicted claim survived V9 admission,
+so the decision checkpoint closes without a second verification pass.
+Decision and lesson recall remain known limits. Revisit them from real Content
+Scout or learning-agent evidence rather than weakening admission, repeatedly
+tuning this corpus, or adding a verifier speculatively.
 
 ## V0 Milestone 3: Content Scout
 
