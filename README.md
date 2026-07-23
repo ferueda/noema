@@ -28,10 +28,23 @@ can return the recorded revision. With explicit approval, the semantic path can
 send bounded, privacy-filtered evidence and facts through a pinned Vercel AI
 Gateway route, then atomically retain locally validated claims and knowledge
 events. The public-data conformance command has passed against the pinned
-Cerebras route; a reviewed generic evaluation corpus still gates completion of
-this milestone. The local producer-to-worker spine also persists its foundation
-records in SQLite; `worker --once` remains fail-closed until the later
-agent-runtime milestone.
+Cerebras route. The first digest-pinned 12-case synthetic evaluation and human
+review are complete. Seven batches were admitted, five failed local admission,
+and one of 14 admitted claims was judged unsupported. A versioned V9 one-pass
+correction now makes evidence and outcome checks explicit before output. Its
+single approved unchanged-corpus comparison admitted 11 of 12 batches; all 10
+admitted claims were supported in human review, 9 were useful, and no second
+verification call was justified. The remaining misses were conservative:
+decision and reusable-lesson claims were omitted, and one hypothesis batch
+failed strict local admission. A digest-pinned V2 corpus preserves those 12
+cases and adds 8 cases for scope, causality, chronology, separation, decision
+state, rationale, and prompt injection. Its single approved run admitted 18 of
+20 batches; human review judged all 20 admitted claims supported and 19 useful.
+The new cases confirmed strong scope, chronology, separation, reversion, and
+prompt-injection behavior while exposing conservative misses for root cause,
+decisions, lessons, and one implemented change. The local producer-to-worker
+spine also persists its foundation records in SQLite; `worker --once` remains
+fail-closed until the later agent-runtime milestone.
 
 The foundation still contains Content Scout-specific request, worker, and
 completion seams used by its fake end-to-end proof. The accepted architecture

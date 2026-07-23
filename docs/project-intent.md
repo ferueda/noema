@@ -273,9 +273,28 @@ exported in full.
 5. Store admitted claims, their durable events, and the subscriber-independent
    `analysis.completed` event atomically.
 
-A second model verification pass is not required initially. Add it only if
-evaluation shows that schema, evidence, and deterministic validation are
-insufficient.
+A second model verification pass is not required initially. The first reviewed
+baseline showed one unsupported admitted claim, so the smallest first response
+was one versioned prompt correction and an unchanged-corpus comparison. The
+comparison admitted no unsupported or stronger-evidence-contradicted claims,
+so the checkpoint closed without a second model call. Missing decision and
+lesson claims remain known recall limits to revisit only when real downstream
+use shows they matter. Do not weaken deterministic admission to improve
+recall.
+
+Milestone 2 uses a closed set of immutable, digest-pinned synthetic corpora as
+development checks. V1 remains the 12-case baseline; V2 preserves those cases
+and adds eight meaning-focused cases. Automatic measures cover valid structure,
+execution, cost, and latency. Whether admitted claims are supported and useful
+remains a separate human review. The evaluator does not become a product stage
+or write to Noema's evidence, analysis, event, or artifact stores.
+
+The reviewed V2 run admitted no unsupported claim and therefore does not
+reopen the second-verifier decision. It also showed that safe omission is not
+the same as complete understanding: decisions, a directly diagnosed root
+cause, a reusable lesson, and one implemented change were missed or rejected.
+Treat those as downstream recall evidence, not a reason to weaken admission or
+turn evaluation into a product stage.
 
 ### Milestone 3: Content Scout
 

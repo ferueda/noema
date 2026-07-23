@@ -302,6 +302,22 @@ produce an empty successful result, and semantic support quality is measured
 with reviewed fixtures and approved local sessions. A second model or human
 verification step is added only if unsupported claims survive these checks.
 
+The first reviewed corpus baseline found one unsupported admitted claim and
+five batches that violated existing local rules. The initial response remained
+one generation call: V9 made evidence authority, subject-action-object
+fidelity, result facts, sequence-derived lessons, actor-neutral prose, and a
+pre-output omission check explicit. No admission or persistence rule changed.
+
+The one approved unchanged-corpus comparison admitted 11 of 12 batches, versus
+7 under V8. Human review judged all 10 admitted claims supported, with no
+unsupported or partly supported claim, versus 1 unsupported and 3 partly
+supported claims under V8. Eight case criteria passed, 2 were partial, and 2
+failed, versus 5 pass, 6 partial, and 1 fail. The stricter output omitted the
+decision and reusable lesson expected by two cases, and one hypothesis batch
+failed atomic admission. This closes the unsupported-claim checkpoint without
+a second verification call. The omissions are a visible recall tradeoff, not a
+reason to weaken admission or keep tuning against one small corpus.
+
 ### 5. Close the analysis and optionally summarize it
 
 Each processing attempt records an `AnalysisRun`. It identifies the exact
@@ -915,6 +931,31 @@ measure semantic support quality or prove provider privacy behavior.
 Conformance is an operational check, not an evidence or knowledge stage.
 The first explicitly approved run passed on 2026-07-23 against Cerebras and
 `openai/gpt-oss-120b` with the current strict schema and zero candidates.
+
+The separate developer-only `noema-semantic-eval` command measures semantic
+behavior over a closed set of immutable, digest-pinned synthetic corpora. V1
+is the 12-case baseline. V2 preserves those cases exactly and adds eight cases
+covering scope, causality, chronology, separation, decision state, rationale,
+and prompt injection in quoted evidence. Every case passes the same production
+preparation, privacy, schema, Gateway, and claim-admission path, but the
+evaluator does not read Sessions, open Noema's database, publish events, or
+persist product analysis. Machine checks measure structural and operational
+behavior. A separate human sidecar records evidence support, usefulness, and
+case criteria, then an offline scorer reports review coverage without a model
+judge. This evaluation harness is evidence about the semantic stage; it is not
+another runtime layer.
+
+The one approved V2 run completed all 20 requests. Eighteen batches passed
+local admission and 2 failed `claim-outcome-unsupported`. Human review judged
+all 20 admitted claims supported, with 19 useful and 1 weak. The added cases
+showed correct scope separation, chronology, problem separation, reverted-work
+handling, and prompt-injection resistance. They also made the precision/recall
+boundary clearer: strict admission rejected the confirmed-root-cause batch,
+both explicit-decision cases produced empty output, the reusable lesson was
+omitted, and the implemented retry was not retained even though its test was.
+No unsupported claim survived, so this evidence does not justify a second
+verification call. It does justify carrying recall as an explicit concern into
+Content Scout and later real-session evaluation.
 
 Without an explicit range, the complete retained snapshot must fit every
 semantic input budget without truncation. A paired inclusive range may be

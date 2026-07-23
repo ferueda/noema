@@ -83,3 +83,46 @@ Routine tests inject a fake generator and prove the command's approval gates,
 fixed empty input, production contract reuse, safe output, and sanitized
 failures. `make check` and CI must never invoke the live command or require its
 credential.
+
+## Live semantic evaluation
+
+The semantic evaluation command is a development tool, not a Noema analysis
+stage. It accepts only the reviewed V1 or V2 synthetic corpus at its compiled
+content digest. V1 is the immutable 12-case baseline; V2 preserves V1 and adds
+eight meaning-focused cases. It does not use Sessions, SQLite, events, or
+private evidence.
+
+After obtaining fresh approval for every request in the selected corpus, run,
+for example, the 20-case V2 corpus:
+
+```sh
+go run ./cmd/noema-semantic-eval run \
+  --corpus ./dev/evaluations/semantic-claims/corpus-v2.json \
+  --allow-remote \
+  --route-config ./config/semantic-route.example.json \
+  --output /tmp/noema-semantic-eval.json \
+  --review-output /tmp/noema-semantic-review.json
+```
+
+The command preflights all cases through the production semantic path before
+constructing the Gateway adapter. It then runs the cases once, in order, and
+writes an immutable machine report plus a separate review template. The report
+measures valid and empty batches, structural expectations, safe failure
+categories, token use, exact cost, and latency. Those checks cannot establish
+whether generated prose is truly supported or useful.
+
+Review every claim and case criterion using the rubric in
+[`dev/evaluations/semantic-claims/README.md`](../../dev/evaluations/semantic-claims/README.md),
+then score the edited sidecar offline:
+
+```sh
+go run ./cmd/noema-semantic-eval score \
+  --report /tmp/noema-semantic-eval.json \
+  --reviews /tmp/noema-semantic-review.json \
+  --output /tmp/noema-semantic-score.json
+```
+
+The score reports review coverage separately from decisions. Missing reviews
+remain `unreviewed`; they never become implicit failures or passes. Do not
+commit transient reports, reviews, or scores. `make check` exercises this code
+with fake generators and never runs the live corpus.
