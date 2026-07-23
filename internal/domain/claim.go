@@ -1,6 +1,13 @@
 package domain
 
-import "time"
+import (
+	"regexp"
+	"time"
+)
+
+const maxModelCostUSDBytes = 64
+
+var modelCostUSDPattern = regexp.MustCompile(`^(0|[1-9][0-9]*)(\.[0-9]+)?$`)
 
 type ClaimType string
 
@@ -85,6 +92,13 @@ type ModelExecutionMetadata struct {
 	OutputTokens        *int                `json:"outputTokens,omitempty"`
 	TotalTokens         *int                `json:"totalTokens,omitempty"`
 	LatencyMilliseconds *int64              `json:"latencyMilliseconds,omitempty"`
+	CostUSD             *string             `json:"costUsd,omitempty"`
+}
+
+// ValidModelCostUSD keeps money metadata exact and JSON-safe without binary
+// floating-point conversion. Empty is not a valid present value.
+func ValidModelCostUSD(value string) bool {
+	return len(value) > 0 && len(value) <= maxModelCostUSDBytes && modelCostUSDPattern.MatchString(value)
 }
 
 // ClaimCandidate is untrusted structured model output before local admission.

@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -517,6 +518,37 @@ func assertAnalysisFailure(t *testing.T, err error, analysisID, category string)
 	var failure AnalysisError
 	if !errors.As(err, &failure) || failure.AnalysisID != analysisID || failure.Category != category {
 		t.Fatalf("error = %v, want analysis %q category %q", err, analysisID, category)
+	}
+}
+
+func TestSemanticAdmissionFailureCategoryIsSanitizedAndSpecific(t *testing.T) {
+	for _, test := range []struct {
+		message  string
+		category string
+	}{
+		{message: "candidate 0: unsupported attribution actor in free text", category: "claim-free-text-attribution-invalid"},
+		{message: "candidate 0: supporting evidence is required", category: "claim-evidence-required"},
+		{message: "candidate 0: too many evidence ids", category: "claim-evidence-limit"},
+		{message: "candidate 0: duplicate or empty evidence id", category: "claim-evidence-duplicate"},
+		{message: "candidate 0: unknown evidence id", category: "claim-evidence-unknown"},
+		{message: "candidate 0: supporting and contradicting evidence overlap", category: "claim-evidence-overlap"},
+		{message: "candidate 0: too many supporting fact ids", category: "claim-fact-limit"},
+		{message: "candidate 0: duplicate or empty supporting fact id", category: "claim-fact-duplicate"},
+		{message: "candidate 0: unknown supporting fact id", category: "claim-fact-unknown"},
+		{message: "candidate 0: supporting fact falls outside selection", category: "claim-fact-outside-selection"},
+		{message: "candidate 0: outcome is not allowed for claim type", category: "claim-outcome-type-invalid"},
+		{message: "candidate 0: observed outcome is not established by a result fact", category: "claim-outcome-unsupported"},
+		{message: "candidate 0: observed outcome conflicts with linked result facts", category: "claim-outcome-conflict"},
+		{message: "candidate 0: conflicting result evidence is not cited", category: "claim-outcome-conflict"},
+		{message: "candidate 0: invalid actor", category: "claim-provenance-invalid"},
+		{message: "candidate 1: duplicate claim", category: "claim-duplicate"},
+		{message: "candidate 0: invalid confidence", category: "claim-value-invalid"},
+		{message: "candidate 0: private generated statement", category: "claim-admission-invalid"},
+	} {
+		err := fmt.Errorf("%w: %s", ErrClaimCandidateInvalid, test.message)
+		if got := semanticAdmissionFailureCategory(err); got != test.category {
+			t.Fatalf("category for %q = %q, want %q", test.message, got, test.category)
+		}
 	}
 }
 

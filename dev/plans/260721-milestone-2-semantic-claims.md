@@ -4,7 +4,47 @@
 - Implemented: admission slice in PR #11 (`56981fc`)
 - Implemented: durability slice in PR #13 (`265938e`)
 - Implemented: [behavior-preserving durability cleanup](260721-semantic-durability-cleanup.md)
-- Next: remote Gateway slice
+- Implemented: remote Gateway adapter, explicit CLI path, and offline acceptance
+- Live finding: the first approved request reached Vercel but Hobby-plan ZDR
+  enforcement returned 403 before generation
+- Live finding: after disabling that request, Cerebras rejected JSON Schema
+  array-size keywords that its strict structured-output subset does not support
+- Live finding: the OpenAI client encoded `json.Number` schema bounds as JSON
+  strings; wire-level regression coverage now requires numeric bounds to remain
+  numbers
+- Live finding: current Chat Completions responses place Gateway routing and
+  generation metadata on the assistant message rather than the top-level
+  completion; the fake Gateway and decoder now follow the live response shape
+- Live finding: the first meaningful candidate used actor language rejected by
+  neutral claim admission; prompt v2 now gives an impersonal example and an
+  explicit free-text rule without weakening local validation
+- Accepted follow-up: failed local admission records fixed, specific evidence,
+  fact-reference, attribution, provenance, duplicate, value, and outcome
+  categories without retaining rejected model prose
+- Live finding: prompt v2 then asserted structured provenance that did not match
+  all support; prompt v3 requires null actor/origin unless every cited record
+  shares the exact value
+- Accepted follow-up: prompt guidance remained unreliable, so the V0 output
+  schema requires null actor/origin while the domain keeps the richer fields
+  for later extractors that can establish them
+- Live finding: prompt v5 uses a positive grammar that makes technical
+  artifacts or observed behavior the subject of every claim instead of relying
+  only on a forbidden-actor list
+- Live finding: the first v5 batch assigned an outcome to a claim type that
+  cannot carry one; prompt v6 now states the local outcome rules directly
+- Live finding: prompt v6 marked an outcome observed without a matching
+  deterministic result fact; prompt v7 states when result-bearing claims may
+  use observed status
+- Live finding: a larger v7 slice still produced a result-bearing claim without
+  a matching deterministic result fact; prompt v8 omits failed-attempt and
+  verification claims when that stronger evidence is absent
+- Accepted follow-up: make retention and training requests explicit optional
+  route choices, retain sanitized operational failure categories, and keep
+  unsupported schema constraints in local candidate admission
+- Live validation: an approved partial real-session selection completed with
+  three evidence-backed claims, and an exact rerun reused the stored result
+  without another model call
+- Next: review the resulting claim quality and close the change-review gate
 - Roadmap: [V0 Milestone 2](../../docs/roadmap.md#v0-milestone-2-validated-semantic-claims)
 
 ## Goal
@@ -186,8 +226,8 @@ The V0 file has one strict shape; unknown route fields or aliases fail:
       "providerAllowlist": ["cerebras"],
       "providerOrder": ["cerebras"],
       "requiredCapabilities": ["strict-json-schema"],
-      "zeroDataRetention": true,
-      "disallowPromptTraining": true,
+      "zeroDataRetention": false,
+      "disallowPromptTraining": false,
       "timeoutMilliseconds": 60000,
       "maxOutputTokens": 4096,
       "maxRetries": 0,
@@ -205,8 +245,10 @@ and the sanitized configuration is retained for inspection so the timeout,
 output limit, retry, capability, routing, and privacy policy remain explicit.
 The key is never included in that digest or persisted.
 
-V0 never falls back to another provider and fails rather than weakening the
-required controls. Gateway model rewrites are unsupported: the adapter must
+V0 never falls back to another provider. Retention and training booleans are
+explicit, recorded route choices rather than mandatory controls; neither may
+be changed by a command-line override. Gateway model rewrites are unsupported:
+the adapter must
 obtain the actual resolved canonical model and provider from trusted response
 metadata and require both to match the requested route before any candidate can
 be admitted. A future comparison model requires a separately named, explicitly
@@ -234,12 +276,13 @@ it rather than extending the foundation `Scanner` or `Distiller`.
   digest in `SemanticGenerationRequest`. Include the schema digest in request
   bounds and semantic processing identity. Carry the admitted schema identity
   (name, version, strict disposition, and digest) into semantic details; the
-  canonical JSON remains application-owned and rebuildable. Its actor enum is
-  limited to `human`, `model`, `tool`, and `system`; its origin enum is limited to
-  `human`, `injected`, `delegated`, `replayed-copied`, `model`, `tool`, and
-  `system`, with both fields optional. The fake generator must be able to
-  inspect the schema without importing any provider type. Local evidence-
-  matching validation remains authoritative after decoding.
+  canonical JSON remains application-owned and rebuildable. The domain keeps
+  the bounded actor and origin vocabularies, but the V0 remote schema requires
+  both fields to be null because the first live model could not reliably make
+  evidence-supported provenance assertions. The fake generator must be able
+  to inspect the schema without importing any provider type. Local evidence-
+  matching validation remains authoritative after decoding and leaves room
+  for a later extractor to populate those fields safely.
 - Acquire the transaction-scoped semantic attempt handle, then find and return
   an exact completed semantic analysis before calling the generator.
 - On a miss, call the existing `SemanticGenerator`, run the existing postflight
@@ -338,9 +381,10 @@ existing `SemanticGenerator` boundary.
   adapter.
 - Add one small strict JSON route loader at the composition boundary. It
   resolves `semantic-v1` from the supplied file, rejects missing routes,
-  unknown fields, weaker controls, multi-provider values, mismatched allowlist
-  and order, and every profile outside the exact V0 allowlist. It returns a
-  validated provider-neutral configuration plus stable digest.
+  unknown fields, multi-provider values, mismatched allowlist and order, and
+  every profile outside the exact V0 routing and execution allowlist. It
+  accepts either explicit retention or training choice and returns a validated
+  provider-neutral configuration plus stable digest.
 - Accept only that injected validated route configuration and already filtered
   bounded input. Read the API key from injected configuration, never the route
   file, a persisted record, or CLI output.
@@ -353,10 +397,10 @@ existing `SemanticGenerator` boundary.
   Schema supplied by the application, output-token limit, and `stream: false`.
   The adapter must not define semantic candidate fields or maintain its own
   copy of the schema.
-- Pin the sole provider through Gateway `only` and `order`, request zero data
-  retention and no prompt training, disable SDK retries, and use a finite HTTP
-  timeout. Derive these values from the validated route configuration rather
-  than redefining them inside the adapter.
+- Pin the sole provider through Gateway `only` and `order`, send the configured
+  zero-retention and no-training choices, disable SDK retries, and use a finite
+  HTTP timeout. Derive these values from the validated route configuration
+  rather than redefining them inside the adapter.
 - Require exactly one response choice with Chat Completions finish reason
   `stop`, then decode its non-refusal structured response plus bounded usage,
   latency, request identity, and provider metadata. Missing finish metadata,
@@ -369,8 +413,11 @@ existing `SemanticGenerator` boundary.
   `cost` only as a bounded, non-negative decimal string rather than a binary
   float. Preserve it on the semantic run when present; absence is valid, while
   malformed cost metadata fails the attempt. Do not copy cost into each claim.
-- Return bounded operational error categories without prompts, response
-  bodies, authorization values, or raw provider errors.
+- Return fixed operational categories for authentication, permission,
+  rate-limit, rejected-request, recognized schema, context-limit, and
+  content-policy rejection, upstream, timeout, transport, and invalid response
+  failures without prompts, response bodies, authorization values, or raw
+  provider errors. Unknown generator failures retain the generic category.
 
 Adapter tests use the injected HTTP transport to reach `httptest` while the
 request still targets the locked production URL. They cover
@@ -378,9 +425,10 @@ missing or mismatched resolved provider and model metadata, cover present,
 absent, and malformed cost, prove the transmitted strict schema and declared
 version match the application request, reject a schema-valid response with a
 truncated or otherwise non-`stop` finish reason, and make no external request.
-Route loader tests cover no configured route, the accepted profile, unknown
-fields, and each weakened or changed V0 policy field. Decoded candidate output
-still passes through the existing local admission validator.
+Route loader tests cover no configured route, all retention and training
+boolean combinations, the accepted profile, unknown fields, and each changed
+V0 routing or execution field. Decoded candidate output still passes through
+the existing local admission validator.
 
 ### 5. Manual remote command and documentation — remote slice
 
@@ -443,9 +491,9 @@ path:
 3. **Durability cleanup — implemented:** make preparation state private, split the
    semantic store by responsibility, and share event fingerprint construction
    without changing any durable or observable contract.
-4. **Remote slice:** Vercel adapter, explicit CLI approval/configuration,
-   documentation, and offline end-to-end acceptance. Run one real approved
-   session only after every local gate passes.
+4. **Remote slice — implemented:** Vercel adapter, explicit CLI
+   approval/configuration, documentation, and offline end-to-end acceptance.
+   Run one real approved session only after every local gate passes.
 
 Keep one plan and one integration owner because selection, processing identity,
 claim validation, model metadata, and atomic events form one admission
@@ -459,7 +507,7 @@ For the durability slice:
 - run focused application tests for prepare-before-generate, exact reuse,
   processing-scoped claim identity, failures, empty results, generated-field
   postflight coverage, injected route/configuration identity,
-  application-owned output schema identity and actor/origin enums, serialized
+  application-owned output schema identity and V0 null actor/origin fields, serialized
   concurrent generation, and event construction;
 - run SQLite tests for migration, atomicity, ordering, ID verification, reuse,
   event subject-type compatibility, durable schema and route identity, early-
@@ -496,7 +544,7 @@ For the remote slice:
   evidence ID makes a claim true, or that a requested privacy control proves an
   upstream provider's behavior.
 - Stop and revise the plan if the pinned provider cannot satisfy structured
-  output plus the required Gateway privacy controls; if the Gateway cannot
+  output plus the configured Gateway privacy choices; if the Gateway cannot
   expose a trustworthy resolved canonical model or prevent or detect rewrites;
   or if a real approved session cannot fit a meaningful explicit entry range
   within the bounded input contract.

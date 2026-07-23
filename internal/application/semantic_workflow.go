@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/ferueda/noema/internal/domain"
@@ -102,7 +103,7 @@ func (workflow SemanticWorkflow) Run(
 	if err != nil {
 		return SemanticWorkflowResult{}, workflow.recordFailure(
 			ctx, attempt, factAnalysis, details, prepared.RunSelection,
-			"semantic-generation-failed", startedAt,
+			semanticGenerationFailureCategory(err), startedAt,
 			analysisID,
 		)
 	}
@@ -261,7 +262,49 @@ func semanticAdmissionFailureCategory(err error) string {
 		return "semantic-postflight-blocked"
 	}
 	if errors.Is(err, ErrClaimCandidateInvalid) {
-		return "claim-admission-invalid"
+		message := err.Error()
+		switch {
+		case strings.Contains(message, "unsupported attribution actor in free text"):
+			return "claim-free-text-attribution-invalid"
+		case strings.Contains(message, "outcome is not allowed") ||
+			strings.Contains(message, "requires failure outcome") ||
+			strings.Contains(message, "requires a supported outcome"):
+			return "claim-outcome-type-invalid"
+		case strings.Contains(message, "outcome is not established"):
+			return "claim-outcome-unsupported"
+		case strings.Contains(message, "outcome conflicts") ||
+			strings.Contains(message, "conflicting result evidence"):
+			return "claim-outcome-conflict"
+		case strings.Contains(message, "too many supporting fact ids"):
+			return "claim-fact-limit"
+		case strings.Contains(message, "duplicate or empty supporting fact id"):
+			return "claim-fact-duplicate"
+		case strings.Contains(message, "unknown supporting fact id"):
+			return "claim-fact-unknown"
+		case strings.Contains(message, "supporting fact falls outside selection"):
+			return "claim-fact-outside-selection"
+		case strings.Contains(message, "supporting evidence is required"):
+			return "claim-evidence-required"
+		case strings.Contains(message, "too many evidence ids"):
+			return "claim-evidence-limit"
+		case strings.Contains(message, "duplicate or empty evidence id"):
+			return "claim-evidence-duplicate"
+		case strings.Contains(message, "unknown evidence id"):
+			return "claim-evidence-unknown"
+		case strings.Contains(message, "supporting and contradicting evidence overlap"):
+			return "claim-evidence-overlap"
+		case strings.Contains(message, "actor") || strings.Contains(message, "origin") ||
+			strings.Contains(message, "attribution"):
+			return "claim-provenance-invalid"
+		case strings.Contains(message, "duplicate"):
+			return "claim-duplicate"
+		case strings.Contains(message, "candidate count") || strings.Contains(message, "invalid type") ||
+			strings.Contains(message, "invalid statement") || strings.Contains(message, "invalid subject") ||
+			strings.Contains(message, "invalid confidence"):
+			return "claim-value-invalid"
+		default:
+			return "claim-admission-invalid"
+		}
 	}
 	return "semantic-admission-invalid"
 }

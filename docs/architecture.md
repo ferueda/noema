@@ -1,7 +1,7 @@
 # Architecture
 
 - Status: accepted design baseline
-- Date: 2026-07-21
+- Date: 2026-07-22
 - Scope: local-first foundation and staged V0
 
 ## Executive summary
@@ -213,6 +213,46 @@ evidence, not enough by itself to establish a problem, decision, failure, or
 lesson. Every analysis states whether it covers the complete retained snapshot
 or only a selected range; partial analysis is never described as understanding
 the whole session.
+
+After the one-session Content Scout path is useful, idea decisions are being
+recorded, and the knowledge-unit checkpoint has been resolved, a deterministic
+local window planner replaces manual entry-number discovery for a growing session.
+It groups consecutive entries into bounded conversational windows, keeps linked
+tool calls and results together, prefers a safe boundary after deterministic
+verification, and otherwise closes at an input limit or the current end of the
+revision. The trailing end-of-revision window is provisional: appending entries
+may change and reprocess it, while earlier unchanged windows are not sent to a
+model again.
+
+Window planning is a local, versioned analysis stage over one admitted revision.
+The plan records bounds, boundary reasons, coverage, and fingerprints, but no
+transcript text. A cross-revision window fingerprint uses ordered canonical
+entry structure and content hashes without the whole-document digest. It may
+therefore recognize the same window in a later revision of the same canonical
+session. Remote execution still uses the existing revision-bound semantic
+workflow and its full prompt, schema, route, privacy, and extractor identity.
+The reuse identity also covers every revision-independent field sent by the
+semantic input builder and the builder's schema and limit-policy version.
+Changing any of those inputs reruns the window even when its source content is
+unchanged.
+
+Cross-revision reuse does not rewrite old claims or pretend they came from the
+newer Sessions revision. It references the prior completed semantic analysis,
+whose evidence remains bound to its original document digest. If that revision
+is no longer retained, its derived records remain inspectable but canonical
+evidence resolution still fails closed. A changed window creates a new semantic
+analysis and leaves the previous one immutable.
+
+The first window-planning slice is explicitly invoked for one session and has a
+reviewable local preview plus a user-approved maximum number of new semantic
+attempts that may invoke the remote model. Preview loads the reviewed route but
+requires no API key or remote approval and makes no network request. It uses the
+same versioned local preflight as execution, including privacy filtering and the
+complete prompt, schema, route, and request-size envelope. Execution must use
+the exact route digest recorded by the plan.
+It adds no Sessions manifest call, scheduler, daemon, model-based range selector,
+cross-session deduplication, summary, or episode inference. Multi-session work
+later reuses this per-revision planning behavior rather than replacing it.
 
 ### 2. Extract deterministic facts
 
@@ -831,7 +871,7 @@ Model aliases resolve through configuration. A route includes:
 - The gateway and canonical model identifier.
 - An explicit provider allowlist and order.
 - Required capabilities, including JSON Schema structured output.
-- Privacy requirements such as zero data retention and no prompt training.
+- Explicit privacy choices such as zero data retention and no prompt training.
 - Timeouts, token limits, and retry policy.
 
 Milestone 2 resolves the V0 semantic-route boundary with one strict JSON route
@@ -843,10 +883,38 @@ route and no remote request. This is a narrow route boundary, not a generic
 provider or plugin configuration system; the milestone plan owns its exact
 shape.
 
+The implemented V0 file is
+[`config/semantic-route.example.json`](../config/semantic-route.example.json).
+Its `semantic-v1` profile is an exact allowlist: Vercel AI Gateway at the
+reviewed base URL, `openai/gpt-oss-120b` through Cerebras, strict JSON Schema, a
+60-second timeout, 4,096 output tokens, and zero retries. Zero data retention
+and no prompt training remain explicit booleans in that profile, but either
+choice is valid; the example disables both for the current Hobby-plan
+experiment. Unknown fields, alternate route aliases, extra providers, and
+changed routing or execution limits are rejected before adapter construction.
+Canonicalizing the accepted profile, including both privacy choices, produces
+the stable route configuration digest; credentials never enter that value.
+
+The manual composition path is:
+
+```text
+noema analyze claims <fact-analysis-id> --allow-remote \
+  --route-config <path> [--first-entry <n> --last-entry <n>] \
+  [--database <path>]
+```
+
+Without an explicit range, the complete retained snapshot must fit every
+semantic input budget without truncation. A paired inclusive range may be
+bounded and is recorded as partial coverage. After deterministic privacy
+filtering, only the selected structural entry data, bounded text,
+deterministic facts, evidence IDs, omissions, and coverage cross the model
+boundary. Source identity and transcript storage do not.
+
 Beginning in Milestone 2, initial evaluation routes use `openai/gpt-oss-120b`
 served by Cerebras for semantic extraction and `openai/gpt-5.4-mini` served by
-Azure for Content Scout. Both request zero data retention and no prompt
-training. These are configurable starting points, not permanent dependencies.
+Azure for Content Scout. Retention and training requests are explicit,
+recorded route choices. These are configurable starting points, not permanent
+dependencies.
 
 Noema does not rely on gateway defaults for provider selection. Evaluation runs
 pin the provider so latency, cost, and output quality remain comparable.
@@ -864,9 +932,25 @@ parameters or schemas identically.
 
 Remote model execution is opt-in. Before a request leaves the machine, Noema
 applies its deterministic privacy filter and checks the configured route. If a
-required retention, training, provider, or structured-output guarantee cannot
-be requested, the call fails. V0 has no weaker-policy override. No configured
-remote route means no remote request.
+configured retention, training, provider, or structured-output request cannot
+be honored, the call fails. Retention and training may be configured as false;
+there is no command-line override that silently changes the reviewed file. No
+configured remote route means no remote request.
+
+The Gateway adapter rejects missing or rewritten resolved provider/model
+metadata, non-`stop` completions, refusals, tool calls, malformed usage or cost,
+and output outside the application-owned schema. It rejects every HTTP redirect
+and caps both successful and error response bodies at 2 MiB before the SDK can
+read them. It maps remote failures into fixed operational categories, including
+recognized schema, context-limit, and content-policy rejections, without
+retaining provider messages or bodies. Requested Gateway retention and training
+controls constrain routing but are not local proof of provider behavior.
+Rejected candidate batches likewise retain a fixed local admission category,
+not the rejected model prose. Outcome failures distinguish a value that is not
+allowed for the claim type, a result unsupported by cited facts, and a result
+that conflicts with linked evidence. Evidence and fact-reference failures also
+distinguish missing, unknown, duplicate, overlapping, out-of-selection, and
+over-limit references where applicable.
 
 Semantic extraction and agent runs record enough information to explain and
 compare model behavior:
@@ -1067,6 +1151,8 @@ to remote infrastructure without a separate privacy design.
   routes rather than agent code.
 - The V0 semantic route is supplied through one strict explicit route file;
   credentials remain separate and no valid configured route means no request.
+- Zero-retention and no-training requests are explicit route choices recorded
+  in processing identity; neither is mandatory for the current experiment.
 - Gateway output is validated locally before it enters Noema's derived state.
 - The first Content Scout subscription uses one completed-analysis batch event
   so one selected analysis creates at most one Content Scout job.

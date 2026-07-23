@@ -52,6 +52,15 @@ func TestAdmitClaimCandidatesRejectsInvalidScalarFields(t *testing.T) {
 	}{
 		{name: "blank statement", change: func(value *domain.ClaimCandidate) { value.Statement = " \t" }, match: "invalid statement"},
 		{name: "oversized statement", change: func(value *domain.ClaimCandidate) { value.Statement = strings.Repeat("x", maxClaimStatementBytes+1) }, match: "invalid statement"},
+		{name: "too many supporting evidence ids", change: func(value *domain.ClaimCandidate) {
+			value.SupportingEvidenceIDs = make([]string, maxClaimEvidenceRefs+1)
+		}, match: "too many evidence ids"},
+		{name: "too many contradicting evidence ids", change: func(value *domain.ClaimCandidate) {
+			value.ContradictingEvidenceIDs = make([]string, maxClaimEvidenceRefs+1)
+		}, match: "too many evidence ids"},
+		{name: "too many supporting fact ids", change: func(value *domain.ClaimCandidate) {
+			value.SupportingFactIDs = make([]string, maxClaimFactRefs+1)
+		}, match: "too many supporting fact ids"},
 		{name: "invalid UTF-8", change: func(value *domain.ClaimCandidate) { value.Statement = string([]byte{0xff}) }, match: "invalid statement"},
 		{name: "negative confidence", change: func(value *domain.ClaimCandidate) { value.Confidence = -0.01 }, match: "invalid confidence"},
 		{name: "large confidence", change: func(value *domain.ClaimCandidate) { value.Confidence = 1.01 }, match: "invalid confidence"},

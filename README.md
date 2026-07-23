@@ -24,11 +24,11 @@ Noema is in early implementation. It can process one explicitly selected,
 already-indexed Sessions snapshot into deterministic, inspectable facts without
 a model call. Exact unchanged reruns reuse the prior analysis, changed document
 digests create a new analysis, and stored evidence resolves only while Sessions
-can return the recorded revision. Its local semantic durability path can also
-prepare bounded input, reuse an exact completed analysis, and atomically retain
-validated claims and knowledge events through an injected fake generator. The
-real Gateway adapter and semantic-analysis creation command are intentionally
-still absent. The local producer-to-worker spine also persists its foundation
+can return the recorded revision. With explicit approval, the semantic path can
+send bounded, privacy-filtered evidence and facts through a pinned Vercel AI
+Gateway route, then atomically retain locally validated claims and knowledge
+events. One approved real-session evaluation still gates completion of this
+milestone. The local producer-to-worker spine also persists its foundation
 records in SQLite; `worker --once` remains fail-closed until the later
 agent-runtime milestone.
 
@@ -70,6 +70,10 @@ Inspect a Noema database:
 ```sh
 sessions index
 go run ./cmd/noema scan sessions '<canonical-id>' --database /path/to/noema.db
+export AI_GATEWAY_API_KEY='<gateway-key>'
+go run ./cmd/noema analyze claims '<fact-analysis-id>' --allow-remote \
+  --route-config ./config/semantic-route.example.json \
+  --database /path/to/noema.db
 go run ./cmd/noema analyses show '<analysis-id>' --database /path/to/noema.db
 go run ./cmd/noema analyses show '<analysis-id>' --resolve --database /path/to/noema.db
 go run ./cmd/noema jobs list --database /path/to/noema.db
@@ -94,6 +98,34 @@ Sessions now returns another digest, resolution fails with
 The Milestone 1 scan and inspection path is local and makes no model or other
 remote request. Set `NOEMA_SESSIONS_COMMAND` only when the Sessions executable
 is not available as `sessions` on `PATH`.
+
+`analyze claims` is the only current remote path. It requires both
+`--allow-remote` and `AI_GATEWAY_API_KEY`, plus the exact reviewed route in
+[config/semantic-route.example.json](config/semantic-route.example.json). It
+sends only the selected entries, deterministic facts, evidence IDs, omissions,
+and coverage after deterministic privacy filtering; it does not send the
+Sessions database, provider files, or Noema's source identity. If the complete
+retained snapshot exceeds a fixed budget, the command fails before the request.
+Use `--first-entry <n> --last-entry <n>` together to approve a smaller
+contiguous range; that result is stored with partial coverage.
+
+The route pins Cerebras and requests strict JSON Schema output, no fallback, and
+no SDK retries. Zero data retention and no prompt training are explicit route
+choices; the example currently disables both so it can run on a Vercel Hobby
+team. Noema records those choices in the sanitized route and processing
+identity, but they are Gateway requests rather than local proof of provider
+behavior. Noema verifies the resolved provider and canonical model before it
+admits output. It stores prompt and schema versions, token counts, latency,
+Gateway request identity, and decimal USD cost when returned. The API key,
+outbound prompt, raw response, and resolved evidence text are not persisted.
+Remote failures retain only a fixed operational category such as permission
+denied, schema rejected, context too large, content rejected, rate limited,
+timeout, or invalid response; provider messages and response bodies are
+discarded.
+Local claim-admission failures follow the same rule: inspection reports fixed
+categories for evidence and fact reference failures, attribution, provenance,
+duplicates, values, or outcome failures (wrong claim type, unsupported result,
+or conflicting result) without retaining rejected model prose.
 
 The test suite includes both the foundation's fake source/agent spine and a
 generic fake Sessions executable that proves revision-safe fact processing:

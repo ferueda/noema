@@ -1,0 +1,19 @@
+{
+  "routes": {
+    "semantic-v1": {
+      "gateway": "vercel-ai-gateway",
+      "baseUrl": "https://ai-gateway.vercel.sh/v1",
+      "model": "openai/gpt-oss-120b",
+      "providerAllowlist": ["cerebras"],
+      "providerOrder": ["cerebras"],
+      "requiredCapabilities": ["strict-json-schema"],
+      "zeroDataRetention": false,
+      "disallowPromptTraining": false,
+      "timeoutMilliseconds": 60000,
+      "maxOutputTokens": 4096,
+      "maxRetries": 0,
+      "routeVersion": "route-v1",
+      "privacyPolicyVersion": "deterministic-privacy-v1"
+    }
+  }
+}

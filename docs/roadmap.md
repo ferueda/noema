@@ -1,7 +1,7 @@
 # Roadmap
 
 - Status: accepted product roadmap
-- Date: 2026-07-21
+- Date: 2026-07-22
 
 ## Purpose and authority
 
@@ -177,8 +177,9 @@ Understand one explicitly selected Sessions session without a model call.
 
 ## V0 Milestone 2: validated semantic claims
 
-- Status: in progress — admission, durability, and the bounded cleanup are
-  implemented; explicit remote execution pending
+- Status: in progress — admission, durability, bounded cleanup, explicit
+  remote execution, and offline acceptance are implemented; one explicitly
+  approved real-session evaluation remains
 
 ### Goal
 
@@ -214,8 +215,8 @@ It records:
 
 - Add the provider-neutral structured-generation boundary.
 - Add explicit remote opt-in, one pinned provider per route, bounded inputs,
-  deterministic privacy filtering, and configured retention and training
-  requirements.
+  deterministic privacy filtering, and recorded retention and training
+  choices.
 - Treat model output as untrusted candidate claims.
 - Validate schema, evidence identities, confidence, status, contradictions,
   privacy, and consistency with deterministic facts.
@@ -242,6 +243,8 @@ It records:
   cited text entails the claim.
 - Deterministic facts remain distinguishable from model interpretations.
 - Protected content is blocked before remote transmission and after generation.
+- Remote failures expose a useful fixed operational category without retaining
+  provider messages, response bodies, prompts, or credentials.
 - A reviewed generic fixture set and one explicitly approved local session
   produce inspectable results.
 - A changed semantic configuration can rerun without reindexing or reading raw
@@ -342,30 +345,92 @@ The expected order after V0 is:
    support approve, decline, and defer for non-content proposals.
 2. **Knowledge units when needed.** Consolidate claims only if individual
    claims are too granular or lessons recur across sessions.
-3. **Multi-session analysis.** Add explicit manifest-backed evidence sets,
+3. **Incremental session windows.** Replace manual entry-number selection for
+   one growing session with deterministic local windows and process only new or
+   changed windows after an explicit preview and remote approval.
+4. **Multi-session analysis.** Add explicit manifest-backed evidence sets,
    bounded time ranges, correlation, and revisable episodes after one-session
    processing is trustworthy.
-4. **Coding Evaluation.** Use bounded multi-session evidence to identify
+5. **Coding Evaluation.** Use bounded multi-session evidence to identify
    development patterns and propose concrete learning goals without treating
    every failure as a user weakness.
-5. **Draft generation.** Generate complete short posts, threads, or articles
+6. **Draft generation.** Generate complete short posts, threads, or articles
    only after idea-selection feedback exists.
-6. **Second source.** Add Git, tests, notes, or another source when Sessions
+7. **Second source.** Add Git, tests, notes, or another source when Sessions
    demonstrably lacks decisive evidence.
-7. **Workflow Scout.** Test that the event and agent model is not
+8. **Workflow Scout.** Test that the event and agent model is not
    Content-Scout-specific. It may propose creating or fixing skills,
    instructions, workflows, tools, configuration, or tests when repeated
    friction, corrections, failed approaches, or verification gaps support the
    proposal. Every proposal carries evidence, confidence, and expected benefit;
    it never changes the system by itself.
-8. **Full-text derived retrieval.** Index Noema-owned facts, claims, and
+9. **Full-text derived retrieval.** Index Noema-owned facts, claims, and
    artifacts when exact and metadata queries become limiting.
-9. **Semantic retrieval.** Add embeddings only after measured queries show that
+10. **Semantic retrieval.** Add embeddings only after measured queries show that
    structured and full-text retrieval miss useful knowledge.
-10. **Scheduling.** Automate runs only when useful manual runs are regularly
+11. **Scheduling.** Automate runs only when useful manual runs are regularly
    missed.
-11. **Remote execution.** Consider Inngest or Cloudflare only when local durable
+12. **Remote execution.** Consider Inngest or Cloudflare only when local durable
     execution, waiting, approval, or access becomes the actual constraint.
+
+### Incremental session windows milestone
+
+This phase starts after Content Scout proves that one-session claims can create
+useful, inspectable ideas, idea decisions and reasons are being recorded, and
+the knowledge-unit checkpoint has either been implemented because evidence
+requires it or explicitly recorded as unnecessary. It closes the gap between
+manual semantic ranges and multi-session processing without adding discovery
+or scheduling:
+
+1. Plan one current, fully admitted session revision locally into ordered,
+   contiguous windows. Start at human work, retain adjacent model and tool
+   context, keep related tool calls and results in the same window, prefer a
+   safe boundary after deterministic verification, and otherwise close at the
+   semantic input limit or end of revision.
+2. Store one versioned window-plan analysis with the fact-analysis identity,
+   exact revision and coverage, ordered bounds, boundary reasons, provisional
+   state, and content fingerprints. Store no transcript body or generated
+   summary.
+3. Fingerprint a window from its canonical source identity, planner version,
+   ordered entry structure, and content hashes without the document digest.
+   The same unchanged window can therefore be recognized after the canonical
+   session receives a new revision.
+4. Preview the plan without a remote call. Preview loads and records the
+   reviewed route without an API key and uses the complete local semantic
+   preflight, including privacy-filtered and full request-envelope size checks.
+   A separate explicit execution approves a maximum number of new semantic
+   attempts that may invoke the model, must use the previewed route digest, and
+   processes windows in canonical order. Reused and deferred windows do not
+   consume that limit.
+5. Reuse a prior completed semantic analysis only when the window fingerprint
+   and the complete fact, semantic-input builder and limits, schema, prompt,
+   privacy, route, and adapter configuration match. A new or changed window
+   gets a new revision-bound semantic analysis; a changed configuration reruns
+   an unchanged window.
+6. Treat the trailing end-of-revision window as provisional. Appending entries
+   changes and reprocesses that window while stable earlier windows remain
+   unchanged. A rewrite changes every affected fingerprint; old plans, claims,
+   and events remain immutable.
+7. Stop an execution at its first failed window. Already completed windows stay
+   durable, and an exact rerun resumes without repeating them. Each newly
+   completed window keeps the normal semantic `analysis.completed` event; the
+   first slice adds no session-level reducer or event aggregation.
+
+Cross-revision reuse is a processing decision, not evidence rebinding. Reused
+claims retain their original Sessions document digest and may become
+unresolvable if Sessions no longer retains that revision. The window plan must
+show that condition honestly and must never apply old coordinates to the newer
+document.
+
+The milestone passes when a generic two-revision fixture proves that an
+unchanged closed window makes no second model call, an appended or rewritten
+window produces only the required new call, route or prompt changes rerun the
+affected windows, plans and failures are inspectable, and no raw transcript text
+is added to SQLite. Every automatically eligible window must pass the same
+complete local generation preflight used immediately before execution. The
+slice remains manual and single-session: it adds no
+manifest, evidence set, scheduler, retry service, cross-session ranking, or
+model-based window selection.
 
 ### Multi-session analysis milestone
 

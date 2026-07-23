@@ -18,6 +18,8 @@ const (
 	maxClaimStatementBytes = 2 * 1024
 	maxClaimSubjectBytes   = 512
 	maxClaimScopeBytes     = 512
+	maxClaimEvidenceRefs   = 512
+	maxClaimFactRefs       = 256
 )
 
 var ErrClaimCandidateInvalid = errors.New("claim-candidate-invalid")
@@ -154,6 +156,9 @@ func resolveClaimEvidence(
 	if required && len(ids) == 0 {
 		return nil, nil, errors.New("supporting evidence is required")
 	}
+	if len(ids) > maxClaimEvidenceRefs {
+		return nil, nil, errors.New("too many evidence ids")
+	}
 	resolved := make([]domain.EvidenceRef, 0, len(ids))
 	seen := make(map[string]bool, len(ids))
 	for _, id := range ids {
@@ -171,6 +176,9 @@ func resolveClaimEvidence(
 }
 
 func resolveSupportingFacts(input PreparedSemanticInput, ids []string) ([]domain.Fact, error) {
+	if len(ids) > maxClaimFactRefs {
+		return nil, errors.New("too many supporting fact ids")
+	}
 	resolved := make([]domain.Fact, 0, len(ids))
 	seen := make(map[string]bool, len(ids))
 	for _, id := range ids {
