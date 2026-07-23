@@ -59,6 +59,9 @@
 - Decision: close the checkpoint without a second verification pass; retain
   omitted decision and lesson claims as known recall limits for downstream
   evidence
+- V2 expansion: the one approved 20-case run admitted 18 batches; all 20
+  admitted claims were supported, while root-cause, decision, lesson, and
+  implementation recall remained incomplete
 - Roadmap: [V0 Milestone 2](../../docs/roadmap.md#v0-milestone-2-validated-semantic-claims)
 
 ## Goal

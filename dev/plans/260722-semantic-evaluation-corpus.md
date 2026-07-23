@@ -218,6 +218,18 @@ Implementation status:
 - The comparison closes the unsupported-claim checkpoint without a second
   verifier. It also records a conservative recall tradeoff: the expected
   decision and reusable lesson were omitted.
+- The separately approved V2 expansion ran its 20 cases exactly once on
+  2026-07-23. Eighteen batches passed admission and 2 failed
+  `claim-outcome-unsupported`; 10 of 14 evaluated machine expectations passed.
+- Human review covered all 20 V2 admitted claims: all were supported, 19 were
+  useful, and 1 was weak, across 12 cases with at least one useful claim.
+  Thirteen case criteria passed, 3 were partial, and 4 failed.
+- V2 used 50,363 tokens, cost $0.02233345, and recorded mean/p50/p95 latency of
+  912/839/1,477 milliseconds. The transient report, review, and score remain
+  outside the repository.
+- V2 preserves the no-verifier decision while broadening the known recall
+  limits to confirmed root cause and implementation alongside decisions and
+  lessons.
 
 ## Boundaries
 

@@ -5,8 +5,7 @@ implementation.
 
 ## Active
 
-- [260723-expand-semantic-evaluation-corpus.md](260723-expand-semantic-evaluation-corpus.md) —
-  preserve the immutable V1 baseline and add one reviewed 20-case V2 expansion.
+None.
 
 ## Queued
 
@@ -24,6 +23,9 @@ implementation.
 
 ## Completed
 
+- [260723-expand-semantic-evaluation-corpus.md](260723-expand-semantic-evaluation-corpus.md) —
+  preserves V1 and adds the reviewed 20-case V2 expansion; its single approved
+  run retained supported claims while exposing broader recall limits.
 - [260723-tighten-semantic-claim-prompt.md](260723-tighten-semantic-claim-prompt.md) —
   applies and evaluates the smallest V9 one-pass correction; all admitted
   comparison claims were supported, so no second verifier was added.

@@ -1,6 +1,6 @@
 # Expand the semantic evaluation corpus
 
-- Status: in progress
+- Status: completed
 
 ## Goal
 
@@ -92,3 +92,21 @@ Exact generated wording and claim counts remain unspecified.
 - Do not rerun V2 or any individual case without new approval.
 - Do not commit generated reports, reviews, scores, credentials, private
   Sessions evidence, or provider response bodies.
+
+## Result
+
+- V2 preserves all 12 V1 cases exactly and adds the 8 accepted cases. Both
+  corpora pass production preflight and the full offline gate.
+- The one approved V2 run completed all 20 requests exactly once. Eighteen
+  batches passed admission and 2 failed `claim-outcome-unsupported`; 10 of 14
+  evaluated machine expectations passed.
+- Human review covered all 20 admitted claims and all 20 case criteria. Every
+  claim was supported; 19 were useful and 1 was weak. Thirteen criteria passed,
+  3 were partial, and 4 failed.
+- The new cases passed scope, separation, reversion, chronology, and
+  prompt-injection judgments. Confirmed root cause failed local admission, the
+  explicit unimplemented decision was omitted, and the implemented retry was
+  omitted while its passing test remained.
+- The run used 50,363 tokens, cost $0.02233345, and recorded mean/p50/p95
+  latency of 912/839/1,477 milliseconds. Transient outputs remain outside the
+  repository.

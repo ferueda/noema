@@ -313,9 +313,27 @@ mixed verification scope, confirmed root cause, unrelated concurrent problems,
 a reverted solution, later failure after earlier success, a decision without
 implementation, implementation without stated rationale, and prompt injection
 inside quoted evidence. Both exact digests remain supported by the
-developer-only evaluator. V2 has passed production preflight and the complete
-offline gate; its one approved 20-request live run and human review remain
-before results are recorded.
+developer-only evaluator.
+
+The one approved V2 run completed all 20 requests exactly once on 2026-07-23.
+Eighteen batches passed admission and 2 failed
+`claim-outcome-unsupported`. Fourteen of 15 machine expectations were
+evaluable and 10 passed. Human review covered all 20 admitted claims: all 20
+were supported, 19 were useful, and 1 was weak, across 12 cases with at least
+one useful claim. Thirteen case criteria passed, 3 were partial, and 4 failed.
+The added eight cases contributed 10 supported claims and human results of 5
+pass, 1 partial, and 2 fail. The run used 50,363 tokens, cost $0.02233345, and
+recorded mean/p50/p95 latency of 912/839/1,477 milliseconds.
+
+V2 confirms that unsupported admitted claims are not the current blocker. The
+known limitation is conservative recall: explicit decisions remain omitted,
+the reusable lesson was omitted, the confirmed-root-cause batch failed strict
+admission, and one implemented change was omitted while its passing test was
+retained. One machine expectation also required `failed-attempt` where the
+model produced a correctly scoped failed `verification`; keep that result
+visible rather than changing the immutable corpus after the run. Carry these
+findings into Content Scout and later real-session evaluation. Do not add a
+second verifier or continue prompt tuning from this corpus alone.
 
 ## V0 Milestone 3: Content Scout
 

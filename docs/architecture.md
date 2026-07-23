@@ -945,6 +945,18 @@ case criteria, then an offline scorer reports review coverage without a model
 judge. This evaluation harness is evidence about the semantic stage; it is not
 another runtime layer.
 
+The one approved V2 run completed all 20 requests. Eighteen batches passed
+local admission and 2 failed `claim-outcome-unsupported`. Human review judged
+all 20 admitted claims supported, with 19 useful and 1 weak. The added cases
+showed correct scope separation, chronology, problem separation, reverted-work
+handling, and prompt-injection resistance. They also made the precision/recall
+boundary clearer: strict admission rejected the confirmed-root-cause batch,
+both explicit-decision cases produced empty output, the reusable lesson was
+omitted, and the implemented retry was not retained even though its test was.
+No unsupported claim survived, so this evidence does not justify a second
+verification call. It does justify carrying recall as an explicit concern into
+Content Scout and later real-session evaluation.
+
 Without an explicit range, the complete retained snapshot must fit every
 semantic input budget without truncation. A paired inclusive range may be
 bounded and is recorded as partial coverage. After deterministic privacy

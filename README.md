@@ -38,8 +38,11 @@ verification call was justified. The remaining misses were conservative:
 decision and reusable-lesson claims were omitted, and one hypothesis batch
 failed strict local admission. A digest-pinned V2 corpus preserves those 12
 cases and adds 8 cases for scope, causality, chronology, separation, decision
-state, rationale, and prompt injection. It is offline-validated and awaiting
-its single approved live run and human review. The local producer-to-worker
+state, rationale, and prompt injection. Its single approved run admitted 18 of
+20 batches; human review judged all 20 admitted claims supported and 19 useful.
+The new cases confirmed strong scope, chronology, separation, reversion, and
+prompt-injection behavior while exposing conservative misses for root cause,
+decisions, lessons, and one implemented change. The local producer-to-worker
 spine also persists its foundation records in SQLite; `worker --once` remains
 fail-closed until the later agent-runtime milestone.
 

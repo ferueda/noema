@@ -289,6 +289,13 @@ execution, cost, and latency. Whether admitted claims are supported and useful
 remains a separate human review. The evaluator does not become a product stage
 or write to Noema's evidence, analysis, event, or artifact stores.
 
+The reviewed V2 run admitted no unsupported claim and therefore does not
+reopen the second-verifier decision. It also showed that safe omission is not
+the same as complete understanding: decisions, a directly diagnosed root
+cause, a reusable lesson, and one implemented change were missed or rejected.
+Treat those as downstream recall evidence, not a reason to weaken admission or
+turn evaluation into a product stage.
+
 ### Milestone 3: Content Scout
 
 1. Enqueue Content Scout from admitted knowledge events.
