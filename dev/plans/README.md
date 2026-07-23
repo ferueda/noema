@@ -6,13 +6,11 @@ implementation.
 ## Active
 
 - [260721-milestone-2-semantic-claims.md](260721-milestone-2-semantic-claims.md) —
-  admission, durability, and the bounded cleanup are implemented; add the
-  explicitly approved remote model request.
+  the remote claim path is implemented; live conformance and reviewed semantic
+  evaluation remain before the milestone closes.
 - [260722-live-semantic-route-conformance.md](260722-live-semantic-route-conformance.md) —
   add a public-data-only manual canary for the pinned Gateway route and current
   production schema.
-- [260722-pin-semantic-generation-settings.md](260722-pin-semantic-generation-settings.md) —
-  pin temperature zero in the existing strict route and reuse identity.
 - [260722-semantic-evaluation-corpus.md](260722-semantic-evaluation-corpus.md) —
   establish a 12-case synthetic corpus with machine metrics and human review.
 
@@ -32,6 +30,8 @@ implementation.
 
 ## Completed
 
+- [260722-pin-semantic-generation-settings.md](260722-pin-semantic-generation-settings.md) —
+  pins temperature zero in the strict semantic route and reuse identity.
 - [260721-semantic-durability-cleanup.md](260721-semantic-durability-cleanup.md) —
   simplified the durability internals without changing durable behavior.
 - [260720-milestone-1-evidence-facts.md](260720-milestone-1-evidence-facts.md) —

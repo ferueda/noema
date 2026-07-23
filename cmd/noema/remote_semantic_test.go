@@ -355,7 +355,7 @@ func writeSemanticRouteConfig(t *testing.T, directory string) string {
 	t.Helper()
 	config := map[string]any{"routes": map[string]any{"semantic-v1": map[string]any{
 		"gateway": "vercel-ai-gateway", "baseUrl": "https://ai-gateway.vercel.sh/v1",
-		"model": "openai/gpt-oss-120b", "providerAllowlist": []string{"cerebras"},
+		"model": "openai/gpt-oss-120b", "temperature": 0, "providerAllowlist": []string{"cerebras"},
 		"providerOrder": []string{"cerebras"}, "requiredCapabilities": []string{"strict-json-schema"},
 		"zeroDataRetention": false, "disallowPromptTraining": false, "timeoutMilliseconds": 60000,
 		"maxOutputTokens": 4096, "maxRetries": 0, "routeVersion": "route-v1",

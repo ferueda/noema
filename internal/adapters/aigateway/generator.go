@@ -123,6 +123,7 @@ func (generator *Generator) Generate(
 		},
 		N:                   openai.Int(1),
 		MaxCompletionTokens: openai.Int(int64(generator.route.profile.MaxOutputTokens)),
+		Temperature:         openai.Float(*generator.route.profile.Temperature),
 		Store:               openai.Bool(false),
 		ResponseFormat: openai.ChatCompletionNewParamsResponseFormatUnion{
 			OfJSONSchema: &openai.ResponseFormatJSONSchemaParam{

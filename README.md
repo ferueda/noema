@@ -27,10 +27,10 @@ digests create a new analysis, and stored evidence resolves only while Sessions
 can return the recorded revision. With explicit approval, the semantic path can
 send bounded, privacy-filtered evidence and facts through a pinned Vercel AI
 Gateway route, then atomically retain locally validated claims and knowledge
-events. One approved real-session evaluation still gates completion of this
-milestone. The local producer-to-worker spine also persists its foundation
-records in SQLite; `worker --once` remains fail-closed until the later
-agent-runtime milestone.
+events. Live route conformance and a reviewed generic evaluation corpus still
+gate completion of this milestone. The local producer-to-worker spine also
+persists its foundation records in SQLite; `worker --once` remains fail-closed
+until the later agent-runtime milestone.
 
 The foundation still contains Content Scout-specific request, worker, and
 completion seams used by its fake end-to-end proof. The accepted architecture
@@ -109,15 +109,19 @@ retained snapshot exceeds a fixed budget, the command fails before the request.
 Use `--first-entry <n> --last-entry <n>` together to approve a smaller
 contiguous range; that result is stored with partial coverage.
 
-The route pins Cerebras and requests strict JSON Schema output, no fallback, and
-no SDK retries. Zero data retention and no prompt training are explicit route
-choices; the example currently disables both so it can run on a Vercel Hobby
-team. Noema records those choices in the sanitized route and processing
-identity, but they are Gateway requests rather than local proof of provider
-behavior. Noema verifies the resolved provider and canonical model before it
-admits output. It stores prompt and schema versions, token counts, latency,
-Gateway request identity, and decimal USD cost when returned. The API key,
-outbound prompt, raw response, and resolved evidence text are not persisted.
+The route pins Cerebras, temperature zero, strict JSON Schema output, no
+fallback, and no SDK retries. Temperature zero reduces sampling variation but
+does not guarantee identical output. Zero data retention and no prompt training
+are explicit route choices; the example currently disables both so it can run
+on a Vercel Hobby team. Noema records those choices in the sanitized route and
+processing identity, but they are Gateway requests rather than local proof of
+provider behavior. Noema verifies the resolved provider and canonical model
+before it admits output. It stores prompt and schema versions, token counts,
+latency, Gateway request identity, and decimal USD cost when returned. The API
+key, outbound prompt, raw response, and resolved evidence text are not
+persisted.
+Previously copied route files must add the explicit numeric `temperature` value
+before Noema will accept them.
 Remote failures retain only a fixed operational category such as permission
 denied, schema rejected, context too large, content rejected, rate limited,
 timeout, or invalid response; provider messages and response bodies are

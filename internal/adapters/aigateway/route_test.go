@@ -27,6 +27,9 @@ func TestLoadRouteAcceptsOnlyReviewedSemanticProfile(t *testing.T) {
 	if strings.Contains(string(validated.SanitizedConfig), "secret") || len(validated.ConfigDigest) != 64 {
 		t.Fatalf("sanitized route = %s / %q", validated.SanitizedConfig, validated.ConfigDigest)
 	}
+	if first.profile.Temperature == nil || *first.profile.Temperature != 0 {
+		t.Fatalf("temperature = %v, want explicit zero", first.profile.Temperature)
+	}
 
 	prettyPath := filepath.Join(t.TempDir(), "route.json")
 	pretty, err := json.MarshalIndent(acceptedRouteObject(), "", "  ")
@@ -101,6 +104,18 @@ func TestLoadRouteRejectsUnavailableAndUnknownConfiguration(t *testing.T) {
 		{name: "missing training choice", mutate: func(config map[string]any) {
 			delete(profileObject(config), "disallowPromptTraining")
 		}},
+		{name: "missing temperature", mutate: func(config map[string]any) {
+			delete(profileObject(config), "temperature")
+		}},
+		{name: "null temperature", mutate: func(config map[string]any) {
+			profileObject(config)["temperature"] = nil
+		}},
+		{name: "nonnumeric temperature", mutate: func(config map[string]any) {
+			profileObject(config)["temperature"] = "0"
+		}},
+		{name: "nonzero temperature", mutate: func(config map[string]any) {
+			profileObject(config)["temperature"] = 0.1
+		}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			config := acceptedRouteObject()
@@ -146,7 +161,7 @@ func acceptedRouteObject() map[string]any {
 
 func acceptedProfileObject() map[string]any {
 	return map[string]any{
-		"gateway": semanticGateway, "baseUrl": semanticBaseURL, "model": semanticModel,
+		"gateway": semanticGateway, "baseUrl": semanticBaseURL, "model": semanticModel, "temperature": 0,
 		"providerAllowlist": []string{semanticProvider}, "providerOrder": []string{semanticProvider},
 		"requiredCapabilities": []string{semanticCapability}, "zeroDataRetention": false,
 		"disallowPromptTraining": false, "timeoutMilliseconds": semanticTimeoutMilliseconds,

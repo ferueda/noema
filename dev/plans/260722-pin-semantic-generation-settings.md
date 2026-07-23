@@ -1,6 +1,6 @@
 # Pin semantic generation sampling
 
-- Status: approved
+- Status: implemented; live acceptance remains part of the conformance plan
 
 ## Goal
 

@@ -46,6 +46,7 @@ type routeProfile struct {
 	Gateway                string   `json:"gateway"`
 	BaseURL                string   `json:"baseUrl"`
 	Model                  string   `json:"model"`
+	Temperature            *float64 `json:"temperature"`
 	ProviderAllowlist      []string `json:"providerAllowlist"`
 	ProviderOrder          []string `json:"providerOrder"`
 	RequiredCapabilities   []string `json:"requiredCapabilities"`
@@ -107,6 +108,7 @@ func acceptedProfile(profile routeProfile) bool {
 	return profile.Gateway == semanticGateway &&
 		profile.BaseURL == semanticBaseURL &&
 		profile.Model == semanticModel &&
+		profile.Temperature != nil && *profile.Temperature == 0 &&
 		slices.Equal(profile.ProviderAllowlist, []string{semanticProvider}) &&
 		slices.Equal(profile.ProviderOrder, profile.ProviderAllowlist) &&
 		slices.Equal(profile.RequiredCapabilities, []string{semanticCapability}) &&

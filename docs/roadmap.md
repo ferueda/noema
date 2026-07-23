@@ -178,8 +178,8 @@ Understand one explicitly selected Sessions session without a model call.
 ## V0 Milestone 2: validated semantic claims
 
 - Status: in progress — admission, durability, bounded cleanup, explicit
-  remote execution, and offline acceptance are implemented; one explicitly
-  approved real-session evaluation remains
+  remote execution, offline acceptance, and the first approved local smoke are
+  implemented; live route conformance and a reviewed generic corpus remain
 
 ### Goal
 
