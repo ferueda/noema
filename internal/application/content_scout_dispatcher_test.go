@@ -168,6 +168,103 @@ func TestContentScoutDispatcherRejectsMismatchedExecutionReceipt(
 	}
 }
 
+func TestContentScoutDispatcherPersistsSafeInvokedFailures(t *testing.T) {
+	tests := []struct {
+		name         string
+		execute      func(domain.AgentExecutionRequestV1) (domain.AgentExecutionResponseV1, error)
+		wantStage    string
+		wantCategory string
+		wantReceipt  bool
+	}{
+		{
+			name: "executor failure without receipt",
+			execute: func(domain.AgentExecutionRequestV1) (domain.AgentExecutionResponseV1, error) {
+				return domain.AgentExecutionResponseV1{}, errors.New("private executor failure")
+			},
+			wantStage:    domain.AgentFailureStageExecution,
+			wantCategory: domain.AgentFailureCategoryExecutorFailed,
+		},
+		{
+			name: "executor failure with receipt",
+			execute: func(request domain.AgentExecutionRequestV1) (domain.AgentExecutionResponseV1, error) {
+				receipt := contentScoutDispatcherReceipt(request)
+				receipt.FailureCategory = domain.AgentFailureCategoryExecutorProtocol
+				return domain.AgentExecutionResponseV1{Receipt: receipt},
+					errors.New("private executor failure")
+			},
+			wantStage:    domain.AgentFailureStageExecution,
+			wantCategory: domain.AgentFailureCategoryExecutorProtocol,
+			wantReceipt:  true,
+		},
+		{
+			name: "invalid response",
+			execute: func(request domain.AgentExecutionRequestV1) (domain.AgentExecutionResponseV1, error) {
+				return domain.AgentExecutionResponseV1{
+					CandidateJSON: json.RawMessage(`{}`),
+					Receipt:       contentScoutDispatcherReceipt(request),
+				}, nil
+			},
+			wantStage:    domain.AgentFailureStageResponseDecode,
+			wantCategory: domain.AgentFailureCategoryResponseInvalid,
+			wantReceipt:  true,
+		},
+		{
+			name: "candidate admission failure",
+			execute: func(request domain.AgentExecutionRequestV1) (domain.AgentExecutionResponseV1, error) {
+				return domain.AgentExecutionResponseV1{
+					ContractVersion: domain.AgentExecutionContractVersion,
+					CandidateJSON:   json.RawMessage(`{"ideas":[{"concept":"incomplete"}]}`),
+					Receipt:         contentScoutDispatcherReceipt(request),
+				}, nil
+			},
+			wantStage:    domain.AgentFailureStageAdmission,
+			wantCategory: domain.AgentFailureCategoryCandidateInvalid,
+			wantReceipt:  true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newContentScoutFixture(t, nil)
+			store := newContentScoutDispatcherStore(t, fixture)
+			executor := &contentScoutResultExecutor{execute: test.execute}
+
+			result, err := (ContentScoutDispatcherV1{
+				Store: store, Executor: executor, AllowRemote: true,
+				Preflight: func(
+					context.Context,
+					AgentJobRecordV1,
+					domain.AgentExecutionIdentity,
+				) error {
+					return nil
+				},
+				Now: dispatcherTestClock(fixture.job.CreatedAt),
+			}).RunOnce(context.Background())
+			if err != nil {
+				t.Fatalf("dispatch invoked failure: %v", err)
+			}
+			if !result.Claimed ||
+				result.Outcome != domain.AgentRunOutcomeFailed ||
+				result.Disposition != domain.AgentExecutionDispositionInvoked ||
+				result.FailureCategory != test.wantCategory ||
+				len(result.ArtifactIDs) != 0 ||
+				executor.calls != 1 ||
+				store.completed != nil ||
+				store.failed == nil ||
+				store.failed.Result.Failure == nil ||
+				store.failed.Result.Failure.Stage != test.wantStage ||
+				store.failed.Result.Failure.Category != test.wantCategory ||
+				(store.failed.Result.Receipt != nil) != test.wantReceipt ||
+				len(store.failed.Result.Privacy.CompletedStages) != 2 ||
+				len(store.failed.Result.ArtifactIDs) != 0 {
+				t.Fatalf(
+					"invoked failure result = %#v / %#v / %#v",
+					result, store, executor,
+				)
+			}
+		})
+	}
+}
+
 type contentScoutDispatcherStore struct {
 	reader    *contentScoutKnowledgeReader
 	job       AgentJobRecordV1
@@ -316,6 +413,36 @@ func (executor *contentScoutReceiptMismatchExecutor) Execute(
 	}, nil
 }
 
+type contentScoutResultExecutor struct {
+	calls   int
+	execute func(
+		domain.AgentExecutionRequestV1,
+	) (domain.AgentExecutionResponseV1, error)
+}
+
+func (executor *contentScoutResultExecutor) Execute(
+	_ context.Context,
+	request domain.AgentExecutionRequestV1,
+	_ domain.StructuredOutputSchema,
+) (domain.AgentExecutionResponseV1, error) {
+	executor.calls++
+	return executor.execute(request)
+}
+
+func contentScoutDispatcherReceipt(
+	request domain.AgentExecutionRequestV1,
+) domain.AgentExecutionReceiptV1 {
+	route := request.Configuration.Route
+	return domain.AgentExecutionReceiptV1{
+		ExecutorKind:        request.Execution.ExecutorKind,
+		ExecutorVersion:     request.Execution.ExecutorVersion,
+		SessionID:           "executor-session",
+		TurnID:              "executor-turn",
+		CompletedModelSteps: 1,
+		RequestedRoute:      &route,
+	}
+}
+
 func dispatcherTestClock(createdAt time.Time) func() time.Time {
 	current := createdAt
 	return func() time.Time {
@@ -327,3 +454,4 @@ func dispatcherTestClock(createdAt time.Time) func() time.Time {
 var _ ContentScoutDispatchStore = (*contentScoutDispatcherStore)(nil)
 var _ AgentExecutor = (*contentScoutDispatcherExecutor)(nil)
 var _ AgentExecutor = (*contentScoutReceiptMismatchExecutor)(nil)
+var _ AgentExecutor = (*contentScoutResultExecutor)(nil)
