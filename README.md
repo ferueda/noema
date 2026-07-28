@@ -137,9 +137,10 @@ The durable handler configuration contains only canonical agent and disclosure
 digests plus normalized approved public terms. Endpoint values, Eve route
 passwords, Gateway credentials, and raw configuration prose are not accepted
 or stored. The example agent file records the intended V1 runtime identity;
-its instructions digest is the exact SHA-256 of the checked-in TypeScript
-agent's `agent/instructions.md`. Matching does not contact or attest a running
-Eve process. `jobs list` and `jobs show` expose only declared V1 jobs.
+its instructions digest reserves the exact SHA-256 finalized by the separate
+TypeScript Eve-agent slice. The integration slice will assert that digest
+against the checked-in instructions file. Matching does not contact or attest a
+running Eve process. `jobs list` and `jobs show` expose only declared V1 jobs.
 
 `gateway check` sends fixed public synthetic input with no evidence entries or
 facts through the production semantic prompt, schema, route loader, and Gateway
