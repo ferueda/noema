@@ -9,6 +9,7 @@ import (
 	"slices"
 
 	"github.com/ferueda/noema/internal/domain"
+	"github.com/ferueda/noema/internal/platform"
 )
 
 const (
@@ -26,6 +27,7 @@ const (
 type ContentScoutKnowledgeReader interface {
 	LoadSemanticAnalysis(context.Context, string) (SemanticAnalysisRecord, error)
 	LoadFactsByID(context.Context, []string) ([]domain.Fact, error)
+	LoadFactAnalysis(context.Context, string) (domain.FactAnalysis, error)
 }
 
 // ContentScoutHandlerV1 owns Content Scout's local preparation and admission.
@@ -105,6 +107,7 @@ func (handler ContentScoutHandlerV1) Prepare(
 		)
 	}
 	facts := []domain.Fact{}
+	var factAnalysis domain.FactAnalysis
 	if len(factIDs) > 0 {
 		facts, err = handler.Knowledge.LoadFactsByID(ctx, factIDs)
 		if err != nil {
@@ -112,8 +115,20 @@ func (handler ContentScoutHandlerV1) Prepare(
 				domain.AgentFailureCategoryInputInvalid, domain.AgentPrivacyOutcomeV1{},
 			)
 		}
+		if len(facts) > 0 {
+			factAnalysis, err = handler.Knowledge.LoadFactAnalysis(
+				ctx, facts[0].AnalysisRunID,
+			)
+			if err != nil {
+				return PreparedContentScoutV1{}, contentScoutFailure(
+					domain.AgentFailureCategoryInputInvalid, domain.AgentPrivacyOutcomeV1{},
+				)
+			}
+		}
 	}
-	if err := validateContentScoutFacts(factIDs, facts, record.Analysis); err != nil {
+	if err := validateContentScoutFacts(
+		factIDs, facts, record.Analysis, factAnalysis,
+	); err != nil {
 		return PreparedContentScoutV1{}, contentScoutFailure(
 			domain.AgentFailureCategoryInputInvalid, domain.AgentPrivacyOutcomeV1{},
 		)
@@ -296,16 +311,17 @@ func contentScoutSupportingFactIDs(
 		inputFacts[factID] = struct{}{}
 	}
 	result := make([]string, 0)
-	seen := map[string]struct{}{}
+	selected := map[string]struct{}{}
 	for _, claim := range analysis.Claims {
 		for _, factID := range claim.SupportingFactIDs {
 			if _, available := inputFacts[factID]; !available {
 				return nil, errors.New("Content Scout supporting fact is unavailable")
 			}
-			if _, duplicate := seen[factID]; duplicate {
-				continue
-			}
-			seen[factID] = struct{}{}
+			selected[factID] = struct{}{}
+		}
+	}
+	for _, factID := range analysis.Run.InputFactIDs {
+		if _, included := selected[factID]; included {
 			result = append(result, factID)
 		}
 	}
@@ -316,9 +332,41 @@ func validateContentScoutFacts(
 	factIDs []string,
 	facts []domain.Fact,
 	analysis domain.SemanticAnalysis,
+	factAnalysis domain.FactAnalysis,
 ) error {
 	if len(factIDs) != len(facts) {
 		return errors.New("Content Scout facts are incomplete")
+	}
+	if len(facts) == 0 {
+		return nil
+	}
+	if analysis.Run.Revision == nil ||
+		factAnalysis.Run.ID == "" ||
+		factAnalysis.Run.Stage != domain.AnalysisStageFacts ||
+		factAnalysis.Run.Status != domain.AnalysisCompleted ||
+		factAnalysis.Run.Revision == nil ||
+		factAnalysis.Run.Revision.Identity() != analysis.Run.Revision.Identity() ||
+		len(factAnalysis.Run.FactIDs) != len(factAnalysis.Facts) {
+		return errors.New("Content Scout fact analysis is invalid")
+	}
+	originByID := make(map[string]int, len(factAnalysis.Facts))
+	for index, fact := range factAnalysis.Facts {
+		if fact.ID != factAnalysis.Run.FactIDs[index] ||
+			fact.AnalysisRunID != factAnalysis.Run.ID ||
+			fact.ExtractorName != factAnalysis.Run.ExtractorName ||
+			fact.ExtractorVersion != factAnalysis.Run.ExtractorVersion ||
+			fact.SchemaVersion != factAnalysis.Run.SchemaVersion {
+			return errors.New("Content Scout fact analysis is inconsistent")
+		}
+		if _, duplicate := originByID[fact.ID]; duplicate {
+			return errors.New("Content Scout fact analysis is duplicated")
+		}
+		originByID[fact.ID] = index
+	}
+	if !orderedContentScoutFactSubset(
+		analysis.Run.InputFactIDs, originByID,
+	) {
+		return errors.New("Content Scout semantic facts are outside fact analysis")
 	}
 	evidenceByID := map[string]domain.EvidenceRef{}
 	totalEvidence := 0
@@ -334,13 +382,28 @@ func validateContentScoutFacts(
 			}
 		}
 	}
+	lastOriginIndex := -1
 	for index, fact := range facts {
+		originIndex, exists := originByID[fact.ID]
 		if fact.ID != factIDs[index] || fact.ID == "" || fact.Kind == "" ||
 			fact.SchemaVersion < 1 || fact.AnalysisRunID == "" ||
 			!validContentScoutFactOutcome(fact.Outcome) ||
-			len(fact.Evidence) == 0 {
+			len(fact.Evidence) == 0 ||
+			!exists || originIndex <= lastOriginIndex ||
+			!sameSemanticIdentityValue(
+				fact, factAnalysis.Facts[originIndex],
+			) {
 			return errors.New("Content Scout fact is invalid")
 		}
+		fingerprint, err := factFingerprint(
+			factAnalysis.Run.Revision.Identity(), fact,
+		)
+		if err != nil ||
+			fingerprint != fact.Fingerprint ||
+			fact.ID != platform.DerivedID("fact_", fingerprint) {
+			return errors.New("Content Scout fact identity is invalid")
+		}
+		lastOriginIndex = originIndex
 		seenEvidence := map[string]struct{}{}
 		for _, ref := range fact.Evidence {
 			if _, duplicate := seenEvidence[ref.ID]; duplicate {
@@ -357,6 +420,21 @@ func validateContentScoutFacts(
 		return errors.New("Content Scout fact evidence limit exceeded")
 	}
 	return nil
+}
+
+func orderedContentScoutFactSubset(
+	factIDs []string,
+	originByID map[string]int,
+) bool {
+	lastIndex := -1
+	for _, factID := range factIDs {
+		index, exists := originByID[factID]
+		if !exists || index <= lastIndex {
+			return false
+		}
+		lastIndex = index
+	}
+	return true
 }
 
 func addContentScoutEvidence(

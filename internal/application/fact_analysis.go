@@ -129,29 +129,20 @@ func (analyzer FactAnalyzer) buildAnalysis(
 		if selectedTextCount > maxSelectedFactTexts || selectedTextBytes > maxAnalysisFactTextBytes {
 			return domain.FactAnalysis{}, fmt.Errorf("validate fact %d: selected text budget exceeded", index)
 		}
-		fingerprint, err := platform.Fingerprint(struct {
-			Revision  domain.EvidenceRevisionIdentity
-			Kind      string
-			Value     domain.FactValue
-			Outcome   string
-			Rule      string
-			Extractor string
-			Version   string
-			Schema    int
-			Evidence  []domain.EvidenceRef
-		}{
-			document.Revision.Identity(), draft.Kind, draft.Value, draft.Outcome, draft.ParseRule,
-			analyzer.Extractor.Name(), analyzer.Extractor.Version(), analyzer.Extractor.SchemaVersion(), draft.Evidence,
-		})
+		fact := domain.Fact{
+			AnalysisRunID: runID,
+			Kind:          draft.Kind, SchemaVersion: analyzer.Extractor.SchemaVersion(),
+			Value: draft.Value, Outcome: draft.Outcome,
+			ExtractorName: analyzer.Extractor.Name(), ExtractorVersion: analyzer.Extractor.Version(),
+			ParseRule: draft.ParseRule, Evidence: draft.Evidence, CreatedAt: createdAt,
+		}
+		fingerprint, err := factFingerprint(document.Revision.Identity(), fact)
 		if err != nil {
 			return domain.FactAnalysis{}, err
 		}
-		facts = append(facts, domain.Fact{
-			ID: platform.DerivedID("fact_", fingerprint), Fingerprint: fingerprint, AnalysisRunID: runID,
-			Kind: draft.Kind, SchemaVersion: analyzer.Extractor.SchemaVersion(), Value: draft.Value,
-			Outcome: draft.Outcome, ExtractorName: analyzer.Extractor.Name(), ExtractorVersion: analyzer.Extractor.Version(),
-			ParseRule: draft.ParseRule, Evidence: draft.Evidence, CreatedAt: createdAt,
-		})
+		fact.ID = platform.DerivedID("fact_", fingerprint)
+		fact.Fingerprint = fingerprint
+		facts = append(facts, fact)
 	}
 	factIDs := make([]string, len(facts))
 	for index := range facts {
@@ -165,6 +156,27 @@ func (analyzer FactAnalyzer) buildAnalysis(
 		Status: domain.AnalysisCompleted, StartedAt: startedAt, FinishedAt: analyzer.now(),
 	}
 	return domain.FactAnalysis{Run: run, Facts: facts}, nil
+}
+
+func factFingerprint(
+	revision domain.EvidenceRevisionIdentity,
+	fact domain.Fact,
+) (string, error) {
+	return platform.Fingerprint(struct {
+		Revision  domain.EvidenceRevisionIdentity
+		Kind      string
+		Value     domain.FactValue
+		Outcome   string
+		Rule      string
+		Extractor string
+		Version   string
+		Schema    int
+		Evidence  []domain.EvidenceRef
+	}{
+		revision, fact.Kind, fact.Value, fact.Outcome, fact.ParseRule,
+		fact.ExtractorName, fact.ExtractorVersion, fact.SchemaVersion,
+		fact.Evidence,
+	})
 }
 
 func (analyzer FactAnalyzer) recordFailure(

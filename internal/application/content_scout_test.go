@@ -15,9 +15,23 @@ import (
 
 type contentScoutKnowledgeReader struct {
 	record       SemanticAnalysisRecord
+	factAnalysis domain.FactAnalysis
 	facts        map[string]domain.Fact
 	requestedIDs []string
 	loadErr      error
+}
+
+func (reader *contentScoutKnowledgeReader) LoadFactAnalysis(
+	_ context.Context,
+	id string,
+) (domain.FactAnalysis, error) {
+	if reader.loadErr != nil {
+		return domain.FactAnalysis{}, reader.loadErr
+	}
+	if id != reader.factAnalysis.Run.ID {
+		return domain.FactAnalysis{}, errors.New("fact analysis not found")
+	}
+	return reader.factAnalysis, nil
 }
 
 func (reader *contentScoutKnowledgeReader) LoadSemanticAnalysis(
@@ -58,7 +72,9 @@ func TestContentScoutPrepareLoadsOnlyFirstReferencedFactsAndGeneralizesInput(
 		t.Fatalf("prepare Content Scout: %v", err)
 	}
 	if prepared.SkipNoClaims ||
-		!slices.Equal(fixture.reader.requestedIDs, []string{"fact-one", "fact-two"}) ||
+		!slices.Equal(fixture.reader.requestedIDs, []string{
+			fixture.factOneID, fixture.factTwoID,
+		}) ||
 		len(prepared.Input.Claims) != 3 ||
 		len(prepared.Input.Facts) != 2 {
 		t.Fatalf("prepared input = %#v, requested = %#v", prepared.Input, fixture.reader.requestedIDs)
@@ -103,23 +119,35 @@ func TestContentScoutPrepareReturnsLocalZeroClaimResult(t *testing.T) {
 func TestContentScoutPrepareFailsClosedOnMissingOrChangedKnowledge(t *testing.T) {
 	tests := map[string]func(*contentScoutFixture){
 		"missing fact": func(fixture *contentScoutFixture) {
-			delete(fixture.reader.facts, "fact-two")
+			delete(fixture.reader.facts, fixture.factTwoID)
 		},
 		"reordered fact": func(fixture *contentScoutFixture) {
-			first := fixture.reader.facts["fact-one"]
-			second := fixture.reader.facts["fact-two"]
+			first := fixture.reader.facts[fixture.factOneID]
+			second := fixture.reader.facts[fixture.factTwoID]
 			fixture.reader.facts = map[string]domain.Fact{
-				"fact-one": second,
-				"fact-two": first,
+				fixture.factOneID: second,
+				fixture.factTwoID: first,
 			}
+		},
+		"cross-analysis fact": func(fixture *contentScoutFixture) {
+			fact := fixture.reader.facts[fixture.factTwoID]
+			fact.AnalysisRunID = "other-fact-analysis"
+			fixture.reader.facts[fixture.factTwoID] = fact
+		},
+		"changed fact value": func(fixture *contentScoutFixture) {
+			fact := fixture.reader.facts[fixture.factOneID]
+			fact.Value.Tool = &domain.ToolFactValue{
+				Kind: "call", Name: "ChangedTool", Namespace: "Go",
+			}
+			fixture.reader.facts[fixture.factOneID] = fact
 		},
 		"changed event": func(fixture *contentScoutFixture) {
 			fixture.job.EventID = "event-other"
 		},
 		"changed evidence": func(fixture *contentScoutFixture) {
-			fact := fixture.reader.facts["fact-one"]
+			fact := fixture.reader.facts[fixture.factOneID]
 			fact.Evidence[0].DocumentDigest = strings.Repeat("e", 64)
-			fixture.reader.facts["fact-one"] = fact
+			fixture.reader.facts[fixture.factOneID] = fact
 		},
 	}
 	for name, mutate := range tests {
@@ -214,13 +242,20 @@ func TestContentScoutPrepareTracksOutboundBytesAfterSelectedTextGeneralization(
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			fixture := newContentScoutFixture(t, nil)
-			fact := fixture.reader.facts["fact-one"]
-			fact.Value = domain.FactValue{}
-			test.assign(&fact.Value, &domain.SelectedText{
-				Text: test.source, EmittedUTF8Bytes: len([]byte(test.source)),
-				OriginalUTF8Bytes: len([]byte(test.source)),
-			})
-			fixture.reader.facts["fact-one"] = fact
+			replaceContentScoutFixtureFact(
+				t, &fixture, fixture.factOneID,
+				func(fact *domain.Fact) {
+					fact.Value = domain.FactValue{}
+					test.assign(&fact.Value, &domain.SelectedText{
+						Text: test.source, EmittedUTF8Bytes: len([]byte(test.source)),
+						OriginalUTF8Bytes: len([]byte(test.source)),
+						ContentHash: domain.Digest{
+							Scheme: "sha256-utf8-v1",
+							Digest: strings.Repeat("b", 64),
+						},
+					})
+				},
+			)
 
 			prepared, err := (ContentScoutHandlerV1{Knowledge: fixture.reader}).Prepare(
 				context.Background(), fixture.job,
@@ -243,11 +278,19 @@ func TestContentScoutPrepareTracksOutboundBytesAfterSelectedTextGeneralization(
 
 func TestContentScoutPrepareOmitsValidZeroBudgetFactText(t *testing.T) {
 	fixture := newContentScoutFixture(t, nil)
-	fact := fixture.reader.facts["fact-one"]
-	fact.Value = domain.FactValue{Command: &domain.SelectedText{
-		Text: "", EmittedUTF8Bytes: 0, OriginalUTF8Bytes: 24, Truncated: true,
-	}}
-	fixture.reader.facts["fact-one"] = fact
+	replaceContentScoutFixtureFact(
+		t, &fixture, fixture.factOneID,
+		func(fact *domain.Fact) {
+			fact.Value = domain.FactValue{Command: &domain.SelectedText{
+				Text: "", EmittedUTF8Bytes: 0,
+				OriginalUTF8Bytes: 24, Truncated: true,
+				ContentHash: domain.Digest{
+					Scheme: "sha256-utf8-v1",
+					Digest: strings.Repeat("b", 64),
+				},
+			}}
+		},
+	)
 
 	prepared, err := (ContentScoutHandlerV1{Knowledge: fixture.reader}).Prepare(
 		context.Background(), fixture.job,
@@ -288,10 +331,12 @@ func TestContentScoutAdmitFiltersUnsupportedCandidatesAndDerivesLineage(
 	first := admission.Artifacts[0]
 	second := admission.Artifacts[1]
 	if !slices.Equal(first.ClaimIDs, []string{"claim-one"}) ||
-		!slices.Equal(first.FactIDs, []string{"fact-one"}) ||
+		!slices.Equal(first.FactIDs, []string{fixture.factOneID}) ||
 		!slices.Equal(evidenceIDs(first.SupportingEvidence), []string{"evidence-one"}) ||
 		!slices.Equal(second.ClaimIDs, []string{"claim-three", "claim-one"}) ||
-		!slices.Equal(second.FactIDs, []string{"fact-two", "fact-one"}) ||
+		!slices.Equal(second.FactIDs, []string{
+			fixture.factTwoID, fixture.factOneID,
+		}) ||
 		!slices.Equal(
 			evidenceIDs(second.SupportingEvidence),
 			[]string{"evidence-two", "evidence-one"},
@@ -507,6 +552,8 @@ type contentScoutFixture struct {
 	reader        *contentScoutKnowledgeReader
 	job           AgentJobRecordV1
 	configuration ContentScoutConfiguration
+	factOneID     string
+	factTwoID     string
 }
 
 func newContentScoutFixture(
@@ -517,13 +564,48 @@ func newContentScoutFixture(
 	now := time.Date(2026, 7, 28, 18, 0, 0, 0, time.UTC)
 	evidenceOne := contentScoutEvidence("evidence-one", 1)
 	evidenceTwo := contentScoutEvidence("evidence-two", 2)
+	revision := domain.EvidenceRevision{
+		SourceKind:  domain.EvidenceSourceSessions,
+		CanonicalID: evidenceOne.SourceIdentity,
+		DocumentDigest: domain.Digest{
+			Scheme: evidenceOne.DocumentDigestScheme,
+			Digest: evidenceOne.DocumentDigest,
+		},
+	}
+	factRunID := "fact-analysis-one"
+	factOne := contentScoutStoredFact(t, revision, domain.Fact{
+		AnalysisRunID: factRunID,
+		Kind:          "tool", SchemaVersion: 1, Outcome: domain.FactOutcomeNotApplicable,
+		Value: domain.FactValue{Tool: &domain.ToolFactValue{
+			Kind: "call", Name: "SecretTool", Namespace: "Go",
+		}},
+		ExtractorName: "content-scout-test", ExtractorVersion: "v1",
+		ParseRule: "tool-call", Evidence: []domain.EvidenceRef{evidenceOne},
+		CreatedAt: now,
+	})
+	factTwo := contentScoutStoredFact(t, revision, domain.Fact{
+		AnalysisRunID: factRunID,
+		Kind:          "test-result", SchemaVersion: 1, Outcome: domain.FactOutcomeSuccess,
+		Value:         domain.FactValue{ExitCode: pointerToInt(0)},
+		ExtractorName: "content-scout-test", ExtractorVersion: "v1",
+		ParseRule: "test-result", Evidence: []domain.EvidenceRef{evidenceTwo},
+		CreatedAt: now,
+	})
+	factUnused := contentScoutStoredFact(t, revision, domain.Fact{
+		AnalysisRunID: factRunID,
+		Kind:          "exit-code", SchemaVersion: 1, Outcome: domain.FactOutcomeFailure,
+		Value:         domain.FactValue{ExitCode: pointerToInt(1)},
+		ExtractorName: "content-scout-test", ExtractorVersion: "v1",
+		ParseRule: "exit-code", Evidence: []domain.EvidenceRef{evidenceTwo},
+		CreatedAt: now,
+	})
 	claims := []domain.Claim{
 		{
 			ID: "claim-one", AnalysisRunID: "analysis-one",
 			Type: domain.ClaimTypeLesson, Statement: "SecretProject showed a useful Go lesson",
 			Status: domain.ClaimStatusInferred, Confidence: 0.9,
 			SupportingEvidence: []domain.EvidenceRef{evidenceOne},
-			SupportingFactIDs:  []string{"fact-one"},
+			SupportingFactIDs:  []string{factOne.ID},
 		},
 		{
 			ID: "claim-two", AnalysisRunID: "analysis-one",
@@ -538,14 +620,15 @@ func newContentScoutFixture(
 			Outcome:               domain.FactOutcomeSuccess,
 			SupportingEvidence:    []domain.EvidenceRef{evidenceTwo},
 			ContradictingEvidence: []domain.EvidenceRef{},
-			SupportingFactIDs:     []string{"fact-two", "fact-one"},
+			SupportingFactIDs:     []string{factTwo.ID, factOne.ID},
 		},
 	}
 	claimIDs := []string{"claim-one", "claim-two", "claim-three"}
-	inputFactIDs := []string{"fact-one", "fact-two", "fact-unused"}
+	inputFactIDs := []string{factOne.ID, factTwo.ID, factUnused.ID}
 	first, last := 0, 4
 	record := contentScoutCompletionForTest(t, now, claimIDs)
 	record.Analysis.Run.RequestedSourceIdentity = "private-source-identity"
+	record.Analysis.Run.Revision = &revision
 	record.Analysis.Run.Selection = &domain.EvidenceSelection{
 		Mode: "range",
 		Entries: domain.EntrySelection{
@@ -567,32 +650,101 @@ func newContentScoutFixture(
 		FirstOrdinal: &first, LastOrdinal: &last,
 		CanonicalOmittedSegments: 0, Coverage: semanticCoveragePartial,
 	}
+	factAnalysis := domain.FactAnalysis{
+		Run: domain.AnalysisRun{
+			ID: factRunID, Stage: domain.AnalysisStageFacts,
+			RequestedSourceIdentity: revision.CanonicalID,
+			Revision:                &revision,
+			ExtractorName:           "content-scout-test",
+			ExtractorVersion:        "v1",
+			SchemaVersion:           1,
+			FactIDs:                 append([]string{}, inputFactIDs...),
+			Status:                  domain.AnalysisCompleted,
+			StartedAt:               now.Add(-time.Minute),
+			FinishedAt:              now,
+		},
+		Facts: []domain.Fact{factOne, factTwo, factUnused},
+	}
 	facts := map[string]domain.Fact{
-		"fact-one": {
-			ID: "fact-one", AnalysisRunID: "fact-analysis-one",
-			Kind: "tool", SchemaVersion: 1, Outcome: domain.FactOutcomeNotApplicable,
-			Value: domain.FactValue{Tool: &domain.ToolFactValue{
-				Kind: "call", Name: "SecretTool", Namespace: "Go",
-			}},
-			Evidence: []domain.EvidenceRef{evidenceOne},
-		},
-		"fact-two": {
-			ID: "fact-two", AnalysisRunID: "fact-analysis-one",
-			Kind: "test-result", SchemaVersion: 1, Outcome: domain.FactOutcomeSuccess,
-			Value:    domain.FactValue{ExitCode: pointerToInt(0)},
-			Evidence: []domain.EvidenceRef{evidenceTwo},
-		},
+		factOne.ID: factOne,
+		factTwo.ID: factTwo,
 	}
 	configuration := loadContentScoutConfigurationForTest(
 		t,
 		contentScoutAgentJSON(ContentScoutInstructionsDigest),
 		marshalDisclosureConfig(t, approvedPublicTerms),
 	)
-	reader := &contentScoutKnowledgeReader{record: record, facts: facts}
+	reader := &contentScoutKnowledgeReader{
+		record: record, factAnalysis: factAnalysis, facts: facts,
+	}
 	return contentScoutFixture{
 		record: record, evidence: evidenceOne, reader: reader,
 		job:           contentScoutJobForRecord(t, configuration, record),
 		configuration: configuration,
+		factOneID:     factOne.ID,
+		factTwoID:     factTwo.ID,
+	}
+}
+
+func contentScoutStoredFact(
+	t *testing.T,
+	revision domain.EvidenceRevision,
+	fact domain.Fact,
+) domain.Fact {
+	t.Helper()
+	fingerprint, err := factFingerprint(revision.Identity(), fact)
+	if err != nil {
+		t.Fatalf("fingerprint content scout fact: %v", err)
+	}
+	fact.Fingerprint = fingerprint
+	fact.ID = platform.DerivedID("fact_", fingerprint)
+	return fact
+}
+
+func replaceContentScoutFixtureFact(
+	t *testing.T,
+	fixture *contentScoutFixture,
+	oldID string,
+	mutate func(*domain.Fact),
+) {
+	t.Helper()
+	index := slices.Index(fixture.reader.factAnalysis.Run.FactIDs, oldID)
+	if index < 0 {
+		t.Fatalf("replace unknown content scout fact %s", oldID)
+	}
+	fact := fixture.reader.factAnalysis.Facts[index]
+	mutate(&fact)
+	fact.ID = ""
+	fact.Fingerprint = ""
+	fact = contentScoutStoredFact(
+		t, *fixture.reader.factAnalysis.Run.Revision, fact,
+	)
+	newID := fact.ID
+	fixture.reader.factAnalysis.Facts[index] = fact
+	fixture.reader.factAnalysis.Run.FactIDs[index] = newID
+	delete(fixture.reader.facts, oldID)
+	fixture.reader.facts[newID] = fact
+
+	replaceID := func(values []string) {
+		for index := range values {
+			if values[index] == oldID {
+				values[index] = newID
+			}
+		}
+	}
+	replaceID(fixture.record.Analysis.Run.InputFactIDs)
+	for index := range fixture.record.Analysis.Claims {
+		replaceID(fixture.record.Analysis.Claims[index].SupportingFactIDs)
+	}
+	if fixture.record.Details.InputFactIDs != nil {
+		replaceID(*fixture.record.Details.InputFactIDs)
+	}
+	fixture.reader.record = fixture.record
+	if fixture.factOneID == oldID {
+		fixture.factOneID = newID
+	}
+	if fixture.factTwoID == oldID {
+		fixture.factTwoID = newID
 	}
 }
 

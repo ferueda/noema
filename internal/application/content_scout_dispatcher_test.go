@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -68,7 +69,7 @@ func TestContentScoutDispatcherPersistsPreparationFailureWithoutInvocation(
 	t *testing.T,
 ) {
 	fixture := newContentScoutFixture(t, nil)
-	delete(fixture.reader.facts, "fact-one")
+	delete(fixture.reader.facts, fixture.factOneID)
 	store := newContentScoutDispatcherStore(t, fixture)
 	executor := &contentScoutDispatcherExecutor{}
 
@@ -101,11 +102,19 @@ func TestContentScoutDispatcherCompletesWithValidZeroBudgetFactText(
 	t *testing.T,
 ) {
 	fixture := newContentScoutFixture(t, nil)
-	fact := fixture.reader.facts["fact-one"]
-	fact.Value = domain.FactValue{Error: &domain.SelectedText{
-		Text: "", EmittedUTF8Bytes: 0, OriginalUTF8Bytes: 24, Truncated: true,
-	}}
-	fixture.reader.facts["fact-one"] = fact
+	replaceContentScoutFixtureFact(
+		t, &fixture, fixture.factOneID,
+		func(fact *domain.Fact) {
+			fact.Value = domain.FactValue{Error: &domain.SelectedText{
+				Text: "", EmittedUTF8Bytes: 0,
+				OriginalUTF8Bytes: 24, Truncated: true,
+				ContentHash: domain.Digest{
+					Scheme: "sha256-utf8-v1",
+					Digest: strings.Repeat("b", 64),
+				},
+			}}
+		},
+	)
 	store := newContentScoutDispatcherStore(t, fixture)
 	executor := &contentScoutResultExecutor{
 		execute: func(request domain.AgentExecutionRequestV1) (domain.AgentExecutionResponseV1, error) {
@@ -374,6 +383,13 @@ func (store *contentScoutDispatcherStore) LoadFactsByID(
 	ids []string,
 ) ([]domain.Fact, error) {
 	return store.reader.LoadFactsByID(ctx, ids)
+}
+
+func (store *contentScoutDispatcherStore) LoadFactAnalysis(
+	ctx context.Context,
+	id string,
+) (domain.FactAnalysis, error) {
+	return store.reader.LoadFactAnalysis(ctx, id)
 }
 
 func (store *contentScoutDispatcherStore) InspectOldestPendingV1Job(
