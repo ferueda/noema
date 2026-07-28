@@ -20,6 +20,7 @@ const (
 	ContentScoutAgentVersion                = "content-scout-v1"
 	ContentScoutAgentDefinitionVersion      = "content-scout-definition-v1"
 	ContentScoutInstructionsVersion         = "content-scout-instructions-v1"
+	ContentScoutInstructionsDigest          = "acbbf8f1451c39933c17dbde9469d9eecf0c24de1f79dea9e7e01100e4a2f6e8"
 	ContentScoutEventType                   = "analysis.completed"
 	ContentScoutDisclosurePolicyVersion     = "content-disclosure-v1"
 	ContentScoutSafetyPolicyVersion         = "content-safety-v1"
@@ -280,7 +281,7 @@ func validateContentScoutAgentFile(value contentScoutAgentFile) error {
 		value.Agent != (domain.AgentIdentity{Name: ContentScoutAgentName, Version: ContentScoutAgentVersion}) ||
 		value.AgentDefinitionVersion != ContentScoutAgentDefinitionVersion ||
 		value.Instructions.Version != ContentScoutInstructionsVersion ||
-		!contentScoutDigestPattern.MatchString(value.Instructions.Digest) ||
+		value.Instructions.Digest != ContentScoutInstructionsDigest ||
 		value.Executor != (contentScoutExecutor{
 			Kind:                  ContentScoutExecutorKind,
 			Version:               ContentScoutExecutorVersion,

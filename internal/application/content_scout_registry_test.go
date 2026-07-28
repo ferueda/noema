@@ -12,12 +12,12 @@ import (
 func TestLoadContentScoutConfigurationCanonicalizesSafeIdentity(t *testing.T) {
 	first := loadContentScoutConfigurationForTest(
 		t,
-		contentScoutAgentJSON(strings.Repeat("a", 64)),
+		contentScoutAgentJSON(ContentScoutInstructionsDigest),
 		`{"schemaVersion":1,"approvedPublicTerms":["Go","Cerebras"]}`,
 	)
 	second := loadContentScoutConfigurationForTest(
 		t,
-		"\n"+contentScoutAgentJSON(strings.Repeat("a", 64))+"\n",
+		"\n"+contentScoutAgentJSON(ContentScoutInstructionsDigest)+"\n",
 		`{
 			"approvedPublicTerms": ["Cerebras", "Go"],
 			"schemaVersion": 1
@@ -64,29 +64,30 @@ func TestLoadContentScoutConfigurationCanonicalizesSafeIdentity(t *testing.T) {
 func TestLoadContentScoutConfigurationRejectsUnapprovedShape(t *testing.T) {
 	for name, agentJSON := range map[string]string{
 		"unknown field": strings.Replace(
-			contentScoutAgentJSON(strings.Repeat("a", 64)),
+			contentScoutAgentJSON(ContentScoutInstructionsDigest),
 			`"schemaVersion":1`,
 			`"schemaVersion":1,"endpoint":"http://localhost:9999"`,
 			1,
 		),
 		"missing explicit privacy choice": strings.Replace(
-			contentScoutAgentJSON(strings.Repeat("a", 64)),
+			contentScoutAgentJSON(ContentScoutInstructionsDigest),
 			`"zeroDataRetention":false,`,
 			"",
 			1,
 		),
 		"changed provider": strings.Replace(
-			contentScoutAgentJSON(strings.Repeat("a", 64)),
+			contentScoutAgentJSON(ContentScoutInstructionsDigest),
 			`"provider":"azure"`,
 			`"provider":"openai"`,
 			1,
 		),
 		"enabled tool surface": strings.Replace(
-			contentScoutAgentJSON(strings.Repeat("a", 64)),
+			contentScoutAgentJSON(ContentScoutInstructionsDigest),
 			`"skills":false`,
 			`"skills":true`,
 			1,
 		),
+		"changed instructions without a version": contentScoutAgentJSON(strings.Repeat("b", 64)),
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := LoadContentScoutConfiguration(
@@ -109,7 +110,7 @@ func TestLoadContentScoutConfigurationRejectsUnsafeDisclosure(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := LoadContentScoutConfiguration(
-				strings.NewReader(contentScoutAgentJSON(strings.Repeat("a", 64))),
+				strings.NewReader(contentScoutAgentJSON(ContentScoutInstructionsDigest)),
 				strings.NewReader(disclosureJSON),
 			)
 			if err == nil {

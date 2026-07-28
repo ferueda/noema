@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
@@ -43,7 +42,7 @@ func TestSubscriptionMatcherCreatesAndReusesContentScoutJob(t *testing.T) {
 	matcher := SubscriptionMatcher{Store: store, Now: func() time.Time { return now.Add(time.Hour) }}
 	configuration := loadContentScoutConfigurationForTest(
 		t,
-		contentScoutAgentJSON(strings.Repeat("a", 64)),
+		contentScoutAgentJSON(ContentScoutInstructionsDigest),
 		`{"schemaVersion":1,"approvedPublicTerms":[]}`,
 	)
 
@@ -74,8 +73,8 @@ func TestSubscriptionMatcherCreatesAndReusesContentScoutJob(t *testing.T) {
 
 	changed := loadContentScoutConfigurationForTest(
 		t,
-		contentScoutAgentJSON(strings.Repeat("b", 64)),
-		`{"schemaVersion":1,"approvedPublicTerms":[]}`,
+		contentScoutAgentJSON(ContentScoutInstructionsDigest),
+		`{"schemaVersion":1,"approvedPublicTerms":["Go"]}`,
 	)
 	third, err := matcher.MatchContentScout(context.Background(), "analysis-one", changed)
 	if err != nil {
@@ -96,7 +95,7 @@ func TestSubscriptionMatcherAcceptsZeroClaimCompletion(t *testing.T) {
 		"analysis-one",
 		loadContentScoutConfigurationForTest(
 			t,
-			contentScoutAgentJSON(strings.Repeat("a", 64)),
+			contentScoutAgentJSON(ContentScoutInstructionsDigest),
 			`{"schemaVersion":1,"approvedPublicTerms":[]}`,
 		),
 	)
@@ -112,7 +111,7 @@ func TestSubscriptionMatcherRejectsInvalidCompletionBeforeWriting(t *testing.T) 
 	now := time.Date(2026, 7, 28, 16, 0, 0, 0, time.UTC)
 	configuration := loadContentScoutConfigurationForTest(
 		t,
-		contentScoutAgentJSON(strings.Repeat("a", 64)),
+		contentScoutAgentJSON(ContentScoutInstructionsDigest),
 		`{"schemaVersion":1,"approvedPublicTerms":[]}`,
 	)
 	tests := map[string]func(*SemanticAnalysisRecord){
@@ -153,7 +152,7 @@ func TestValidateAgentJobRecordV1RejectsChangedIdentity(t *testing.T) {
 	now := time.Date(2026, 7, 28, 16, 0, 0, 0, time.UTC)
 	configuration := loadContentScoutConfigurationForTest(
 		t,
-		contentScoutAgentJSON(strings.Repeat("a", 64)),
+		contentScoutAgentJSON(ContentScoutInstructionsDigest),
 		`{"schemaVersion":1,"approvedPublicTerms":[]}`,
 	)
 	payload := domain.AgentJobPayloadV1{
