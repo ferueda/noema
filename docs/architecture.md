@@ -795,6 +795,14 @@ Scout-specific payload validation outside the generic dispatcher. The existing
 `content_ideas` table may remain as a query projection, but core job completion
 cannot require it.
 
+The walking-skeleton jobs, runs, and ideas are disposable pre-V1 scaffold
+records, not a compatibility surface. Milestone 3 identifies supported runtime
+rows through the V1 job-details sidecar. Queue and inspection queries ignore
+rows without that sidecar and never infer their schema from stored JSON. Those
+rows may remain physically present in a mixed database; Noema does not require
+deleting or recreating the database, and retained fact and semantic analyses
+remain supported.
+
 Milestone 1 keeps deterministic `Fact` records and their `AnalysisRun` lineage
 separate from the broad foundation `Observation` model. Milestone 2 keeps
 semantic claims, nullable progress details, and their validation path distinct
