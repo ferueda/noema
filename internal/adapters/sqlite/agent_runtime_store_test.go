@@ -187,14 +187,7 @@ func TestPendingV1QueueIgnoresFoundationRowsAndClaimsExactIdentity(t *testing.T)
 	if record.ID != "job-runtime" || record.ConfigurationDigest != digest {
 		t.Fatalf("inspected job = %#v", record)
 	}
-	identity := PendingV1JobIdentity{
-		ID: record.ID, Fingerprint: record.Fingerprint,
-		EventID:   record.EventID,
-		AgentName: record.AgentName, AgentVersion: record.AgentVersion,
-		PayloadSchemaVersion: record.PayloadSchemaVersion,
-		ConfigurationDigest:  record.ConfigurationDigest,
-		PayloadJSON:          record.PayloadJSON,
-	}
+	identity := record.PendingV1JobIdentity
 	if _, err := database.ExecContext(
 		ctx,
 		"UPDATE jobs SET payload_json = '{\"schemaVersion\":1,\"changed\":true}' WHERE id = ?",

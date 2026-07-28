@@ -16,20 +16,6 @@ var runtimeDigestPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
 
 var ErrAgentRuntimeDataInvalid = errors.New("agent-runtime-data-invalid")
 
-// PendingV1JobRecord is the read-only first phase of the queue protocol.
-// The sidecar declares the payload schema; callers must decode it strictly.
-type PendingV1JobRecord struct {
-	ID                   string
-	Fingerprint          string
-	EventID              string
-	AgentName            string
-	AgentVersion         string
-	PayloadSchemaVersion int
-	ConfigurationDigest  string
-	PayloadJSON          []byte
-	CreatedAt            time.Time
-}
-
 // PendingV1JobIdentity contains every value that must still match when a
 // worker claims a previously inspected job.
 type PendingV1JobIdentity struct {
@@ -41,6 +27,13 @@ type PendingV1JobIdentity struct {
 	PayloadSchemaVersion int
 	ConfigurationDigest  string
 	PayloadJSON          []byte
+}
+
+// PendingV1JobRecord is the read-only first phase of the queue protocol.
+// The sidecar declares the payload schema; callers must decode it strictly.
+type PendingV1JobRecord struct {
+	PendingV1JobIdentity
+	CreatedAt time.Time
 }
 
 // InspectOldestPendingV1Job ignores walking-skeleton rows without a V1
