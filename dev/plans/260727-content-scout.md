@@ -1,6 +1,8 @@
 # Produce evidence-backed content ideas through a portable agent boundary
 
 - Status: approved 2026-07-28
+- Decision amendment: clean V1 cutover explicitly approved 2026-07-28;
+  backward compatibility with pre-V1 local databases is out of scope
 - Plan review: pass (`20260728-175151-579287`)
 - Roadmap: [V0 Milestone 3: Content Scout](../../docs/roadmap.md#v0-milestone-3-content-scout)
 
@@ -126,12 +128,14 @@ Mutable configuration files and operational credentials never become semantic
 job inputs; a job retains the bounded sanitized policy values required to
 execute the exact reviewed configuration.
 
-Milestone 3 deliberately does not preserve the walking-skeleton database or
-runtime contract. The clean V1 schema removes scan, observation, content-idea
-projection, event-subject sidecar, and job-details sidecar tables. Event
-subject type, payload schema version, and configuration digest live on their
-authoritative rows. Noema provides no legacy reader, backfill, dual write, or
-mixed-database path. Pre-V1 local databases must be recreated.
+By explicit product decision, Milestone 3 does not preserve the
+walking-skeleton database or runtime contract. The clean V1 schema removes
+scan, observation, content-idea projection, event-subject sidecar, and
+job-details sidecar tables. Event subject type, payload schema version, and
+configuration digest live on their authoritative rows. An additive sidecar or
+mixed-schema migration was considered and rejected for V1. Noema provides no
+legacy reader, backfill, dual write, or mixed-database path. Pre-V1 local
+databases must be recreated.
 
 ## Changes
 

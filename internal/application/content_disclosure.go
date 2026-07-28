@@ -99,7 +99,7 @@ func compileContentDisclosurePolicyV1(
 			}
 			token := value[location[0]:location[1]]
 			normalized := normalizeDisclosureValue(token)
-			if normalized == "" || genericDisclosureVocabulary()[normalized] {
+			if normalized == "" || isGenericDisclosureValue(normalized) {
 				continue
 			}
 			if _, explicitlyAllowed := policy.allowedIdentifiers[normalized]; explicitlyAllowed {
@@ -389,22 +389,20 @@ func disclosurePolicyStage(
 	}
 }
 
-func genericDisclosureVocabulary() map[string]bool {
-	return map[string]bool{
-		"a": true, "about": true, "after": true, "agent": true, "agents": true,
-		"and": true, "approach": true, "article": true, "before": true,
-		"build": true, "change": true, "code": true, "coding": true,
-		"command": true, "content": true, "decision": true, "developer": true,
-		"developers": true, "error": true, "evidence": true, "failed": true,
-		"failure": true, "fix": true, "for": true, "from": true, "how": true,
-		"idea": true, "in": true, "issue": true, "lesson": true, "model": true,
-		"of": true, "on": true, "problem": true, "project": true, "result": true,
-		"root": true, "session": true, "software": true, "solution": true,
-		"test": true, "tests": true, "that": true, "the": true, "thread": true,
-		"to": true, "tool": true, "tools": true, "use": true, "using": true,
-		"useful": true, "verification": true, "verify": true, "was": true,
-		"what": true, "when": true,
-		"why": true, "with": true, "workflow": true, "worked": true,
+func isGenericDisclosureValue(value string) bool {
+	switch value {
+	case "a", "about", "after", "agent", "agents", "and", "approach",
+		"article", "before", "build", "change", "code", "coding", "command",
+		"content", "decision", "developer", "developers", "error", "evidence",
+		"failed", "failure", "fix", "for", "from", "how", "idea", "in",
+		"issue", "lesson", "model", "of", "on", "problem", "project",
+		"result", "root", "session", "software", "solution", "test", "tests",
+		"that", "the", "thread", "to", "tool", "tools", "use", "using",
+		"useful", "verification", "verify", "was", "what", "when", "why",
+		"with", "workflow", "worked":
+		return true
+	default:
+		return false
 	}
 }
 
