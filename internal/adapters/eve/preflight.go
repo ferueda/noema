@@ -6,6 +6,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"sort"
 	"time"
@@ -34,7 +36,7 @@ func (executor *Executor) Preflight(
 ) (PreflightResult, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	expectedOptions, err := compactJSONObject(expectation.ProviderOptionsJSON, maxSchemaBody)
+	expectedOptions, err := canonicalJSONObject(expectation.ProviderOptionsJSON, maxSchemaBody)
 	if err != nil || !validID(expectation.AgentName) ||
 		!validID(expectation.GatewayTarget) ||
 		len(expectation.StaticInstructionsDigest) != sha256.Size*2 {
@@ -245,7 +247,7 @@ func (info infoDocument) matches(
 		!isNullJSON(info.Sandbox) {
 		return false
 	}
-	actualOptions, err := compactJSONObject(info.Agent.Model.ProviderOptions, maxSchemaBody)
+	actualOptions, err := canonicalJSONObject(info.Agent.Model.ProviderOptions, maxSchemaBody)
 	if err != nil || !bytes.Equal(actualOptions, expectedOptions) {
 		return false
 	}
@@ -254,6 +256,28 @@ func (info infoDocument) matches(
 		return false
 	}
 	return info.matchesTools(expectation.AllowedFrameworkToolNames)
+}
+
+// canonicalJSONObject compares configuration objects by JSON value rather than
+// by their incidental wire key order.
+func canonicalJSONObject(value json.RawMessage, maxBytes int) ([]byte, error) {
+	if len(value) == 0 || len(value) > maxBytes {
+		return nil, ErrProtocol
+	}
+	var decoded map[string]any
+	decoder := json.NewDecoder(bytes.NewReader(value))
+	decoder.UseNumber()
+	if err := decoder.Decode(&decoded); err != nil || decoded == nil {
+		return nil, ErrProtocol
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return nil, ErrProtocol
+	}
+	canonical, err := json.Marshal(decoded)
+	if err != nil || len(canonical) > maxBytes {
+		return nil, ErrProtocol
+	}
+	return canonical, nil
 }
 
 func (info infoDocument) matchesTools(allowed []string) bool {

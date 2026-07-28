@@ -124,9 +124,10 @@ func (parser *streamParser) consume(body io.Reader) (json.RawMessage, error) {
 			return nil, eventErr
 		}
 		if terminal {
-			// ReadSlice may have buffered an already-written event after the
-			// terminal boundary. Reject it without waiting on the live stream.
-			if reader.Buffered() != 0 {
+			// The terminal event is valid only when it is also the end of the
+			// bounded HTTP stream. The request deadline bounds this final read.
+			trailing, trailingErr := reader.ReadSlice('\n')
+			if len(trailing) != 0 || !errors.Is(trailingErr, io.EOF) {
 				return nil, categorized(ErrProtocol, domain.AgentFailureCategoryExecutorProtocol)
 			}
 			if parser.remoteFailed {

@@ -135,6 +135,55 @@ func TestPreflightRejectsMismatchWithoutLeakingInfo(t *testing.T) {
 	}
 }
 
+func TestPreflightComparesProviderOptionsByJSONValue(t *testing.T) {
+	t.Parallel()
+	instructions := "Use only the supplied generalized evidence."
+	expectation := testInfoExpectation(instructions)
+	expectation.ProviderOptionsJSON = json.RawMessage(
+		`{"gateway":{"zeroDataRetention":false,"serviceTier":"flex","order":["azure"],"only":["azure"],"disallowPromptTraining":false}}`,
+	)
+	server := httptest.NewServer(http.HandlerFunc(func(
+		writer http.ResponseWriter,
+		request *http.Request,
+	) {
+		switch request.URL.Path {
+		case "/eve/v1/health":
+			writeJSON(writer, http.StatusOK, map[string]any{
+				"ok": true, "status": "ready", "workflowId": "workflow_synthetic",
+			})
+		case "/eve/v1/info":
+			writeJSON(writer, http.StatusOK, testInfoDocument(instructions))
+		default:
+			http.NotFound(writer, request)
+		}
+	}))
+	defer server.Close()
+
+	if _, err := mustExecutor(t, server.URL).Preflight(
+		context.Background(),
+		expectation,
+	); err != nil {
+		t.Fatalf("Preflight() reordered options error = %v", err)
+	}
+
+	for name, options := range map[string]string{
+		"missing":    `{"gateway":{"only":["azure"],"order":["azure"],"serviceTier":"flex","zeroDataRetention":false}}`,
+		"additional": `{"gateway":{"disallowPromptTraining":false,"extra":true,"only":["azure"],"order":["azure"],"serviceTier":"flex","zeroDataRetention":false}}`,
+		"changed":    `{"gateway":{"disallowPromptTraining":false,"only":["azure"],"order":["azure"],"serviceTier":"standard","zeroDataRetention":false}}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			mismatch := expectation
+			mismatch.ProviderOptionsJSON = json.RawMessage(options)
+			if _, err := mustExecutor(t, server.URL).Preflight(
+				context.Background(),
+				mismatch,
+			); !errors.Is(err, ErrMismatch) {
+				t.Fatalf("Preflight() options error = %v, want mismatch", err)
+			}
+		})
+	}
+}
+
 func TestExecuteConsumesSyntheticPinnedSuccessSequence(t *testing.T) {
 	t.Parallel()
 	request := testExecutionRequest(t)
@@ -292,6 +341,54 @@ func TestExecuteRejectsForbiddenAndMalformedSyntheticStreams(t *testing.T) {
 				t.Fatalf("receipt = %#v, want protocol failure category", response.Receipt)
 			}
 		})
+	}
+}
+
+func TestExecuteRejectsDelayedEventAfterSessionWaiting(t *testing.T) {
+	t.Parallel()
+	request := testExecutionRequest(t)
+	schema := testOutputSchema(t)
+	var message string
+	server := httptest.NewServer(http.HandlerFunc(func(
+		writer http.ResponseWriter,
+		httpRequest *http.Request,
+	) {
+		requireProtected(t, httpRequest)
+		switch httpRequest.URL.Path {
+		case "/eve/v1/session":
+			var body struct {
+				Message string `json:"message"`
+			}
+			if err := json.NewDecoder(httpRequest.Body).Decode(&body); err != nil {
+				t.Errorf("decode session body: %v", err)
+			}
+			message = body.Message
+			writer.Header().Set("Content-Type", "application/json")
+			writer.Header().Set("x-eve-session-id", "session_synthetic")
+			writer.WriteHeader(http.StatusAccepted)
+			_, _ = writer.Write([]byte(
+				`{"continuationToken":"continuation_synthetic","ok":true,"sessionId":"session_synthetic"}`,
+			))
+		case "/eve/v1/session/session_synthetic/stream":
+			writeStreamHeaders(writer, "session_synthetic")
+			writer.WriteHeader(http.StatusOK)
+			_, _ = writer.Write(syntheticSuccessStream(t, message, request))
+			if flusher, ok := writer.(http.Flusher); ok {
+				flusher.Flush()
+			}
+			time.Sleep(25 * time.Millisecond)
+			_, _ = writer.Write(encodeEvents(t, []map[string]any{
+				event("session.completed", map[string]any{}, 9),
+			}))
+		default:
+			http.NotFound(writer, httpRequest)
+		}
+	}))
+	defer server.Close()
+
+	_, err := mustExecutor(t, server.URL).Execute(context.Background(), request, schema)
+	if !errors.Is(err, ErrProtocol) {
+		t.Fatalf("Execute() delayed trailing event error = %v, want protocol failure", err)
 	}
 }
 
