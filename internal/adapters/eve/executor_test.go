@@ -43,6 +43,10 @@ func TestNewExecutorRequiresLoopbackPortAndPassword(t *testing.T) {
 			BaseURL: "http://127.0.0.1:3000", RoutePassword: "",
 			ObservedModelID: testObservedModelID,
 		},
+		{
+			BaseURL: "http://127.0.0.1:3000", RoutePassword: "   ",
+			ObservedModelID: testObservedModelID,
+		},
 		{BaseURL: "http://127.0.0.1:3000", RoutePassword: testPassword},
 	}
 	for _, test := range tests {
@@ -513,8 +517,8 @@ func testInfoExpectation(instructions string) InfoExpectation {
 	digest := sha256.Sum256([]byte(instructions))
 	return InfoExpectation{
 		AgentName:                 "content-scout",
-		GatewayTarget:             "openai/gpt-5.4-mini",
-		ProviderOptionsJSON:       json.RawMessage(`{"gateway":{"serviceTier":"flex"}}`),
+		GatewayTarget:             "openai",
+		ProviderOptionsJSON:       json.RawMessage(`{"gateway":{"disallowPromptTraining":false,"only":["azure"],"order":["azure"],"serviceTier":"flex","zeroDataRetention":false}}`),
 		StaticInstructionsDigest:  hex.EncodeToString(digest[:]),
 		AllowedFrameworkToolNames: []string{"__eve_output"},
 	}
@@ -528,10 +532,16 @@ func testInfoDocument(instructions string) map[string]any {
 			"model": map[string]any{
 				"id": testObservedModelID,
 				"providerOptions": map[string]any{
-					"gateway": map[string]any{"serviceTier": "flex"},
+					"gateway": map[string]any{
+						"disallowPromptTraining": false,
+						"only":                   []any{"azure"},
+						"order":                  []any{"azure"},
+						"serviceTier":            "flex",
+						"zeroDataRetention":      false,
+					},
 				},
 				"routing": map[string]any{
-					"kind": "gateway", "target": "openai/gpt-5.4-mini",
+					"kind": "gateway", "target": "openai",
 				},
 			},
 		},

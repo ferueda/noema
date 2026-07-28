@@ -55,7 +55,8 @@ type Executor struct {
 
 func NewExecutor(config Config) (*Executor, error) {
 	baseURL, err := validateBaseURL(config.BaseURL)
-	if err != nil || config.RoutePassword == "" || !validID(config.ObservedModelID) {
+	if err != nil || strings.TrimSpace(config.RoutePassword) == "" ||
+		!validID(config.ObservedModelID) {
 		return nil, errors.New("Eve executor configuration invalid")
 	}
 	client := http.DefaultClient
