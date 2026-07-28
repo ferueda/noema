@@ -241,27 +241,21 @@ func runJobs(ctx context.Context, args []string, stdout, stderr io.Writer) error
 	return writeJSON(stdout, jobs)
 }
 
-func runIdeas(ctx context.Context, args []string, stdout, stderr io.Writer) error {
+func runIdeas(_ context.Context, args []string, _ io.Writer, stderr io.Writer) error {
 	if len(args) == 0 || args[0] != "list" {
 		fmt.Fprintln(stderr, "usage: noema ideas list [--database path]")
 		return errors.New("ideas currently supports only list")
 	}
 	flags := flag.NewFlagSet("ideas list", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	databasePath := flags.String("database", "", "SQLite database path")
+	flags.String("database", "", "SQLite database path")
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
 	}
-	store, closeStore, err := openStore(ctx, *databasePath)
-	if err != nil {
-		return err
+	if flags.NArg() != 0 {
+		return errors.New("ideas list received unexpected arguments")
 	}
-	defer closeStore()
-	ideas, err := store.ListIdeas(ctx)
-	if err != nil {
-		return err
-	}
-	return writeJSON(stdout, ideas)
+	return errors.New("V1 artifact-backed idea inspection is not implemented")
 }
 
 func openStore(

@@ -42,8 +42,7 @@ state, rationale, and prompt injection. Its single approved run admitted 18 of
 20 batches; human review judged all 20 admitted claims supported and 19 useful.
 The new cases confirmed strong scope, chronology, separation, reversion, and
 prompt-injection behavior while exposing conservative misses for root cause,
-decisions, lessons, and one implemented change. The local producer-to-worker
-spine also persists its foundation records in SQLite. Noema can now match one
+decisions, lessons, and one implemented change. Noema can now match one
 retained `analysis.completed` event into an inspectable V1 Content Scout job.
 Exact event, ordered claim, agent, and configuration identity reuses that job;
 a changed reviewed configuration creates another job without rerunning
@@ -186,9 +185,8 @@ categories for evidence and fact reference failures, attribution, provenance,
 duplicates, values, or outcome failures (wrong claim type, unsupported result,
 or conflicting result) without retaining rejected model prose.
 
-The test suite includes the foundation's fake source/agent spine, a generic
-fake Sessions executable that proves revision-safe fact processing, and an
-offline semantic-event-to-V1-job flow:
+The test suite includes a generic fake Sessions executable that proves
+revision-safe fact processing and an offline semantic-event-to-V1-job flow:
 
 ```sh
 go test ./...

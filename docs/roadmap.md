@@ -89,11 +89,11 @@ The following decisions are fixed for V0:
 
 ## Foundation: runtime spine
 
-- Status: implemented
+- Status: superseded by the V1 runtime
 - Evidence: PR #5
 
-The foundation establishes the executable shape without claiming that real
-Sessions or model behavior is complete:
+The foundation established the executable shape without claiming that real
+Sessions or model behavior was complete:
 
 - Go CLI and composition root.
 - Durable producer, event, job, and worker process boundaries.
@@ -103,19 +103,15 @@ Sessions or model behavior is complete:
 - Separate producer and one-shot worker roles with SQLite as their only handoff.
 - Stage-specific fingerprints and exact unchanged-run reuse.
 - Evidence-backed output validation and terminal, inspectable failures.
-- Job and idea inspection commands.
+- Early job and idea inspection commands.
 - An end-to-end proof with a fake source, distiller, and agent across fresh
   SQLite connections.
 
-The real Sessions and model commands still fail closed. That is intentional.
-The foundation's request, worker result, completion, and `content_ideas` write
-path still contain Content Scout-specific types. They are accepted scaffold
-seams, not reusable contracts, and must be cut over by the milestone gates
-below.
-
-The foundation's jobs, runs, and ideas are disposable pre-V1 scaffold records,
-not a compatibility promise. Milestone 3 may ignore them through its explicit
-V1 runtime marker without deleting the database or invalidating retained fact
+Milestone 3 removed the obsolete scan/observation worker and its
+Content Scout-specific runtime types rather than preserving them as a second
+execution path. Its jobs, runs, and ideas remain disposable pre-V1 scaffold
+records, not a compatibility promise. The V1 runtime ignores them through its
+explicit marker without deleting the database or invalidating retained fact
 and semantic analyses.
 
 ## V0 Milestone 1: canonical evidence and deterministic facts

@@ -201,10 +201,10 @@ Later, another local process, a scheduler, an Inngest function, or a Cloudflare
 Worker may implement the same contract without changing Noema's knowledge,
 event, job, or artifact model.
 
-The foundation's generic `Source`, `Distiller`, and time-range `ScanRequest`
-remain test seams, not the real Sessions workflow. Milestone 1 added a separate,
-narrow explicit-session source, fact extractor, and fact-analysis store boundary
-without routing evidence admission through the foundation worker.
+The explicit-session source, fact extractor, semantic workflow, and V1 agent
+runtime are the supported processing paths. The earlier generic
+scan/observation worker was a disposable walking skeleton and is not retained
+as a parallel runtime.
 
 ## Core flow
 
@@ -753,7 +753,7 @@ lineage a different artifact.
 ## Initial persistence
 
 SQLite is both the first durable derived store and the first local queue. The
-foundation implements this deliberately small schema:
+initial walking skeleton created these tables:
 
 ```text
 scans
@@ -781,20 +781,14 @@ claims
 event_subject_types
 ```
 
-The foundation schema proves the process boundary, not the final generic
-contracts. Its
-`scans.job_id`, `ScanRequest.ContentScoutConfigKey`, `JobPayload.ScanID`,
-`Observation.Summary`, `Agent.Run` returning `[]ContentIdeaDraft`,
-`JobCompletion.Ideas`, and `content_ideas` write path are Content Scout-specific
-or overly broad scaffold seams.
-
-Milestone 1 removes agent configuration and job creation from evidence and fact
-processing. Milestone 2 produces stable analysis events independent of any
-subscriber. Milestone 3 introduces deterministic subscription matching, a
-generic job input reference, agent result, and artifact envelope, and Content
-Scout-specific payload validation outside the generic dispatcher. The existing
-`content_ideas` table may remain as a query projection, but core job completion
-cannot require it.
+The initial schema proved the SQLite process boundary, not the final generic
+contracts. Milestone 1 separated fact processing from agent configuration and
+job creation. Milestone 2 produced stable analysis events independent of any
+subscriber. Milestone 3 removed the obsolete scan/observation runtime code and
+introduced deterministic subscription matching, a generic job input reference,
+agent result, and artifact envelope, with Content Scout-specific payload
+validation outside the generic dispatcher. The existing `content_ideas` table
+may remain as a query projection, but core job completion cannot require it.
 
 The walking-skeleton jobs, runs, and ideas are disposable pre-V1 scaffold
 records, not a compatibility surface. Milestone 3 identifies supported runtime
@@ -805,11 +799,11 @@ deleting or recreating the database, and retained fact and semantic analyses
 remain supported.
 
 Milestone 1 keeps deterministic `Fact` records and their `AnalysisRun` lineage
-separate from the broad foundation `Observation` model. Milestone 2 keeps
+separate from the retired broad observation scaffold. Milestone 2 keeps
 semantic claims, nullable progress details, and their validation path distinct
-from both facts and observations. Complete Sessions coordinates and explicit
-stage versions are part of both derived paths. Knowledge units, episodes, and
-relation tables are not preconditions for V0.
+from facts. Complete Sessions coordinates and explicit stage versions are part
+of both derived paths. Knowledge units, episodes, and relation tables are not
+preconditions for V0.
 
 Each rerunnable stage has a separate identity:
 
@@ -1297,8 +1291,7 @@ or general ability, enroll the user in training, or modify tools and workflows.
 
 ## Delivery sequence
 
-The executable foundation already proves the SQLite process boundary with fake
-adapters. Real behavior is added in three milestones:
+Noema adds real behavior in three milestones:
 
 1. **Canonical evidence and deterministic facts.** Process one explicit
    Sessions identity, validate bounded canonical export, store inspectable facts

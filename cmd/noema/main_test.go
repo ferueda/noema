@@ -23,32 +23,36 @@ func TestInspectionCommandsCreateAndReadEmptyDatabase(t *testing.T) {
 	t.Parallel()
 
 	databasePath := filepath.Join(t.TempDir(), "noema.db")
-	for _, test := range []struct {
-		name    string
-		command string
-	}{
-		{name: "jobs", command: "jobs"},
-		{name: "ideas", command: "ideas"},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			var stdout bytes.Buffer
-			var stderr bytes.Buffer
-			err := run(
-				context.Background(),
-				[]string{test.command, "list", "--database", databasePath},
-				&stdout,
-				&stderr,
-			)
-			if err != nil {
-				t.Fatalf("run %s list: %v", test.command, err)
-			}
-			if got := strings.TrimSpace(stdout.String()); got != "[]" {
-				t.Fatalf("%s output = %q, want []", test.command, got)
-			}
-			if stderr.Len() != 0 {
-				t.Fatalf("%s stderr = %q, want empty", test.command, stderr.String())
-			}
-		})
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	err := run(
+		context.Background(),
+		[]string{"jobs", "list", "--database", databasePath},
+		&stdout,
+		&stderr,
+	)
+	if err != nil {
+		t.Fatalf("run jobs list: %v", err)
+	}
+	if got := strings.TrimSpace(stdout.String()); got != "[]" {
+		t.Fatalf("jobs output = %q, want []", got)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("jobs stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestIdeasListDoesNotReadWalkingSkeletonRows(t *testing.T) {
+	t.Parallel()
+
+	err := run(
+		context.Background(),
+		[]string{"ideas", "list", "--database", filepath.Join(t.TempDir(), "noema.db")},
+		&bytes.Buffer{},
+		&bytes.Buffer{},
+	)
+	if err == nil || err.Error() != "V1 artifact-backed idea inspection is not implemented" {
+		t.Fatalf("ideas error = %v, want fixed V1 inspection error", err)
 	}
 }
 

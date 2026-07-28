@@ -5,31 +5,8 @@ import (
 	"time"
 )
 
-func TestEventIdentityCompatibility(t *testing.T) {
+func TestSemanticEventIdentityIsStable(t *testing.T) {
 	now := time.Date(2026, 7, 21, 16, 0, 0, 0, time.UTC)
-
-	t.Run("foundation event", func(t *testing.T) {
-		scanner := Scanner{Now: func() time.Time { return now }}
-		event, err := scanner.newEvent(
-			"observation.created",
-			"observation",
-			"observation-stable",
-			map[string]any{
-				"schemaVersion": 1,
-				"observationId": "observation-stable",
-				"scanId":        "scan-stable",
-			},
-			nil,
-		)
-		if err != nil {
-			t.Fatalf("build foundation event: %v", err)
-		}
-		const fingerprint = "bcfda3dfb83a78cf7ad4043b1d0b0966c339e6d28c490e2c01524b62782162c9"
-		const id = "evt_bcfda3dfb83a78cf7ad4043b1d0b0966"
-		if event.Fingerprint != fingerprint || event.ID != id {
-			t.Fatalf("foundation identity = %q / %q, want %q / %q", event.Fingerprint, event.ID, fingerprint, id)
-		}
-	})
 
 	t.Run("semantic event", func(t *testing.T) {
 		event, err := newSemanticEvent(
