@@ -185,6 +185,11 @@ by Sessions is not a separate Noema source integration.
 - Deterministic and semantic extraction remain independent of agent output
   schemas. A new artifact type cannot redefine facts or previously admitted
   claims implicitly.
+- The pre-V1 walking-skeleton jobs, agent runs, and content ideas are disposable
+  scaffold state, not a supported product contract. Milestone 3 may leave those
+  rows physically present but does not decode, backfill, list, or claim them.
+  This does not invalidate or require deleting retained Milestone 1 facts,
+  Milestone 2 claims, analyses, or events from the same database.
 - An episode is a Noema hypothesis, not a source session, Factory work item,
   Inngest run, issue, or pull request.
 - External records can support or relate to an episode but cannot be required

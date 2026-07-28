@@ -1,7 +1,7 @@
 # Produce evidence-backed content ideas through a portable agent boundary
 
 - Status: approved 2026-07-28
-- Plan review: pass (`20260728-172109-09facf`)
+- Plan review: pass (`20260728-175151-579287`)
 - Roadmap: [V0 Milestone 3: Content Scout](../../docs/roadmap.md#v0-milestone-3-content-scout)
 
 ## Goal
@@ -63,7 +63,7 @@ The numbered changes below are the complete Milestone 3 acceptance ledger, not
 one pull-request boundary. Implement them through this dependency graph:
 
 ```text
-1. Contracts and database compatibility freeze
+1. Contracts and V1 runtime freeze
    ├── 2. Retained event → deterministic V1 job
    │      └── 3. Offline dispatcher → admitted artifacts
    ├── 4A. Go Eve HTTP adapter
@@ -72,10 +72,10 @@ one pull-request boundary. Implement them through this dependency graph:
 3 + 4A + 4B ──────┴──→ 5. Production integration and acceptance
 ```
 
-1. **Contracts and database compatibility freeze.** Add the shared V1 domain
+1. **Contracts and V1 runtime freeze.** Add the shared V1 domain
    values, execution and candidate JSON Schemas, configuration shapes,
-   canonical digest rules, cross-language fixtures, additive runtime tables,
-   and SQLite-private legacy job and run readers. Define the two-phase queue
+   canonical digest rules, cross-language fixtures, and additive runtime
+   tables. Define the two-phase queue
    contract as inspect oldest pending V1 job → perform local or remote
    preflight → claim that exact still-pending job. Do not switch job insertion,
    worker behavior, or public commands yet. This serial prerequisite prevents a
@@ -92,7 +92,7 @@ one pull-request boundary. Implement them through this dependency graph:
    disclosure, duplicate, and safety admission; and atomically persist the
    generic run, artifacts, optional idea projection, and job completion. Include
    the zero-claim local completion path and replace the obsolete foundation
-   spine only after legacy readers are active. This is the first complete
+   spine as part of the V1 cutover. This is the first complete
    offline event → job → execution → artifact vertical slice.
 4. **Parallel executor adapters after Slice 1.**
    - **4A: Go Eve HTTP adapter.** Own only `internal/adapters/eve/` and its
@@ -121,10 +121,17 @@ after the fixed canary confirms that exact live sequence.
 
 Every slice updates the tests and contributor or operator documentation for the
 behavior it introduces. A slice must leave `make check` passing and must not
-temporarily weaken legacy database reads, semantic processing, privacy, or
-remote-authority gates. Mutable configuration files and operational credentials
-never become semantic job inputs; a job retains the bounded sanitized policy
-values required to execute the exact reviewed configuration.
+temporarily weaken semantic processing, privacy, or remote-authority gates.
+Mutable configuration files and operational credentials never become semantic
+job inputs; a job retains the bounded sanitized policy values required to
+execute the exact reviewed configuration.
+
+Milestone 3 deliberately does not preserve the walking-skeleton job, run, or
+idea contract. Rows without V1 runtime details are outside the supported
+contract: the V1 queue and inspection paths ignore them, do not backfill them,
+and never guess their schema from JSON content. They may remain physically
+present in a mixed database. This cutover does not require deleting the
+database or alter retained facts, claims, analyses, or semantic events.
 
 ## Changes
 
@@ -179,12 +186,13 @@ values required to execute the exact reviewed configuration.
    exact artifact ID.
 
    Remove the unused foundation `EvidenceChunk`, `Observation`, `Scan`,
-   `ScanCommit`, and scanner-only ports only after the migration and
-   SQLite-local legacy readers in Change 6 can open and inspect their persisted
-   job and run shapes. The public `scan sessions` command already uses
-   `FactAnalyzer`, so this removal must not change fact or semantic analysis
-   behavior. Keep the old SQLite foundation tables and rows readable; this
-   milestone does not rewrite or drop user data.
+   `ScanCommit`, and scanner-only ports during the V1 runtime cutover. The
+   public `scan sessions` command already uses `FactAnalyzer`, so this removal
+   must not change fact or semantic analysis behavior. Do not add import,
+   backfill, or compatibility readers for walking-skeleton jobs, runs, or ideas.
+   Existing databases continue to open and retain supported fact, claim,
+   analysis, and event data; V1 queue and inspection paths simply ignore
+   runtime rows without `agent_job_details`.
 
    Define the result combinations strictly. `skipped-no-claims` is successful,
    has no receipt, and has no artifacts. `not-invoked` is failed, records a
@@ -493,35 +501,24 @@ values required to execute the exact reviewed configuration.
    every database open:
 
    - `agent_job_details`, keyed by the existing job ID, stores payload schema
-     version and configuration digest for exact worker selection and legacy-row
-     detection; and
+     version and configuration digest for exact worker selection; and
    - `artifacts`, keyed by generic artifact ID and unique fingerprint, stores
      the versioned envelope, canonical payload JSON, event/run/input lineage,
-     evidence JSON, status, and timestamp.
+     ordered artifact-specific claim and fact IDs, evidence JSON, status, and
+     timestamp.
 
    Continue storing `AgentJobPayloadV1` in `jobs.payload_json` and
    `AgentRunResultV1` in `agent_runs.output_json`; do not alter either table in
-   this slice. Add SQLite-adapter-private `legacyJobPayloadV0` and
-   `legacyAgentRunOutputV0` DTOs solely to validate existing JSON without
-   reintroducing old foundation types into domain or application contracts.
-   Detect legacy rows by the absence of `agent_job_details` before choosing a
-   decoder.
+   this slice. Do not decode or inspect rows without `agent_job_details`; they
+   belong to the unsupported walking-skeleton runtime. The V1 queue, job
+   inspection, and idea inspection paths use an inner join or equivalent exact
+   V1 lookup and never fall back based on the contents of `payload_json` or
+   `output_json`. No migration backfills those rows.
 
-   `jobs list` and `jobs show` represent a valid legacy row with
-   `payloadSchemaVersion: 0`, `legacy: true`, `claimable: false`, common job
-   status and timestamps, and—when present—common run status/timestamps plus a
-   bounded legacy idea count. They expose neither raw legacy payload/output JSON
-   nor invented V1 inputs, model metadata, safety status, or artifacts.
-   Existing `content_ideas` rows may continue to appear as explicitly legacy
-   idea projections, never as generic artifacts. Invalid or oversized legacy
-   payload/output JSON makes the read fail with a fixed legacy-data category
-   instead of silently returning empty V1 values. Pending, succeeded, and
-   failed legacy jobs are never claimed by the new worker.
-
-   Land the migration and legacy readers first, then switch new job insertion
-   and worker reads to V1, then remove the foundation scanner and public old
-   types. Insert a new job and its detail row atomically. Inspect the oldest
-   pending V1 job and its bounded input identities without claiming it. A
+   Land the migration and V1-only read boundary first, then switch new job
+   insertion and worker reads to V1, then remove the foundation scanner and
+   public old types. Insert a new job and its detail row atomically. Inspect the
+   oldest pending V1 job and its bounded input identities without claiming it. A
    zero-claim job needs only a matching registered local handler and valid
    stored configuration identity before the local completion path claims it.
    Claim a non-empty job only when its agent name, version, and configuration
@@ -627,11 +624,8 @@ values required to execute the exact reviewed configuration.
    - each admitted idea has non-empty claim, fact, and evidence lineage that
      round-trips in exact order;
    - run, artifact, projection, and job completion are atomically visible; and
-   - a pre-milestone database with valid pending, succeeded, and failed
-     foundation job/run shapes opens unchanged, lists and shows their explicit
-     legacy summaries and idea counts, and never claims them;
-   - malformed or oversized legacy job or run JSON fails with a fixed category
-     rather than being interpreted as empty V1 inputs.
+   - rows without `agent_job_details` are invisible to V1 queue and inspection
+     queries and can never be claimed or decoded as V1.
 
    Keep the semantic conformance command, evaluator, processing identity,
    failure categorization, route loader, and strict claim decoding unchanged;
@@ -691,10 +685,10 @@ values required to execute the exact reviewed configuration.
    disabled tool surface, strict agent file, Flex best-effort and Eve recovery
    behavior, unavailable applied-tier and resolved-provider observations,
    disclosure configuration and generalization limits, `review-required`
-   publication meaning, legacy scaffold cutover, and offline versus explicitly
-   approved live proof. Mark Milestone 3 complete only after one approved real
-   session traverses all three milestones and its ideas receive the roadmap's
-   external human usefulness review.
+   publication meaning, the V1-only runtime cutover, and offline versus
+   explicitly approved live proof. Mark Milestone 3 complete only after one
+   approved real session traverses all three milestones and its ideas receive
+   the roadmap's external human usefulness review.
 
 ## Verify
 

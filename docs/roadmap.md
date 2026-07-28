@@ -113,6 +113,11 @@ path still contain Content Scout-specific types. They are accepted scaffold
 seams, not reusable contracts, and must be cut over by the milestone gates
 below.
 
+The foundation's jobs, runs, and ideas are disposable pre-V1 scaffold records,
+not a compatibility promise. Milestone 3 may ignore them through its explicit
+V1 runtime marker without deleting the database or invalidating retained fact
+and semantic analyses.
+
 ## V0 Milestone 1: canonical evidence and deterministic facts
 
 - Status: implemented
