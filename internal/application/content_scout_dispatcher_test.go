@@ -97,6 +97,58 @@ func TestContentScoutDispatcherPersistsPreparationFailureWithoutInvocation(
 	}
 }
 
+func TestContentScoutDispatcherCompletesWithValidZeroBudgetFactText(
+	t *testing.T,
+) {
+	fixture := newContentScoutFixture(t, nil)
+	fact := fixture.reader.facts["fact-one"]
+	fact.Value = domain.FactValue{Error: &domain.SelectedText{
+		Text: "", EmittedUTF8Bytes: 0, OriginalUTF8Bytes: 24, Truncated: true,
+	}}
+	fixture.reader.facts["fact-one"] = fact
+	store := newContentScoutDispatcherStore(t, fixture)
+	executor := &contentScoutResultExecutor{
+		execute: func(request domain.AgentExecutionRequestV1) (domain.AgentExecutionResponseV1, error) {
+			var input domain.ContentScoutInputV1
+			if err := json.Unmarshal(request.Input.CanonicalJSON, &input); err != nil {
+				return domain.AgentExecutionResponseV1{}, err
+			}
+			if input.Facts[0].Value.Error != nil ||
+				input.Omissions.OmittedTextFactCount == 0 {
+				return domain.AgentExecutionResponseV1{}, errors.New("omitted fact text was disclosed")
+			}
+			return domain.AgentExecutionResponseV1{
+				ContractVersion: domain.AgentExecutionContractVersion,
+				CandidateJSON:   json.RawMessage(`{"ideas":[]}`),
+				Receipt:         contentScoutDispatcherReceipt(request),
+			}, nil
+		},
+	}
+
+	result, err := (ContentScoutDispatcherV1{
+		Store: store, Executor: executor, AllowRemote: true,
+		Preflight: func(
+			context.Context,
+			AgentJobRecordV1,
+			domain.AgentExecutionIdentity,
+		) error {
+			return nil
+		},
+		Now: dispatcherTestClock(fixture.job.CreatedAt),
+	}).RunOnce(context.Background())
+	if err != nil {
+		t.Fatalf("dispatch zero-budget fact text: %v", err)
+	}
+	if result.Outcome != domain.AgentRunOutcomeSucceeded ||
+		result.Disposition != domain.AgentExecutionDispositionInvoked ||
+		len(result.ArtifactIDs) != 0 ||
+		store.completed == nil ||
+		store.failed != nil ||
+		executor.calls != 1 {
+		t.Fatalf("zero-budget dispatch = %#v / %#v / %#v", result, store, executor)
+	}
+}
+
 func TestContentScoutDispatcherRejectsMismatchedExecutionReceipt(
 	t *testing.T,
 ) {

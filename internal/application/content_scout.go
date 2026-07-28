@@ -467,6 +467,15 @@ func contentScoutSelectedText(value *domain.SelectedText) *domain.ContentScoutSe
 	if value == nil {
 		return nil
 	}
+	// A bounded extractor can retain an explicitly truncated value after its
+	// text budget reaches zero. The aggregate omission metadata remains in the
+	// input; there is no text to disclose to the agent.
+	if value.Text == "" &&
+		value.EmittedUTF8Bytes == 0 &&
+		value.OriginalUTF8Bytes > 0 &&
+		value.Truncated {
+		return nil
+	}
 	return &domain.ContentScoutSelectedTextV1{
 		Text: value.Text, EmittedUTF8Bytes: value.EmittedUTF8Bytes,
 		OriginalUTF8Bytes: value.OriginalUTF8Bytes, Truncated: value.Truncated,

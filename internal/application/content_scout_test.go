@@ -241,6 +241,28 @@ func TestContentScoutPrepareTracksOutboundBytesAfterSelectedTextGeneralization(
 	}
 }
 
+func TestContentScoutPrepareOmitsValidZeroBudgetFactText(t *testing.T) {
+	fixture := newContentScoutFixture(t, nil)
+	fact := fixture.reader.facts["fact-one"]
+	fact.Value = domain.FactValue{Command: &domain.SelectedText{
+		Text: "", EmittedUTF8Bytes: 0, OriginalUTF8Bytes: 24, Truncated: true,
+	}}
+	fixture.reader.facts["fact-one"] = fact
+
+	prepared, err := (ContentScoutHandlerV1{Knowledge: fixture.reader}).Prepare(
+		context.Background(), fixture.job,
+	)
+	if err != nil {
+		t.Fatalf("prepare zero-budget fact text: %v", err)
+	}
+	if prepared.Input.Facts[0].Value.Command != nil ||
+		prepared.Input.Omissions.OmittedTextFactCount == 0 ||
+		prepared.Input.Omissions.OmittedTextOriginalUTF8Bytes == 0 ||
+		prepared.Input.Validate() != nil {
+		t.Fatalf("zero-budget fact input = %#v", prepared.Input)
+	}
+}
+
 func TestContentScoutAdmitFiltersUnsupportedCandidatesAndDerivesLineage(
 	t *testing.T,
 ) {
