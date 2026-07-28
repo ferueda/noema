@@ -2,6 +2,7 @@
 
 - Status: accepted product baseline
 - Date: 2026-07-22
+- Updated: 2026-07-28
 
 ## Purpose
 
@@ -31,9 +32,10 @@ from the same admitted facts and claims.
 
 Noema is also a learning project. It should make the mechanics of evidence
 admission, extraction, event delivery, agent execution, and replay visible
-enough to study and change. Experiments with Go, model providers, retrieval,
-Inngest, or Cloudflare are welcome behind the accepted boundaries, but an
-experiment enters the product path only when it solves an observed need.
+enough to study and change. Experiments with Go, agent frameworks such as Eve,
+model providers, retrieval, Inngest, or Cloudflare are welcome behind the
+accepted boundaries, but an experiment enters the product path only when it
+solves an observed need.
 
 ## Audience
 
@@ -82,8 +84,9 @@ and agents understand a scope, but they never replace the facts, claims, or
 evidence that support them.
 
 Adding a new focused agent should normally require its event subscriptions,
-evidence queries, instructions, and output schema. It should not require
-rewriting ingestion or storage.
+versioned execution input and output contracts, evidence queries, instructions,
+and output schema. It should not require rewriting ingestion or storage, and it
+should not have to use Noema's implementation language or process runtime.
 
 The generic runtime stores an agent artifact envelope and its lineage. Each
 agent owns the typed payload inside that envelope. Content ideas, coding
@@ -212,6 +215,13 @@ by Sessions is not a separate Noema source integration.
 ### Agent authority
 
 - Agent outputs are proposals or local artifacts.
+- An agent wakes up for a durable Noema job created from an event. The agent
+  may run in another language, process, or framework, but it receives only a
+  bounded, versioned request and returns an untrusted, versioned result.
+- Noema owns event and job identity, input authorization, result admission,
+  provenance, and artifacts. An agent framework may own model and tool
+  execution, but it does not write Noema's domain stores or become the source
+  of truth for agent output.
 - Agent execution is stateless across runs. Continuity lives in admitted
   evidence, derived records, events, jobs, run history, and artifacts rather
   than model memory or one long conversation.
@@ -229,6 +239,12 @@ by Sessions is not a separate Noema source integration.
 ### Technology independence
 
 - Go and SQLite are the first implementation choices, not domain concepts.
+- Focused agents may be implemented in TypeScript, Go, Python, a hosted agent
+  framework, or another runtime behind the same versioned execution contract.
+  Their language and hosting platform are adapter choices.
+- Eve may provide an agent's model loop, tools, local durable execution, or
+  channels. Noema still owns subscriptions, jobs, admitted results, lineage,
+  and artifact state.
 - Inngest may supply workflow evidence or execute agents later. It is not a
   required source or domain dependency.
 - Cloudflare services may later host selected derived data or execution. They
@@ -299,7 +315,8 @@ turn evaluation into a product stage.
 ### Milestone 3: Content Scout
 
 1. Enqueue Content Scout from admitted knowledge events.
-2. Run the worker separately through the provider-neutral model boundary.
+2. Run the Noema dispatcher separately and wake the focused agent through the
+   versioned language-neutral execution contract.
 3. Store and review at most five ranked, evidence-backed content ideas. An
    empty result is valid.
 4. Show how each suitable idea could become a short X post, a longer X thread,
