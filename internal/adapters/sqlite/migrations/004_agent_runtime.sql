@@ -1,9 +1,3 @@
-CREATE TABLE IF NOT EXISTS agent_job_details (
-    job_id TEXT PRIMARY KEY REFERENCES jobs(id),
-    payload_schema_version INTEGER NOT NULL CHECK (payload_schema_version >= 1),
-    configuration_digest TEXT NOT NULL CHECK (length(configuration_digest) > 0)
-);
-
 CREATE TABLE IF NOT EXISTS artifacts (
     id TEXT PRIMARY KEY CHECK (length(id) > 0),
     fingerprint TEXT NOT NULL UNIQUE CHECK (length(fingerprint) > 0),

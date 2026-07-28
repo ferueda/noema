@@ -753,50 +753,31 @@ lineage a different artifact.
 ## Initial persistence
 
 SQLite is both the first durable derived store and the first local queue. The
-initial walking skeleton created these tables:
-
-```text
-scans
-evidence_chunks
-observations
-events
-jobs
-agent_runs
-content_ideas
-```
-
-Milestone 1 adds two use-case-neutral tables without rewriting that foundation:
+clean V1 schema contains:
 
 ```text
 analysis_runs
 facts
-```
-
-Milestone 2 adds the derived semantic projection and an additive event subject
-type sidecar without rewriting the foundation event envelope:
-
-```text
 semantic_analysis_details
 claims
-event_subject_types
+events
+jobs
+agent_runs
+artifacts
 ```
 
-The initial schema proved the SQLite process boundary, not the final generic
-contracts. Milestone 1 separated fact processing from agent configuration and
-job creation. Milestone 2 produced stable analysis events independent of any
-subscriber. Milestone 3 removed the obsolete scan/observation runtime code and
-introduced deterministic subscription matching, a generic job input reference,
-agent result, and artifact envelope, with Content Scout-specific payload
-validation outside the generic dispatcher. The existing `content_ideas` table
-may remain as a query projection, but core job completion cannot require it.
+The initial walking-skeleton schema proved the SQLite process boundary, not the
+final generic contracts. Milestone 1 separated fact processing from agent
+configuration and job creation. Milestone 2 produced stable analysis events
+independent of any subscriber. Milestone 3 removes the obsolete
+scan/observation runtime and its projections, then stores event subject type
+and job version/configuration identity directly on their authoritative rows.
+Content Scout-specific payload validation remains outside the generic
+dispatcher, and content ideas are inspected from generic artifacts.
 
-The walking-skeleton jobs, runs, and ideas are disposable pre-V1 scaffold
-records, not a compatibility surface. Milestone 3 identifies supported runtime
-rows through the V1 job-details sidecar. Queue and inspection queries ignore
-rows without that sidecar and never infer their schema from stored JSON. Those
-rows may remain physically present in a mixed database; Noema does not require
-deleting or recreating the database, and retained fact and semantic analyses
-remain supported.
+This is an intentional clean cutover. Noema does not provide legacy readers,
+backfills, imports, dual writes, or mixed-schema handling for the pre-V1
+database. Pre-V1 local databases must be recreated.
 
 Milestone 1 keeps deterministic `Fact` records and their `AnalysisRun` lineage
 separate from the retired broad observation scaffold. Milestone 2 keeps
@@ -916,10 +897,10 @@ noema subscriptions match <semantic-analysis-id>
 ```
 
 It validates one retained completion event and the complete local
-configuration identity, then atomically stores the job envelope and V1
-job-details sidecar. It does not call Eve, require a credential, or publish
-another event. V1 queue and inspection queries join through that sidecar and
-leave pre-V1 scaffold rows invisible.
+configuration identity, then atomically stores the complete V1 job row. It
+does not call Eve, require a credential, or publish another event. V1 queue and
+inspection queries select the explicit payload schema version stored on that
+row.
 
 Inngest, Cloudflare Queues, or Cloudflare Workflows may later implement parts
 of this execution model. Their run identifiers and status values remain
@@ -1428,8 +1409,7 @@ small boundary:
 - Schema migration tool.
 - Structured-output validation library.
 - The semantic-claim persistence projection and queries.
-- Exact generic artifact payload encoding and whether `content_ideas` remains a
-  projection after the Milestone 3 cutover.
+- Exact generic artifact payload encoding for later artifact kinds.
 - Authentication, callbacks, recovery, and retention for agent executors beyond
   the V0 loopback-only Eve process.
 - How later artifact-specific previews build on Milestone 1's digest-locked,

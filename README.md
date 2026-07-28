@@ -50,9 +50,10 @@ semantic extraction or publishing another event. Matching is local and makes
 no model or Eve request. `worker --once` remains fail-closed until the
 dispatcher slice lands.
 
-Pre-V1 walking-skeleton jobs remain disposable scaffold state. V1 queue and
-inspection paths recognize only rows with the explicit V1 sidecar and do not
-decode, backfill, or display older rows.
+Milestone 3 is a clean V1 runtime cutover. The current schema contains no
+walking-skeleton scan, observation, or content-idea projection tables, and
+Noema does not decode, backfill, or migrate their rows. Existing pre-V1 local
+databases must be recreated.
 
 The current sources of truth are:
 

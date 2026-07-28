@@ -109,10 +109,9 @@ Sessions or model behavior was complete:
 
 Milestone 3 removed the obsolete scan/observation worker and its
 Content Scout-specific runtime types rather than preserving them as a second
-execution path. Its jobs, runs, and ideas remain disposable pre-V1 scaffold
-records, not a compatibility promise. The V1 runtime ignores them through its
-explicit marker without deleting the database or invalidating retained fact
-and semantic analyses.
+execution path. The pre-V1 schema is disposable scaffold state, not a
+compatibility promise. The clean V1 schema requires recreating pre-V1 local
+databases and has no legacy reader, backfill, or dual-write path.
 
 ## V0 Milestone 1: canonical evidence and deterministic facts
 
@@ -397,8 +396,7 @@ useful, safe content ideas.
   - claim identities and direct evidence references;
   - confidence and deterministic safety outcome.
 - Store every idea as a proposal for local human review.
-- Persist content ideas through the generic artifact lifecycle. A dedicated
-  `content_ideas` table may remain only as an optional query projection.
+- Persist and inspect content ideas through the generic artifact lifecycle.
 
 ### Gate
 

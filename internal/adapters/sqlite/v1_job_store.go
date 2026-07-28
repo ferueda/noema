@@ -14,7 +14,7 @@ import (
 	"github.com/ferueda/noema/internal/domain"
 )
 
-// CreateOrReuseV1Job atomically persists the generic job and its V1 sidecar.
+// CreateOrReuseV1Job atomically persists the complete V1 job record.
 // An exact fingerprint reuses the existing durable job at any lifecycle stage.
 func (store *Store) CreateOrReuseV1Job(
 	ctx context.Context,
@@ -37,8 +37,9 @@ func (store *Store) CreateOrReuseV1Job(
 	result, err := transaction.ExecContext(ctx, `
 		INSERT INTO jobs (
 			id, fingerprint, event_id, agent_name, agent_version, status,
-			payload_json, error, created_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, '', ?)
+			payload_schema_version, configuration_digest, payload_json, error,
+			created_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?)
 		ON CONFLICT(fingerprint) DO NOTHING
 	`,
 		job.ID,
@@ -47,6 +48,8 @@ func (store *Store) CreateOrReuseV1Job(
 		job.Agent.Name,
 		job.Agent.Version,
 		job.Status,
+		job.Payload.SchemaVersion,
+		job.Payload.Configuration.Digest,
 		string(payload),
 		formatTime(job.CreatedAt),
 	)
@@ -58,17 +61,6 @@ func (store *Store) CreateOrReuseV1Job(
 		return false, fmt.Errorf("check V1 job insertion: %w", err)
 	}
 	if inserted == 1 {
-		if _, err := transaction.ExecContext(ctx, `
-			INSERT INTO agent_job_details (
-				job_id, payload_schema_version, configuration_digest
-			) VALUES (?, ?, ?)
-		`,
-			job.ID,
-			job.Payload.SchemaVersion,
-			job.Payload.Configuration.Digest,
-		); err != nil {
-			return false, fmt.Errorf("insert V1 job details: %w", err)
-		}
 		if err := transaction.Commit(); err != nil {
 			return false, fmt.Errorf("commit V1 job: %w", err)
 		}
@@ -97,7 +89,7 @@ func (store *Store) CreateOrReuseV1Job(
 	return false, nil
 }
 
-// ListV1Jobs returns only jobs explicitly declared with the V1 sidecar.
+// ListV1Jobs returns jobs using the supported payload version.
 func (store *Store) ListV1Jobs(
 	ctx context.Context,
 ) ([]application.AgentJobRecordV1, error) {
@@ -105,10 +97,9 @@ func (store *Store) ListV1Jobs(
 		SELECT jobs.id, jobs.fingerprint, jobs.event_id, jobs.agent_name,
 		       jobs.agent_version, jobs.status, jobs.payload_json,
 		       jobs.created_at, jobs.started_at, jobs.finished_at,
-		       agent_job_details.configuration_digest
+		       jobs.configuration_digest
 		  FROM jobs
-		  JOIN agent_job_details ON agent_job_details.job_id = jobs.id
-		 WHERE agent_job_details.payload_schema_version = ?
+		 WHERE jobs.payload_schema_version = ?
 		 ORDER BY jobs.created_at, jobs.id
 	`, domain.AgentJobPayloadSchemaVersion)
 	if err != nil {
@@ -130,7 +121,7 @@ func (store *Store) ListV1Jobs(
 	return jobs, nil
 }
 
-// LoadV1Job ignores walking-skeleton and future-version rows.
+// LoadV1Job ignores unsupported payload versions.
 func (store *Store) LoadV1Job(
 	ctx context.Context,
 	jobID string,
@@ -142,11 +133,10 @@ func (store *Store) LoadV1Job(
 		SELECT jobs.id, jobs.fingerprint, jobs.event_id, jobs.agent_name,
 		       jobs.agent_version, jobs.status, jobs.payload_json,
 		       jobs.created_at, jobs.started_at, jobs.finished_at,
-		       agent_job_details.configuration_digest
+		       jobs.configuration_digest
 		  FROM jobs
-		  JOIN agent_job_details ON agent_job_details.job_id = jobs.id
 		 WHERE jobs.id = ?
-		   AND agent_job_details.payload_schema_version = ?
+		   AND jobs.payload_schema_version = ?
 	`, jobID, domain.AgentJobPayloadSchemaVersion))
 	if errors.Is(err, sql.ErrNoRows) {
 		return application.AgentJobRecordV1{}, false, nil
@@ -166,11 +156,10 @@ func loadV1JobByFingerprint(
 		SELECT jobs.id, jobs.fingerprint, jobs.event_id, jobs.agent_name,
 		       jobs.agent_version, jobs.status, jobs.payload_json,
 		       jobs.created_at, jobs.started_at, jobs.finished_at,
-		       agent_job_details.configuration_digest
+		       jobs.configuration_digest
 		  FROM jobs
-		  JOIN agent_job_details ON agent_job_details.job_id = jobs.id
 		 WHERE jobs.fingerprint = ?
-		   AND agent_job_details.payload_schema_version = ?
+		   AND jobs.payload_schema_version = ?
 	`, fingerprint, domain.AgentJobPayloadSchemaVersion))
 }
 

@@ -30,14 +30,12 @@ type PendingV1JobIdentity struct {
 }
 
 // PendingV1JobRecord is the read-only first phase of the queue protocol.
-// The sidecar declares the payload schema; callers must decode it strictly.
 type PendingV1JobRecord struct {
 	PendingV1JobIdentity
 	CreatedAt time.Time
 }
 
-// InspectOldestPendingV1Job ignores walking-skeleton rows without a V1
-// sidecar. Milestone 3 does not decode or migrate those rows.
+// InspectOldestPendingV1Job selects only the supported payload version.
 func (store *Store) InspectOldestPendingV1Job(
 	ctx context.Context,
 ) (PendingV1JobRecord, bool, error) {
@@ -45,13 +43,12 @@ func (store *Store) InspectOldestPendingV1Job(
 	var payload, createdAt string
 	err := store.database.QueryRowContext(ctx, `
 		SELECT jobs.id, jobs.fingerprint, jobs.event_id, jobs.agent_name,
-		       jobs.agent_version, agent_job_details.payload_schema_version,
-		       agent_job_details.configuration_digest, jobs.payload_json,
+		       jobs.agent_version, jobs.payload_schema_version,
+		       jobs.configuration_digest, jobs.payload_json,
 		       jobs.created_at
 		  FROM jobs
-		  JOIN agent_job_details ON agent_job_details.job_id = jobs.id
 		 WHERE jobs.status = 'pending'
-		   AND agent_job_details.payload_schema_version = ?
+		   AND jobs.payload_schema_version = ?
 		 ORDER BY jobs.created_at, jobs.id
 		 LIMIT 1
 	`, domain.AgentJobPayloadSchemaVersion).Scan(
@@ -117,15 +114,10 @@ func (store *Store) ClaimPendingV1Job(
 		   AND event_id = ?
 		   AND agent_name = ?
 		   AND agent_version = ?
+		   AND payload_schema_version = ?
+		   AND configuration_digest = ?
 		   AND payload_json = ?
 		   AND status = 'pending'
-		   AND EXISTS (
-		       SELECT 1
-		         FROM agent_job_details
-		        WHERE agent_job_details.job_id = jobs.id
-		          AND agent_job_details.payload_schema_version = ?
-		          AND agent_job_details.configuration_digest = ?
-		   )
 	`,
 		formatTime(startedAt),
 		expected.ID,
@@ -133,9 +125,9 @@ func (store *Store) ClaimPendingV1Job(
 		expected.EventID,
 		expected.AgentName,
 		expected.AgentVersion,
-		string(expected.PayloadJSON),
 		expected.PayloadSchemaVersion,
 		expected.ConfigurationDigest,
+		string(expected.PayloadJSON),
 	)
 	if err != nil {
 		return false, err

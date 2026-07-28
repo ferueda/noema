@@ -68,7 +68,6 @@ func TestSemanticStoreCommitsLoadsAndReusesOrderedAnalysis(t *testing.T) {
 		"events":        2,
 		"jobs":          0,
 		"agent_runs":    0,
-		"content_ideas": 0,
 	} {
 		var count int
 		if err := database.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&count); err != nil || count != want {
@@ -303,10 +302,10 @@ func TestSemanticStoreRollsBackPartialCommit(t *testing.T) {
 	record := semanticStoreRecord(time.Date(2026, 7, 21, 10, 0, 0, 0, time.UTC), "rollback", true)
 	if _, err := database.ExecContext(ctx, `
 		INSERT INTO events (
-			id, fingerprint, type, subject_id, payload_json, evidence_json, created_at
-		) VALUES ('preexisting-event', ?, 'analysis.completed', 'other-analysis', '{}', '[]', ?);
-		INSERT INTO event_subject_types (event_id, subject_type)
-		VALUES ('preexisting-event', 'analysis')
+			id, fingerprint, type, subject_type, subject_id, payload_json,
+			evidence_json, created_at
+		) VALUES ('preexisting-event', ?, 'analysis.completed', 'analysis',
+		          'other-analysis', '{}', '[]', ?)
 	`, record.Events[1].Fingerprint, formatTime(record.Events[1].CreatedAt)); err != nil {
 		t.Fatalf("seed conflicting event: %v", err)
 	}
@@ -322,7 +321,7 @@ func TestSemanticStoreRollsBackPartialCommit(t *testing.T) {
 	}
 	for table, want := range map[string]int{
 		"analysis_runs": 0, "semantic_analysis_details": 0, "claims": 0,
-		"events": 1, "event_subject_types": 1,
+		"events": 1,
 	} {
 		var count int
 		if err := database.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&count); err != nil || count != want {

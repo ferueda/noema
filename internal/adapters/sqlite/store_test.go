@@ -11,33 +11,37 @@ import (
 	"github.com/ferueda/noema/internal/domain"
 )
 
-func TestSemanticMigrationRejectsUnknownExistingEventType(t *testing.T) {
+func TestOpenRejectsPreV1Database(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "noema.db")
 	database, err := sql.Open("sqlite", path)
 	if err != nil {
-		t.Fatalf("open legacy database: %v", err)
+		t.Fatalf("open pre-V1 database: %v", err)
 	}
-	initial, err := migrationFiles.ReadFile("migrations/001_initial.sql")
-	if err != nil {
-		t.Fatalf("read initial migration: %v", err)
+	if _, err := database.ExecContext(ctx, "CREATE TABLE scans (id TEXT PRIMARY KEY)"); err != nil {
+		t.Fatalf("create pre-V1 table: %v", err)
 	}
-	if _, err := database.ExecContext(ctx, string(initial)); err != nil {
-		t.Fatalf("apply legacy schema: %v", err)
+	if err := database.Close(); err != nil {
+		t.Fatalf("close pre-V1 database: %v", err)
 	}
-	if _, err := database.ExecContext(ctx, `
-		INSERT INTO events (
-			id, fingerprint, type, subject_id, payload_json, evidence_json, created_at
-		) VALUES ('event-unknown', 'event-unknown-fp', 'unknown.event',
-		          'subject-one', '{}', '[]', '2026-07-21T10:00:00Z')
-	`); err != nil {
-		t.Fatalf("insert unknown event: %v", err)
-	}
-	database.Close()
 
-	_, err = Open(ctx, path)
-	if err == nil || !strings.Contains(err.Error(), "unsupported type unknown.event") {
-		t.Fatalf("migration error = %v, want unsupported event type", err)
+	if _, err := Open(ctx, path); err == nil ||
+		!strings.Contains(err.Error(), "database schema is incompatible with V1") {
+		t.Fatalf("open pre-V1 database error = %v", err)
+	}
+	database, err = sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("reopen rejected database: %v", err)
+	}
+	defer database.Close()
+	var eventsTableCount int
+	if err := database.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'events'",
+	).Scan(&eventsTableCount); err != nil {
+		t.Fatalf("inspect rejected database: %v", err)
+	}
+	if eventsTableCount != 0 {
+		t.Fatal("schema migration ran before rejecting pre-V1 database")
 	}
 }
 

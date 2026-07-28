@@ -138,10 +138,8 @@ func TestSemanticWorkflowSerializesGenerationAcrossIndependentSQLiteHandles(t *t
 
 	assertSemanticConcurrencyCount(t, ctx, firstDatabase, "claims", 1)
 	assertSemanticConcurrencyCount(t, ctx, firstDatabase, "events", 2)
-	assertSemanticConcurrencyCount(t, ctx, firstDatabase, "event_subject_types", 2)
 	assertSemanticConcurrencyCount(t, ctx, firstDatabase, "jobs", 0)
 	assertSemanticConcurrencyCount(t, ctx, firstDatabase, "agent_runs", 0)
-	assertSemanticConcurrencyCount(t, ctx, firstDatabase, "content_ideas", 0)
 }
 
 type semanticConcurrencyStaticSource struct {

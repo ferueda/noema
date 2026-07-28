@@ -15,7 +15,7 @@ import (
 	"github.com/ferueda/noema/internal/platform"
 )
 
-func TestV1JobStoreCreatesReusesAndInspectsOnlyDeclaredJobs(t *testing.T) {
+func TestV1JobStoreCreatesReusesAndInspectsJobs(t *testing.T) {
 	ctx := context.Background()
 	database, err := Open(ctx, filepath.Join(t.TempDir(), "noema.db"))
 	if err != nil {
@@ -25,15 +25,6 @@ func TestV1JobStoreCreatesReusesAndInspectsOnlyDeclaredJobs(t *testing.T) {
 	store := NewStore(database)
 	now := time.Date(2026, 7, 28, 18, 0, 0, 0, time.UTC)
 	eventID := insertV1JobTestEvent(t, ctx, database, now)
-	if _, err := database.ExecContext(ctx, `
-		INSERT INTO jobs (
-			id, fingerprint, event_id, agent_name, agent_version, status,
-			payload_json, created_at
-		) VALUES ('foundation-job', 'foundation-fingerprint', ?,
-		          'content-scout', 'v0', 'pending', '{}', ?)
-	`, eventID, formatTime(now.Add(-time.Minute))); err != nil {
-		t.Fatalf("insert foundation job: %v", err)
-	}
 
 	first := v1JobForTest(t, eventID, now, []string{"claim-one"}, []string{})
 	created, err := store.CreateOrReuseV1Job(ctx, first)
@@ -59,10 +50,6 @@ func TestV1JobStoreCreatesReusesAndInspectsOnlyDeclaredJobs(t *testing.T) {
 	if err != nil || !found || loaded.ID != first.ID {
 		t.Fatalf("load V1 job = %#v, %v, %v", loaded, found, err)
 	}
-	if _, found, err := store.LoadV1Job(ctx, "foundation-job"); err != nil || found {
-		t.Fatalf("load foundation row = %v, %v", found, err)
-	}
-
 	changed := v1JobForTest(t, eventID, now.Add(2*time.Hour), []string{"claim-one"}, []string{"Go"})
 	created, err = store.CreateOrReuseV1Job(ctx, changed)
 	if err != nil || !created {
@@ -71,36 +58,6 @@ func TestV1JobStoreCreatesReusesAndInspectsOnlyDeclaredJobs(t *testing.T) {
 	jobs, err = store.ListV1Jobs(ctx)
 	if err != nil || len(jobs) != 2 || jobs[0].ID != first.ID || jobs[1].ID != changed.ID {
 		t.Fatalf("changed V1 jobs = %#v, %v", jobs, err)
-	}
-}
-
-func TestV1JobStoreRollsBackEnvelopeWhenSidecarFails(t *testing.T) {
-	ctx := context.Background()
-	database, err := Open(ctx, filepath.Join(t.TempDir(), "noema.db"))
-	if err != nil {
-		t.Fatalf("open database: %v", err)
-	}
-	defer database.Close()
-	now := time.Date(2026, 7, 28, 18, 0, 0, 0, time.UTC)
-	eventID := insertV1JobTestEvent(t, ctx, database, now)
-	if _, err := database.ExecContext(ctx, `
-		CREATE TRIGGER reject_v1_job_details
-		BEFORE INSERT ON agent_job_details
-		BEGIN
-			SELECT RAISE(ABORT, 'reject sidecar');
-		END
-	`); err != nil {
-		t.Fatalf("create rejecting trigger: %v", err)
-	}
-	job := v1JobForTest(t, eventID, now, []string{"claim-one"}, []string{})
-	if created, err := NewStore(database).CreateOrReuseV1Job(ctx, job); err == nil || created {
-		t.Fatalf("create with rejected sidecar = %v, %v", created, err)
-	}
-	var count int
-	if err := database.QueryRowContext(
-		ctx, "SELECT COUNT(*) FROM jobs WHERE id = ?", job.ID,
-	).Scan(&count); err != nil || count != 0 {
-		t.Fatalf("rolled-back job count = %d, %v", count, err)
 	}
 }
 
@@ -142,11 +99,11 @@ func insertV1JobTestEvent(
 	const eventID = "event-v1-job"
 	if _, err := database.ExecContext(ctx, `
 		INSERT INTO events (
-			id, fingerprint, type, subject_id, payload_json, evidence_json, created_at
-		) VALUES (?, ?, 'analysis.completed', 'analysis-v1-job', '{}', '[]', ?);
-		INSERT INTO event_subject_types (event_id, subject_type)
-		VALUES (?, 'analysis')
-	`, eventID, strings.Repeat("e", 64), formatTime(now), eventID); err != nil {
+			id, fingerprint, type, subject_type, subject_id, payload_json,
+			evidence_json, created_at
+		) VALUES (?, ?, 'analysis.completed', 'analysis', 'analysis-v1-job',
+		          '{}', '[]', ?)
+	`, eventID, strings.Repeat("e", 64), formatTime(now)); err != nil {
 		t.Fatalf("insert V1 job event: %v", err)
 	}
 	return eventID

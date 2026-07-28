@@ -38,11 +38,11 @@ func insertEvent(ctx context.Context, transaction eventWriter, event domain.Even
 	}
 	result, err := transaction.ExecContext(ctx, `
 		INSERT INTO events (
-			id, fingerprint, type, subject_id, payload_json, evidence_json,
+			id, fingerprint, type, subject_type, subject_id, payload_json, evidence_json,
 			created_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(fingerprint) DO NOTHING
-	`, event.ID, event.Fingerprint, event.Type, event.SubjectID, payload, evidence,
+	`, event.ID, event.Fingerprint, event.Type, event.SubjectType, event.SubjectID, payload, evidence,
 		formatTime(event.CreatedAt))
 	if err != nil {
 		return fmt.Errorf("insert event: %w", err)
@@ -52,32 +52,18 @@ func insertEvent(ctx context.Context, transaction eventWriter, event domain.Even
 		return fmt.Errorf("check inserted event: %w", err)
 	}
 	if inserted == 0 {
-		var existingID string
+		var existingID, existingSubjectType string
 		if err := transaction.QueryRowContext(ctx,
-			"SELECT id FROM events WHERE fingerprint = ?", event.Fingerprint,
-		).Scan(&existingID); err != nil {
+			"SELECT id, subject_type FROM events WHERE fingerprint = ?", event.Fingerprint,
+		).Scan(&existingID, &existingSubjectType); err != nil {
 			return fmt.Errorf("read existing event: %w", err)
 		}
 		if existingID != event.ID {
 			return errors.New("event fingerprint identity mismatch")
 		}
-	}
-	if _, err := transaction.ExecContext(ctx, `
-		INSERT INTO event_subject_types (event_id, subject_type)
-		VALUES (?, ?)
-		ON CONFLICT(event_id) DO UPDATE SET subject_type = excluded.subject_type
-		WHERE event_subject_types.subject_type = excluded.subject_type
-	`, event.ID, event.SubjectType); err != nil {
-		return fmt.Errorf("insert event subject type: %w", err)
-	}
-	var subjectType string
-	if err := transaction.QueryRowContext(ctx,
-		"SELECT subject_type FROM event_subject_types WHERE event_id = ?", event.ID,
-	).Scan(&subjectType); err != nil {
-		return fmt.Errorf("read event subject type: %w", err)
-	}
-	if subjectType != event.SubjectType {
-		return errors.New("event subject type mismatch")
+		if existingSubjectType != event.SubjectType {
+			return errors.New("event subject type mismatch")
+		}
 	}
 	return nil
 }

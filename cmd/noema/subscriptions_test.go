@@ -49,15 +49,6 @@ func TestSubscriptionMatchAndV1JobInspectionThroughCLI(t *testing.T) {
 		now,
 	)
 	completionEventID := semantic.Record.Events[len(semantic.Record.Events)-1].ID
-	if _, err := database.ExecContext(ctx, `
-		INSERT INTO jobs (
-			id, fingerprint, event_id, agent_name, agent_version, status,
-			payload_json, created_at
-		) VALUES ('foundation-job', 'foundation-job-fingerprint', ?,
-		          'content-scout', 'v0', 'pending', '{}', ?)
-	`, completionEventID, now.UTC().Format(time.RFC3339Nano)); err != nil {
-		t.Fatalf("insert foundation job: %v", err)
-	}
 	var originalEventCount int
 	if err := database.QueryRowContext(
 		ctx, "SELECT COUNT(*) FROM events",
@@ -119,10 +110,10 @@ func TestSubscriptionMatchAndV1JobInspectionThroughCLI(t *testing.T) {
 		t.Fatalf("decode V1 jobs: %v", err)
 	}
 	if len(jobs) != 2 {
-		t.Fatalf("V1 jobs = %#v, want two jobs and no foundation row", jobs)
+		t.Fatalf("V1 jobs = %#v, want two jobs", jobs)
 	}
 	for _, job := range jobs {
-		if job.ID == "foundation-job" || job.EventID != completionEventID {
+		if job.EventID != completionEventID {
 			t.Fatalf("unexpected V1 job = %#v", job)
 		}
 	}
@@ -144,35 +135,26 @@ func TestSubscriptionMatchAndV1JobInspectionThroughCLI(t *testing.T) {
 		shown.Payload.Inputs.AnalysisRunID != semantic.Record.Analysis.Run.ID {
 		t.Fatalf("shown V1 job = %#v", shown)
 	}
-	if err := run(
-		ctx,
-		[]string{"jobs", "show", "foundation-job", "--database", databasePath},
-		&bytes.Buffer{},
-		&bytes.Buffer{},
-	); err == nil {
-		t.Fatal("foundation job was exposed through V1 show")
-	}
-
 	database, err = sqlitestore.Open(ctx, databasePath)
 	if err != nil {
 		t.Fatalf("reopen matched database: %v", err)
 	}
 	defer database.Close()
-	var eventCount, sidecarCount int
+	var eventCount, jobCount int
 	if err := database.QueryRowContext(
 		ctx, "SELECT COUNT(*) FROM events",
 	).Scan(&eventCount); err != nil {
 		t.Fatalf("count matched events: %v", err)
 	}
 	if err := database.QueryRowContext(
-		ctx, "SELECT COUNT(*) FROM agent_job_details",
-	).Scan(&sidecarCount); err != nil {
-		t.Fatalf("count V1 sidecars: %v", err)
+		ctx, "SELECT COUNT(*) FROM jobs",
+	).Scan(&jobCount); err != nil {
+		t.Fatalf("count V1 jobs: %v", err)
 	}
-	if eventCount != originalEventCount || sidecarCount != 2 {
+	if eventCount != originalEventCount || jobCount != 2 {
 		t.Fatalf(
-			"durable counts = events %d/%d, sidecars %d",
-			eventCount, originalEventCount, sidecarCount,
+			"durable counts = events %d/%d, jobs %d",
+			eventCount, originalEventCount, jobCount,
 		)
 	}
 }

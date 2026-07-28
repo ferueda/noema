@@ -311,12 +311,11 @@ func loadEvent(
 	var event domain.Event
 	var payload, evidence, createdAt string
 	if err := queryer.QueryRowContext(ctx, `
-		SELECT events.id, events.fingerprint, events.type,
-		       event_subject_types.subject_type, events.subject_id,
+		SELECT events.id, events.fingerprint, events.type, events.subject_type,
+		       events.subject_id,
 		       events.payload_json, events.evidence_json, events.created_at
 		  FROM events
-		  JOIN event_subject_types ON event_subject_types.event_id = events.id
-		 WHERE events.type = ? AND event_subject_types.subject_type = ?
+		 WHERE events.type = ? AND events.subject_type = ?
 		   AND events.subject_id = ?
 	`, eventType, subjectType, subjectID).Scan(
 		&event.ID, &event.Fingerprint, &event.Type, &event.SubjectType,

@@ -61,7 +61,7 @@ go test ./internal/integration
 
 The subscription matcher tests are fully offline. They prove strict local
 configuration loading, completion-event and ordered-claim validation, exact
-reuse, changed-configuration rematching, atomic V1 envelope and sidecar writes,
+reuse, changed-configuration rematching, atomic complete V1 job writes,
 and V1-only list/show behavior. They must not require an Eve process, endpoint,
 route password, Gateway key, or remote approval.
 
