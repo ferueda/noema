@@ -1,0 +1,76 @@
+{
+  "ideas": [
+    {
+      "concept": "Idea one",
+      "coreLesson": "Keep one boundary.",
+      "audienceBenefit": "Reduce coupling.",
+      "hook": "One.",
+      "resonance": "It is practical.",
+      "confidence": 0.9,
+      "shortPost": {"suitable": true, "angle": "Short."},
+      "thread": {"suitable": false, "angle": ""},
+      "article": {"suitable": false, "angle": ""},
+      "claimIds": ["claim_one"]
+    },
+    {
+      "concept": "Idea two",
+      "coreLesson": "Keep one boundary.",
+      "audienceBenefit": "Reduce coupling.",
+      "hook": "Two.",
+      "resonance": "It is practical.",
+      "confidence": 0.8,
+      "shortPost": {"suitable": true, "angle": "Short."},
+      "thread": {"suitable": false, "angle": ""},
+      "article": {"suitable": false, "angle": ""},
+      "claimIds": ["claim_one"]
+    },
+    {
+      "concept": "Idea three",
+      "coreLesson": "Keep one boundary.",
+      "audienceBenefit": "Reduce coupling.",
+      "hook": "Three.",
+      "resonance": "It is practical.",
+      "confidence": 0.7,
+      "shortPost": {"suitable": true, "angle": "Short."},
+      "thread": {"suitable": false, "angle": ""},
+      "article": {"suitable": false, "angle": ""},
+      "claimIds": ["claim_one"]
+    },
+    {
+      "concept": "Idea four",
+      "coreLesson": "Keep one boundary.",
+      "audienceBenefit": "Reduce coupling.",
+      "hook": "Four.",
+      "resonance": "It is practical.",
+      "confidence": 0.6,
+      "shortPost": {"suitable": true, "angle": "Short."},
+      "thread": {"suitable": false, "angle": ""},
+      "article": {"suitable": false, "angle": ""},
+      "claimIds": ["claim_one"]
+    },
+    {
+      "concept": "Idea five",
+      "coreLesson": "Keep one boundary.",
+      "audienceBenefit": "Reduce coupling.",
+      "hook": "Five.",
+      "resonance": "It is practical.",
+      "confidence": 0.5,
+      "shortPost": {"suitable": true, "angle": "Short."},
+      "thread": {"suitable": false, "angle": ""},
+      "article": {"suitable": false, "angle": ""},
+      "claimIds": ["claim_one"]
+    },
+    {
+      "concept": "Idea six",
+      "coreLesson": "Keep one boundary.",
+      "audienceBenefit": "Reduce coupling.",
+      "hook": "Six.",
+      "resonance": "It is practical.",
+      "confidence": 0.4,
+      "shortPost": {"suitable": true, "angle": "Short."},
+      "thread": {"suitable": false, "angle": ""},
+      "article": {"suitable": false, "angle": ""},
+      "claimIds": ["claim_one"]
+    }
+  ]
+}

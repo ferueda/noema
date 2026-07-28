@@ -1,0 +1,118 @@
+{
+  "contractVersion": 1,
+  "jobId": "job_synthetic_content_scout",
+  "jobFingerprint": "1111111111111111111111111111111111111111111111111111111111111111",
+  "triggerEventId": "event_synthetic_analysis_completed",
+  "agent": {
+    "name": "content-scout",
+    "version": "content-scout-v1"
+  },
+  "configuration": {
+    "promptVersion": "content-scout-prompt-v1",
+    "outputSchema": {
+      "name": "content-scout-candidates",
+      "version": 1,
+      "disposition": "strict",
+      "digest": "6859d77424e02745841a7348a3c88e74874a928c4ef0f0b831257b81e5c8c965"
+    },
+    "route": {
+      "alias": "content-scout-v1",
+      "gateway": "vercel-ai-gateway",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "azure",
+      "routeVersion": "content-scout-route-v1",
+      "serviceTier": "flex"
+    },
+    "privacyPolicyVersion": "deterministic-privacy-v1",
+    "disclosurePolicyVersion": "content-disclosure-v1",
+    "safetyPolicyVersion": "content-safety-v1",
+    "retrievalPolicyVersion": "content-scout-knowledge-v1",
+    "digest": "d57f38624ab76712fe009cef87e89edbb01e8d50b09a4898276e7ed65d08a150",
+    "handlerConfigurationJson": {
+      "approvedPublicTerms": [
+        "Go"
+      ]
+    }
+  },
+  "execution": {
+    "executorKind": "eve",
+    "executorVersion": "0.27.8",
+    "agentDefinitionDigest": "4444444444444444444444444444444444444444444444444444444444444444",
+    "contractVersion": 1,
+    "recoveryPolicyVersion": "eve-0.27.8-default-recovery-v1"
+  },
+  "input": {
+    "schemaName": "content-scout-input",
+    "schemaVersion": 1,
+    "schemaDigest": "66fcd21212e77af2bad2b80c0b423736c13031fe3597d44776d694275cc1d98d",
+    "canonicalJson": {
+      "schemaVersion": 1,
+      "analysisRunId": "analysis_synthetic",
+      "coverage": {
+        "scope": "complete-retained-snapshot",
+        "selectedClaimCount": 1,
+        "selectedFactCount": 1
+      },
+      "claims": [
+        {
+          "id": "claim_synthetic_lesson",
+          "type": "lesson",
+          "statement": "A small deterministic check can prevent a repeated integration mistake.",
+          "status": "inferred",
+          "confidence": 0.9,
+          "outcome": null,
+          "supportingFactIds": [
+            "fact_synthetic_test"
+          ],
+          "supportingEvidenceIds": [
+            "evidence_synthetic_test"
+          ],
+          "contradictingEvidenceIds": []
+        }
+      ],
+      "facts": [
+        {
+          "id": "fact_synthetic_test",
+          "kind": "test",
+          "outcome": "success",
+          "value": {
+            "tool": null,
+            "command": null,
+            "test": {
+              "framework": "go",
+              "command": {
+                "text": "go test ./...",
+                "originalUtf8Bytes": 13,
+                "truncated": false
+              },
+              "passed": 1,
+              "failed": 0,
+              "skipped": 0
+            },
+            "exitCode": null,
+            "error": null
+          },
+          "evidenceIds": [
+            "evidence_synthetic_test"
+          ]
+        }
+      ],
+      "omissions": {
+        "canonicalSegments": 0,
+        "omittedTextFactCount": 0,
+        "omittedTextOriginalUtf8Bytes": 0,
+        "unknownLineage": false
+      }
+    }
+  },
+  "requiredOutputSchema": {
+    "name": "content-scout-candidates",
+    "version": 1,
+    "disposition": "strict",
+    "digest": "6859d77424e02745841a7348a3c88e74874a928c4ef0f0b831257b81e5c8c965"
+  },
+  "deadlineAt": "2026-07-28T18:00:00Z",
+  "authority": {
+    "allowRemote": true
+  }
+}

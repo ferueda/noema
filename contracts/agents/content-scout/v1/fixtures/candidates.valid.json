@@ -1,0 +1,27 @@
+{
+  "ideas": [
+    {
+      "concept": "Make agent boundaries testable",
+      "coreLesson": "A versioned JSON contract lets runtimes change without changing domain ownership.",
+      "audienceBenefit": "Developers can experiment with agent frameworks while keeping their core stable.",
+      "hook": "Your agent framework should be replaceable.",
+      "resonance": "Many teams couple useful workflows to the first framework they try.",
+      "confidence": 0.91,
+      "shortPost": {
+        "suitable": true,
+        "angle": "State the boundary and the practical benefit."
+      },
+      "thread": {
+        "suitable": true,
+        "angle": "Walk through event, job, execution, and admission."
+      },
+      "article": {
+        "suitable": true,
+        "angle": "Compare portable and framework-owned agent architectures."
+      },
+      "claimIds": [
+        "claim_synthetic_lesson"
+      ]
+    }
+  ]
+}

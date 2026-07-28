@@ -1,0 +1,53 @@
+{
+  "contractVersion": 1,
+  "candidateJson": {
+    "ideas": [
+      {
+        "concept": "Make agent boundaries testable",
+        "coreLesson": "A versioned JSON contract lets runtimes change without changing domain ownership.",
+        "audienceBenefit": "Developers can experiment with agent frameworks while keeping their core stable.",
+        "hook": "Your agent framework should be replaceable.",
+        "resonance": "Many teams couple useful workflows to the first framework they try.",
+        "confidence": 0.91,
+        "shortPost": {
+          "suitable": true,
+          "angle": "State the boundary and the practical benefit."
+        },
+        "thread": {
+          "suitable": true,
+          "angle": "Walk through event, job, execution, and admission."
+        },
+        "article": {
+          "suitable": true,
+          "angle": "Compare portable and framework-owned agent architectures."
+        },
+        "claimIds": [
+          "claim_synthetic_lesson"
+        ]
+      }
+    ]
+  },
+  "receipt": {
+    "executorKind": "eve",
+    "executorVersion": "0.27.8",
+    "sessionId": "eve_session_synthetic",
+    "turnId": "eve_turn_synthetic",
+    "completedModelSteps": 1,
+    "requestedRoute": {
+      "alias": "content-scout-v1",
+      "gateway": "vercel-ai-gateway",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "azure",
+      "routeVersion": "content-scout-route-v1",
+      "serviceTier": "flex"
+    },
+    "gatewayGenerationId": "generation_synthetic",
+    "usage": {
+      "inputTokens": 300,
+      "outputTokens": 140,
+      "totalTokens": 440
+    },
+    "costUsd": "0.00042",
+    "latencyMilliseconds": 850
+  }
+}

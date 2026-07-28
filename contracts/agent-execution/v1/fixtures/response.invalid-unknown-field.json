@@ -1,0 +1,22 @@
+{
+  "contractVersion": 1,
+  "candidateJson": {
+    "ideas": []
+  },
+  "receipt": {
+    "executorKind": "eve",
+    "executorVersion": "0.27.8",
+    "sessionId": "eve_session_synthetic",
+    "turnId": "eve_turn_synthetic",
+    "completedModelSteps": 1,
+    "requestedRoute": {
+      "alias": "content-scout-v1",
+      "gateway": "vercel-ai-gateway",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "azure",
+      "routeVersion": "content-scout-route-v1",
+      "serviceTier": "flex"
+    },
+    "rawResponse": "not allowed"
+  }
+}

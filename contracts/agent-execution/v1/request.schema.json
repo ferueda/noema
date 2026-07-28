@@ -1,0 +1,262 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:noema:agent-execution:request:v1",
+  "title": "AgentExecutionRequestV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "jobId",
+    "jobFingerprint",
+    "triggerEventId",
+    "agent",
+    "configuration",
+    "execution",
+    "input",
+    "requiredOutputSchema",
+    "deadlineAt",
+    "authority"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": 1
+    },
+    "jobId": {
+      "$ref": "#/$defs/id"
+    },
+    "jobFingerprint": {
+      "$ref": "#/$defs/digest"
+    },
+    "triggerEventId": {
+      "$ref": "#/$defs/id"
+    },
+    "agent": {
+      "$ref": "#/$defs/agentIdentity"
+    },
+    "configuration": {
+      "$ref": "#/$defs/configurationIdentity"
+    },
+    "execution": {
+      "$ref": "#/$defs/executionIdentity"
+    },
+    "input": {
+      "$ref": "#/$defs/input"
+    },
+    "requiredOutputSchema": {
+      "$ref": "#/$defs/schemaIdentity"
+    },
+    "deadlineAt": {
+      "type": "string",
+      "format": "date-time",
+      "minLength": 20,
+      "maxLength": 64
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "allowRemote"
+      ],
+      "properties": {
+        "allowRemote": {
+          "const": true
+        }
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "agentIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/name"
+        },
+        "version": {
+          "$ref": "#/$defs/version"
+        }
+      }
+    },
+    "schemaIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version",
+        "disposition",
+        "digest"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/name"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "disposition": {
+          "const": "strict"
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "routeIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "alias",
+        "gateway",
+        "model",
+        "provider",
+        "routeVersion",
+        "serviceTier"
+      ],
+      "properties": {
+        "alias": {
+          "$ref": "#/$defs/name"
+        },
+        "gateway": {
+          "$ref": "#/$defs/name"
+        },
+        "model": {
+          "$ref": "#/$defs/name"
+        },
+        "provider": {
+          "$ref": "#/$defs/name"
+        },
+        "routeVersion": {
+          "$ref": "#/$defs/version"
+        },
+        "serviceTier": {
+          "$ref": "#/$defs/name"
+        }
+      }
+    },
+    "configurationIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "promptVersion",
+        "outputSchema",
+        "route",
+        "privacyPolicyVersion",
+        "disclosurePolicyVersion",
+        "safetyPolicyVersion",
+        "retrievalPolicyVersion",
+        "digest",
+        "handlerConfigurationJson"
+      ],
+      "properties": {
+        "promptVersion": {
+          "$ref": "#/$defs/version"
+        },
+        "outputSchema": {
+          "$ref": "#/$defs/schemaIdentity"
+        },
+        "route": {
+          "$ref": "#/$defs/routeIdentity"
+        },
+        "privacyPolicyVersion": {
+          "$ref": "#/$defs/version"
+        },
+        "disclosurePolicyVersion": {
+          "$ref": "#/$defs/version"
+        },
+        "safetyPolicyVersion": {
+          "$ref": "#/$defs/version"
+        },
+        "retrievalPolicyVersion": {
+          "$ref": "#/$defs/version"
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "handlerConfigurationJson": {
+          "type": "object",
+          "maxProperties": 32
+        }
+      }
+    },
+    "executionIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "executorKind",
+        "executorVersion",
+        "agentDefinitionDigest",
+        "contractVersion",
+        "recoveryPolicyVersion"
+      ],
+      "properties": {
+        "executorKind": {
+          "$ref": "#/$defs/name"
+        },
+        "executorVersion": {
+          "$ref": "#/$defs/version"
+        },
+        "agentDefinitionDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "contractVersion": {
+          "const": 1
+        },
+        "recoveryPolicyVersion": {
+          "$ref": "#/$defs/version"
+        }
+      }
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaName",
+        "schemaVersion",
+        "schemaDigest",
+        "canonicalJson"
+      ],
+      "properties": {
+        "schemaName": {
+          "$ref": "#/$defs/name"
+        },
+        "schemaVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "schemaDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "canonicalJson": {
+          "type": "object",
+          "maxProperties": 32
+        }
+      }
+    }
+  }
+}

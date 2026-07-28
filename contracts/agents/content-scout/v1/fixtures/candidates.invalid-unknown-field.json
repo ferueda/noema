@@ -1,0 +1,28 @@
+{
+  "ideas": [
+    {
+      "concept": "Make agent boundaries testable",
+      "coreLesson": "A versioned JSON contract keeps the domain independent.",
+      "audienceBenefit": "Developers can replace the execution runtime.",
+      "hook": "Your agent framework should be replaceable.",
+      "resonance": "Framework coupling creates expensive rewrites.",
+      "confidence": 0.91,
+      "shortPost": {
+        "suitable": true,
+        "angle": "State the boundary."
+      },
+      "thread": {
+        "suitable": false,
+        "angle": ""
+      },
+      "article": {
+        "suitable": false,
+        "angle": ""
+      },
+      "claimIds": [
+        "claim_synthetic_lesson"
+      ],
+      "rank": 1
+    }
+  ]
+}
