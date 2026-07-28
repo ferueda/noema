@@ -311,17 +311,16 @@ func contentScoutSupportingFactIDs(
 		inputFacts[factID] = struct{}{}
 	}
 	result := make([]string, 0)
-	selected := map[string]struct{}{}
+	seen := map[string]struct{}{}
 	for _, claim := range analysis.Claims {
 		for _, factID := range claim.SupportingFactIDs {
 			if _, available := inputFacts[factID]; !available {
 				return nil, errors.New("Content Scout supporting fact is unavailable")
 			}
-			selected[factID] = struct{}{}
-		}
-	}
-	for _, factID := range analysis.Run.InputFactIDs {
-		if _, included := selected[factID]; included {
+			if _, duplicate := seen[factID]; duplicate {
+				continue
+			}
+			seen[factID] = struct{}{}
 			result = append(result, factID)
 		}
 	}
@@ -382,14 +381,13 @@ func validateContentScoutFacts(
 			}
 		}
 	}
-	lastOriginIndex := -1
 	for index, fact := range facts {
 		originIndex, exists := originByID[fact.ID]
 		if fact.ID != factIDs[index] || fact.ID == "" || fact.Kind == "" ||
 			fact.SchemaVersion < 1 || fact.AnalysisRunID == "" ||
 			!validContentScoutFactOutcome(fact.Outcome) ||
 			len(fact.Evidence) == 0 ||
-			!exists || originIndex <= lastOriginIndex ||
+			!exists ||
 			!sameSemanticIdentityValue(
 				fact, factAnalysis.Facts[originIndex],
 			) {
@@ -403,7 +401,6 @@ func validateContentScoutFacts(
 			fact.ID != platform.DerivedID("fact_", fingerprint) {
 			return errors.New("Content Scout fact identity is invalid")
 		}
-		lastOriginIndex = originIndex
 		seenEvidence := map[string]struct{}{}
 		for _, ref := range fact.Evidence {
 			if _, duplicate := seenEvidence[ref.ID]; duplicate {

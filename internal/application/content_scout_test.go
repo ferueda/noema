@@ -96,6 +96,39 @@ func TestContentScoutPrepareLoadsOnlyFirstReferencedFactsAndGeneralizesInput(
 	}
 }
 
+func TestContentScoutPreparePreservesSupportingFactFirstReferenceOrder(
+	t *testing.T,
+) {
+	fixture := newContentScoutFixture(t, nil)
+	fixture.record.Analysis.Claims[0].SupportingFactIDs = []string{
+		fixture.factTwoID, fixture.factOneID,
+	}
+	fixture.record.Analysis.Claims[0].SupportingEvidence = append(
+		fixture.record.Analysis.Claims[0].SupportingEvidence,
+		contentScoutEvidence("evidence-two", 2),
+	)
+	fixture.reader.record = fixture.record
+
+	prepared, err := (ContentScoutHandlerV1{Knowledge: fixture.reader}).Prepare(
+		context.Background(), fixture.job,
+	)
+	if err != nil {
+		t.Fatalf("prepare first-reference fact order: %v", err)
+	}
+	got := make([]string, len(prepared.Input.Facts))
+	for index, fact := range prepared.Input.Facts {
+		got[index] = fact.ID
+	}
+	want := []string{fixture.factTwoID, fixture.factOneID}
+	if !slices.Equal(fixture.reader.requestedIDs, want) ||
+		!slices.Equal(got, want) {
+		t.Fatalf(
+			"first-reference fact order = requested %#v / input %#v, want %#v",
+			fixture.reader.requestedIDs, got, want,
+		)
+	}
+}
+
 func TestContentScoutPrepareReturnsLocalZeroClaimResult(t *testing.T) {
 	fixture := newContentScoutFixture(t, nil)
 	fixture.record = contentScoutZeroClaimRecord(t)
