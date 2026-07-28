@@ -43,13 +43,17 @@ state, rationale, and prompt injection. Its single approved run admitted 18 of
 The new cases confirmed strong scope, chronology, separation, reversion, and
 prompt-injection behavior while exposing conservative misses for root cause,
 decisions, lessons, and one implemented change. The local producer-to-worker
-spine also persists its foundation records in SQLite; `worker --once` remains
-fail-closed until the later agent-runtime milestone.
+spine also persists its foundation records in SQLite. Noema can now match one
+retained `analysis.completed` event into an inspectable V1 Content Scout job.
+Exact event, ordered claim, agent, and configuration identity reuses that job;
+a changed reviewed configuration creates another job without rerunning
+semantic extraction or publishing another event. Matching is local and makes
+no model or Eve request. `worker --once` remains fail-closed until the
+dispatcher slice lands.
 
-The foundation still contains Content Scout-specific request, worker, and
-completion seams used by its fake end-to-end proof. The accepted architecture
-requires those seams to become use-case-neutral as the real evidence, claim,
-subscription, and artifact stages are implemented.
+Pre-V1 walking-skeleton jobs remain disposable scaffold state. V1 queue and
+inspection paths recognize only rows with the explicit V1 sidecar and do not
+decode, backfill, or display older rows.
 
 The current sources of truth are:
 
@@ -90,7 +94,12 @@ go run ./cmd/noema analyze claims '<fact-analysis-id>' --allow-remote \
   --database /path/to/noema.db
 go run ./cmd/noema analyses show '<analysis-id>' --database /path/to/noema.db
 go run ./cmd/noema analyses show '<analysis-id>' --resolve --database /path/to/noema.db
+go run ./cmd/noema subscriptions match '<semantic-analysis-id>' \
+  --agent-config ./config/content-scout-agent.example.json \
+  --disclosure-config ./config/content-scout-disclosure.example.json \
+  --database /path/to/noema.db
 go run ./cmd/noema jobs list --database /path/to/noema.db
+go run ./cmd/noema jobs show '<job-id>' --database /path/to/noema.db
 go run ./cmd/noema ideas list --database /path/to/noema.db
 ```
 
@@ -120,6 +129,17 @@ Sessions now returns another digest, resolution fails with
 The Milestone 1 scan and inspection path is local and makes no model or other
 remote request. Set `NOEMA_SESSIONS_COMMAND` only when the Sessions executable
 is not available as `sessions` on `PATH`.
+
+`subscriptions match` is also fully local. It validates the retained completion
+event and ordered claim IDs, the complete strict Content Scout agent-file
+identity, and the required approved-public-terms file before creating a V1 job.
+The durable handler configuration contains only canonical agent and disclosure
+digests plus normalized approved public terms. Endpoint values, Eve route
+passwords, Gateway credentials, and raw configuration prose are not accepted
+or stored. The example agent file records the intended V1 runtime identity;
+its instructions digest is the exact SHA-256 of the checked-in TypeScript
+agent's `agent/instructions.md`. Matching does not contact or attest a running
+Eve process. `jobs list` and `jobs show` expose only declared V1 jobs.
 
 `gateway check` sends fixed public synthetic input with no evidence entries or
 facts through the production semantic prompt, schema, route loader, and Gateway
@@ -165,8 +185,9 @@ categories for evidence and fact reference failures, attribution, provenance,
 duplicates, values, or outcome failures (wrong claim type, unsupported result,
 or conflicting result) without retaining rejected model prose.
 
-The test suite includes both the foundation's fake source/agent spine and a
-generic fake Sessions executable that proves revision-safe fact processing:
+The test suite includes the foundation's fake source/agent spine, a generic
+fake Sessions executable that proves revision-safe fact processing, and an
+offline semantic-event-to-V1-job flow:
 
 ```sh
 go test ./...

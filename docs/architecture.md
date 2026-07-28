@@ -913,6 +913,20 @@ failed job is terminal and inspectable. V0 does not yet claim at-least-once
 delivery, retry safety, leases, or replay; those remain target queue semantics
 to add only after the first agent path proves useful.
 
+The V1 local matching surface is explicit:
+
+```text
+noema subscriptions match <semantic-analysis-id>
+  --agent-config <content-scout-agent>
+  --disclosure-config <approved-public-terms>
+```
+
+It validates one retained completion event and the complete local
+configuration identity, then atomically stores the job envelope and V1
+job-details sidecar. It does not call Eve, require a credential, or publish
+another event. V1 queue and inspection queries join through that sidecar and
+leave pre-V1 scaffold rows invisible.
+
 Inngest, Cloudflare Queues, or Cloudflare Workflows may later implement parts
 of this execution model. Their run identifiers and status values remain
 adapter details.

@@ -352,6 +352,10 @@ second verifier or continue prompt tuning from this corpus alone.
 
 ## V0 Milestone 3: Content Scout
 
+- Status: in progress — V1 runtime contracts and deterministic local
+  subscription matching are implemented; dispatch, Eve execution, local
+  admission, and artifact persistence remain
+
 ### Goal
 
 Prove that admitted semantic knowledge can trigger a focused agent and produce

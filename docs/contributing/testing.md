@@ -55,8 +55,15 @@ During iteration, run the narrowest useful Go test, for example:
 ```sh
 go test ./internal/application
 go test ./internal/adapters/sqlite
+go test ./cmd/noema -run SubscriptionMatch
 go test ./internal/integration
 ```
+
+The subscription matcher tests are fully offline. They prove strict local
+configuration loading, completion-event and ordered-claim validation, exact
+reuse, changed-configuration rematching, atomic V1 envelope and sidecar writes,
+and V1-only list/show behavior. They must not require an Eve process, endpoint,
+route password, Gateway key, or remote approval.
 
 - `make test` runs the fast Go suite without the race detector.
 - `make check` is the final local gate and runs all tests with the race detector.

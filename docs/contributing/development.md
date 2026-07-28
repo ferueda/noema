@@ -35,6 +35,26 @@ It must not leave a `noema` binary or mutate tracked source.
 The GitHub Actions workflow calls the same `make check` target. Do not duplicate
 gate logic in workflow YAML.
 
+## Local subscription matching
+
+After a completed semantic analysis exists, match its retained completion event
+into a Content Scout V1 job:
+
+```sh
+go run ./cmd/noema subscriptions match '<semantic-analysis-id>' \
+  --agent-config ./config/content-scout-agent.example.json \
+  --disclosure-config ./config/content-scout-disclosure.example.json \
+  --database /path/to/noema.db
+go run ./cmd/noema jobs list --database /path/to/noema.db
+go run ./cmd/noema jobs show '<job-id>' --database /path/to/noema.db
+```
+
+This operation is local. It needs no Gateway key, Eve endpoint, route password,
+or remote authority. It creates no event and performs no model call. The agent
+file and approved-public-terms file are required identity inputs. An unchanged
+match reuses the existing job; changed reviewed configuration creates another
+job against the same retained event.
+
 ## Failure flow
 
 1. Read the first failing command and its native Go diagnostic.
