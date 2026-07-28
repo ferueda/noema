@@ -61,17 +61,16 @@ func (store *Store) InspectV1Job(
 }
 
 // ListV1ContentIdeaArtifacts reads the generic artifact store as the
-// authoritative idea source. The disposable foundation projection is ignored.
+// authoritative idea source.
 func (store *Store) ListV1ContentIdeaArtifacts(
 	ctx context.Context,
 ) ([]domain.Artifact, error) {
 	rows, err := store.database.QueryContext(ctx, `
 		SELECT DISTINCT jobs.id
 		  FROM jobs
-		  JOIN agent_job_details ON agent_job_details.job_id = jobs.id
 		  JOIN agent_runs ON agent_runs.job_id = jobs.id
 		  JOIN artifacts ON artifacts.run_id = agent_runs.id
-		 WHERE agent_job_details.payload_schema_version = ?
+		 WHERE jobs.payload_schema_version = ?
 		   AND artifacts.kind = ?
 		   AND artifacts.schema_version = ?
 		 ORDER BY jobs.id
@@ -138,11 +137,10 @@ func loadRuntimeEvent(
 	var event domain.Event
 	var payload, evidence, createdAt string
 	if err := queryer.QueryRowContext(ctx, `
-		SELECT events.id, events.fingerprint, events.type,
-		       event_subject_types.subject_type, events.subject_id,
+		SELECT events.id, events.fingerprint, events.type, events.subject_type,
+		       events.subject_id,
 		       events.payload_json, events.evidence_json, events.created_at
 		  FROM events
-		  JOIN event_subject_types ON event_subject_types.event_id = events.id
 		 WHERE events.id = ?
 	`, eventID).Scan(
 		&event.ID,

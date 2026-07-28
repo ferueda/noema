@@ -64,7 +64,7 @@ func (handler ContentScoutHandlerV1) Prepare(
 	job AgentJobRecordV1,
 ) (PreparedContentScoutV1, error) {
 	if handler.Knowledge == nil || ValidateAgentJobRecordV1(job) != nil ||
-		job.Status != domain.JobPending {
+		(job.Status != domain.JobPending && job.Status != domain.JobRunning) {
 		return PreparedContentScoutV1{}, contentScoutFailure(
 			domain.AgentFailureCategoryInputInvalid, domain.AgentPrivacyOutcomeV1{},
 		)

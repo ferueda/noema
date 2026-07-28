@@ -42,17 +42,21 @@ func TestInspectionCommandsCreateAndReadEmptyDatabase(t *testing.T) {
 	}
 }
 
-func TestIdeasListDoesNotReadWalkingSkeletonRows(t *testing.T) {
+func TestIdeasListReadsEmptyArtifactStore(t *testing.T) {
 	t.Parallel()
 
+	var stdout bytes.Buffer
 	err := run(
 		context.Background(),
 		[]string{"ideas", "list", "--database", filepath.Join(t.TempDir(), "noema.db")},
-		&bytes.Buffer{},
+		&stdout,
 		&bytes.Buffer{},
 	)
-	if err == nil || err.Error() != "V1 artifact-backed idea inspection is not implemented" {
-		t.Fatalf("ideas error = %v, want fixed V1 inspection error", err)
+	if err != nil {
+		t.Fatalf("list ideas: %v", err)
+	}
+	if got := strings.TrimSpace(stdout.String()); got != "[]" {
+		t.Fatalf("ideas output = %q, want []", got)
 	}
 }
 

@@ -347,9 +347,10 @@ second verifier or continue prompt tuning from this corpus alone.
 
 ## V0 Milestone 3: Content Scout
 
-- Status: in progress — V1 runtime contracts and deterministic local
-  subscription matching are implemented; dispatch, Eve execution, local
-  admission, and artifact persistence remain
+- Status: in progress — V1 contracts, clean persistence, deterministic local
+  subscription matching, the offline dispatcher, local admission, terminal
+  runs, and artifact persistence are implemented; production Eve wiring,
+  canary proof, and real-session acceptance remain
 
 ### Goal
 

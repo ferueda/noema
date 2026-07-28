@@ -187,7 +187,7 @@ func runWorker(_ context.Context, args []string, _ io.Writer, stderr io.Writer) 
 	if !*allowRemote {
 		return errors.New("worker requires --allow-remote before an agent model request")
 	}
-	return errors.New("Content Scout is not implemented in the walking-skeleton milestone")
+	return errors.New("Content Scout production executor integration is not implemented")
 }
 
 func runJobs(ctx context.Context, args []string, stdout, stderr io.Writer) error {
@@ -225,14 +225,14 @@ func runJobs(ctx context.Context, args []string, stdout, stderr io.Writer) error
 	}
 	defer closeStore()
 	if command == "show" {
-		job, found, err := store.LoadV1Job(ctx, jobID)
+		inspection, found, err := store.InspectV1Job(ctx, jobID)
 		if err != nil {
 			return err
 		}
 		if !found {
 			return fmt.Errorf("V1 job %s was not found", jobID)
 		}
-		return writeJSON(stdout, job)
+		return writeJSON(stdout, inspection)
 	}
 	jobs, err := store.ListV1Jobs(ctx)
 	if err != nil {
@@ -241,21 +241,30 @@ func runJobs(ctx context.Context, args []string, stdout, stderr io.Writer) error
 	return writeJSON(stdout, jobs)
 }
 
-func runIdeas(_ context.Context, args []string, _ io.Writer, stderr io.Writer) error {
+func runIdeas(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	if len(args) == 0 || args[0] != "list" {
 		fmt.Fprintln(stderr, "usage: noema ideas list [--database path]")
 		return errors.New("ideas currently supports only list")
 	}
 	flags := flag.NewFlagSet("ideas list", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	flags.String("database", "", "SQLite database path")
+	databasePath := flags.String("database", "", "SQLite database path")
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
 	}
 	if flags.NArg() != 0 {
 		return errors.New("ideas list received unexpected arguments")
 	}
-	return errors.New("V1 artifact-backed idea inspection is not implemented")
+	store, closeStore, err := openStore(ctx, *databasePath)
+	if err != nil {
+		return err
+	}
+	defer closeStore()
+	ideas, err := store.ListV1ContentIdeaArtifacts(ctx)
+	if err != nil {
+		return err
+	}
+	return writeJSON(stdout, ideas)
 }
 
 func openStore(

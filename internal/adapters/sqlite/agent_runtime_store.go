@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/ferueda/noema/internal/application"
 	"github.com/ferueda/noema/internal/domain"
 )
 
@@ -16,30 +17,11 @@ var runtimeDigestPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
 
 var ErrAgentRuntimeDataInvalid = errors.New("agent-runtime-data-invalid")
 
-// PendingV1JobIdentity contains every value that must still match when a
-// worker claims a previously inspected job.
-type PendingV1JobIdentity struct {
-	ID                   string
-	Fingerprint          string
-	EventID              string
-	AgentName            string
-	AgentVersion         string
-	PayloadSchemaVersion int
-	ConfigurationDigest  string
-	PayloadJSON          []byte
-}
-
-// PendingV1JobRecord is the read-only first phase of the queue protocol.
-type PendingV1JobRecord struct {
-	PendingV1JobIdentity
-	CreatedAt time.Time
-}
-
 // InspectOldestPendingV1Job selects only the supported payload version.
 func (store *Store) InspectOldestPendingV1Job(
 	ctx context.Context,
-) (PendingV1JobRecord, bool, error) {
-	var record PendingV1JobRecord
+) (application.PendingV1JobRecord, bool, error) {
+	var record application.PendingV1JobRecord
 	var payload, createdAt string
 	err := store.database.QueryRowContext(ctx, `
 		SELECT jobs.id, jobs.fingerprint, jobs.event_id, jobs.agent_name,
@@ -63,10 +45,10 @@ func (store *Store) InspectOldestPendingV1Job(
 		&createdAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
-		return PendingV1JobRecord{}, false, nil
+		return application.PendingV1JobRecord{}, false, nil
 	}
 	if err != nil {
-		return PendingV1JobRecord{}, false, err
+		return application.PendingV1JobRecord{}, false, err
 	}
 	if !validRuntimeIdentifier(record.ID) ||
 		!runtimeDigestPattern.MatchString(record.Fingerprint) ||
@@ -77,11 +59,11 @@ func (store *Store) InspectOldestPendingV1Job(
 		!runtimeDigestPattern.MatchString(record.ConfigurationDigest) ||
 		len(payload) == 0 ||
 		len(payload) > maxAgentJobPayloadBytes {
-		return PendingV1JobRecord{}, false, ErrAgentRuntimeDataInvalid
+		return application.PendingV1JobRecord{}, false, ErrAgentRuntimeDataInvalid
 	}
 	record.CreatedAt, err = parseTime(createdAt)
 	if err != nil {
-		return PendingV1JobRecord{}, false, ErrAgentRuntimeDataInvalid
+		return application.PendingV1JobRecord{}, false, ErrAgentRuntimeDataInvalid
 	}
 	record.PayloadJSON = []byte(payload)
 	return record, true, nil
@@ -91,7 +73,7 @@ func (store *Store) InspectOldestPendingV1Job(
 // identity returns claimed=false without consuming different work.
 func (store *Store) ClaimPendingV1Job(
 	ctx context.Context,
-	expected PendingV1JobIdentity,
+	expected application.PendingV1JobIdentity,
 	startedAt time.Time,
 ) (bool, error) {
 	if !validRuntimeIdentifier(expected.ID) ||

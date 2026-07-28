@@ -16,43 +16,17 @@ import (
 	"github.com/ferueda/noema/internal/platform"
 )
 
-func TestV1RuntimeLoadsExactJobKnowledge(t *testing.T) {
-	fixture := newV1RuntimeFixture(t, true)
-	ctx := context.Background()
-
-	input, found, err := fixture.store.LoadV1JobKnowledge(ctx, fixture.job.ID)
-	if err != nil || !found {
-		t.Fatalf("load V1 job knowledge = %#v, %v, %v", input, found, err)
-	}
-	if input.Job.ID != fixture.job.ID ||
-		input.TriggerEvent.ID != fixture.job.EventID ||
-		!reflect.DeepEqual(input.Analysis.Claims, fixture.record.Analysis.Claims) ||
-		len(input.Facts) != 1 ||
-		input.Facts[0].ID != fixture.record.Analysis.Run.InputFactIDs[0] {
-		t.Fatalf("V1 job knowledge = %#v", input)
-	}
-
-	if _, err := fixture.database.ExecContext(
-		ctx,
-		"DELETE FROM facts WHERE id = ?",
-		input.Facts[0].ID,
-	); err != nil {
-		t.Fatalf("delete supporting fact: %v", err)
-	}
-	if _, found, err := fixture.store.LoadV1JobKnowledge(ctx, fixture.job.ID); !errors.Is(err, ErrAgentRuntimeDataInvalid) || found {
-		t.Fatalf("load missing supporting fact = %v, %v", found, err)
-	}
-}
-
 func TestV1RuntimeCompletesInspectsAndReusesGenericArtifacts(t *testing.T) {
 	fixture := newV1RuntimeFixture(t, true)
 	ctx := context.Background()
 	job := claimV1RuntimeJob(t, fixture)
-	input, found, err := fixture.store.LoadV1JobKnowledge(ctx, job.ID)
-	if err != nil || !found {
-		t.Fatalf("load claimed V1 input = %#v, %v, %v", input, found, err)
+	facts, err := fixture.store.LoadFactsByID(ctx, fixture.record.Analysis.Run.InputFactIDs)
+	if err != nil {
+		t.Fatalf("load completion facts: %v", err)
 	}
-	completion := successfulV1Completion(t, input, fixture.now.Add(2*time.Minute))
+	completion := successfulV1Completion(
+		t, job, fixture.record.Analysis, facts, fixture.now.Add(2*time.Minute),
+	)
 
 	completed, err := fixture.store.CompleteV1Job(ctx, completion)
 	if err != nil || !completed {
@@ -76,11 +50,6 @@ func TestV1RuntimeCompletesInspectsAndReusesGenericArtifacts(t *testing.T) {
 	ideas, err := fixture.store.ListV1ContentIdeaArtifacts(ctx)
 	if err != nil || !reflect.DeepEqual(ideas, completion.Artifacts) {
 		t.Fatalf("list authoritative V1 ideas = %#v, %v", ideas, err)
-	}
-	insertFoundationIdeaProjection(t, ctx, fixture.database, completion)
-	ideas, err = fixture.store.ListV1ContentIdeaArtifacts(ctx)
-	if err != nil || !reflect.DeepEqual(ideas, completion.Artifacts) {
-		t.Fatalf("list V1 ideas with disposable projection = %#v, %v", ideas, err)
 	}
 
 	changed := completion
@@ -140,10 +109,6 @@ func TestV1RuntimeCompletesZeroClaimJobLocally(t *testing.T) {
 	fixture := newV1RuntimeFixture(t, false)
 	ctx := context.Background()
 	job := claimV1RuntimeJob(t, fixture)
-	input, found, err := fixture.store.LoadV1JobKnowledge(ctx, job.ID)
-	if err != nil || !found || len(input.Analysis.Claims) != 0 || len(input.Facts) != 0 {
-		t.Fatalf("load zero-claim input = %#v, %v, %v", input, found, err)
-	}
 	run := application.V1AgentRunRecord{
 		ID: platform.DerivedID("run_", job.ID), JobID: job.ID, Agent: job.Agent,
 		Result: domain.AgentRunResultV1{
@@ -172,11 +137,13 @@ func TestV1RuntimeCompletionRollsBackAtomically(t *testing.T) {
 	fixture := newV1RuntimeFixture(t, true)
 	ctx := context.Background()
 	job := claimV1RuntimeJob(t, fixture)
-	input, found, err := fixture.store.LoadV1JobKnowledge(ctx, job.ID)
-	if err != nil || !found {
-		t.Fatalf("load claimed V1 input = %#v, %v, %v", input, found, err)
+	facts, err := fixture.store.LoadFactsByID(ctx, fixture.record.Analysis.Run.InputFactIDs)
+	if err != nil {
+		t.Fatalf("load completion facts: %v", err)
 	}
-	completion := successfulV1Completion(t, input, fixture.now.Add(2*time.Minute))
+	completion := successfulV1Completion(
+		t, job, fixture.record.Analysis, facts, fixture.now.Add(2*time.Minute),
+	)
 	if _, err := fixture.database.ExecContext(ctx, `
 		CREATE TRIGGER reject_v1_artifact
 		BEFORE INSERT ON artifacts
@@ -195,7 +162,7 @@ func TestV1RuntimeCompletionRollsBackAtomically(t *testing.T) {
 	).Scan(&status); err != nil || status != domain.JobRunning {
 		t.Fatalf("job status after rollback = %q, %v", status, err)
 	}
-	for _, table := range []string{"agent_runs", "artifacts", "content_ideas"} {
+	for _, table := range []string{"agent_runs", "artifacts"} {
 		var count int
 		if err := fixture.database.QueryRowContext(
 			ctx, "SELECT COUNT(*) FROM "+table,
@@ -205,46 +172,26 @@ func TestV1RuntimeCompletionRollsBackAtomically(t *testing.T) {
 	}
 }
 
-func TestV1RuntimeInspectionIgnoresRowsWithoutV1Sidecar(t *testing.T) {
+func TestV1RuntimeInspectionIgnoresFuturePayloadVersion(t *testing.T) {
 	fixture := newV1RuntimeFixture(t, false)
 	ctx := context.Background()
 	if _, err := fixture.database.ExecContext(ctx, `
 		INSERT INTO jobs (
 			id, fingerprint, event_id, agent_name, agent_version, status,
-			payload_json, created_at
-		) VALUES ('foundation-runtime-job', 'foundation-runtime-fingerprint', ?,
-		          'content-scout', 'v0', 'pending', '{}', ?)
-	`, fixture.job.EventID, formatTime(fixture.now.Add(-time.Hour))); err != nil {
-		t.Fatalf("insert foundation runtime job: %v", err)
-	}
-	if _, found, err := fixture.store.InspectV1Job(ctx, "foundation-runtime-job"); err != nil || found {
-		t.Fatalf("inspect foundation runtime row = %v, %v", found, err)
-	}
-	if _, found, err := fixture.store.LoadV1JobKnowledge(ctx, "foundation-runtime-job"); err != nil || found {
-		t.Fatalf("load foundation runtime knowledge = %v, %v", found, err)
-	}
-	if _, err := fixture.database.ExecContext(ctx, `
-		INSERT INTO jobs (
-			id, fingerprint, event_id, agent_name, agent_version, status,
-			payload_json, created_at
+			payload_schema_version, configuration_digest, payload_json, created_at
 		) VALUES ('future-runtime-job', ?, ?, 'content-scout',
-		          'content-scout-v2', 'pending', '{"schemaVersion":2}', ?);
-		INSERT INTO agent_job_details (
-			job_id, payload_schema_version, configuration_digest
-		) VALUES ('future-runtime-job', 2, ?)
+		          'content-scout-v2', 'pending', 2, ?,
+		          '{"schemaVersion":2}', ?)
 	`,
 		strings.Repeat("9", 64),
 		fixture.job.EventID,
-		formatTime(fixture.now.Add(-30*time.Minute)),
 		strings.Repeat("8", 64),
+		formatTime(fixture.now.Add(-30*time.Minute)),
 	); err != nil {
 		t.Fatalf("insert future runtime job: %v", err)
 	}
 	if _, found, err := fixture.store.InspectV1Job(ctx, "future-runtime-job"); err != nil || found {
 		t.Fatalf("inspect future runtime row = %v, %v", found, err)
-	}
-	if _, found, err := fixture.store.LoadV1JobKnowledge(ctx, "future-runtime-job"); err != nil || found {
-		t.Fatalf("load future runtime knowledge = %v, %v", found, err)
 	}
 }
 
@@ -368,12 +315,13 @@ func claimV1RuntimeJob(t *testing.T, fixture v1RuntimeFixture) application.Agent
 
 func successfulV1Completion(
 	t *testing.T,
-	input application.V1JobKnowledgeInput,
+	job application.AgentJobRecordV1,
+	analysis domain.SemanticAnalysis,
+	facts []domain.Fact,
 	finishedAt time.Time,
 ) application.V1JobCompletion {
 	t.Helper()
-	job := input.Job
-	claim := input.Analysis.Claims[0]
+	claim := analysis.Claims[0]
 	idea := domain.ContentIdeaV1{
 		Rank: 1, Concept: "Keep runtime boundaries small.",
 		CoreLesson:      "Store evidence and interpretation separately.",
@@ -396,7 +344,7 @@ func successfulV1Completion(
 	if err != nil {
 		t.Fatalf("encode content idea: %v", err)
 	}
-	factIDs := []string{input.Facts[0].ID}
+	factIDs := []string{facts[0].ID}
 	fingerprint, err := domain.ContentIdeaArtifactFingerprint(
 		job.Fingerprint,
 		idea,
@@ -478,27 +426,5 @@ func failedV1Run(
 			ArtifactIDs: []string{},
 		},
 		StartedAt: *job.StartedAt, FinishedAt: finishedAt,
-	}
-}
-
-func insertFoundationIdeaProjection(
-	t *testing.T,
-	ctx context.Context,
-	database *sql.DB,
-	completion application.V1JobCompletion,
-) {
-	t.Helper()
-	if _, err := database.ExecContext(ctx, `
-		INSERT INTO content_ideas (
-			id, fingerprint, run_id, rank, concept, core_lesson,
-			audience_benefit, hook, resonance, confidence, formats_json,
-			evidence_json, created_at
-		) VALUES (
-			'foundation-projection', 'foundation-projection-fingerprint', ?,
-			1, 'old concept', 'old lesson', 'old benefit', 'old hook',
-			'old resonance', 0.5, '{}', '[]', ?
-		)
-	`, completion.Run.ID, formatTime(completion.Run.FinishedAt)); err != nil {
-		t.Fatalf("insert foundation idea projection: %v", err)
 	}
 }

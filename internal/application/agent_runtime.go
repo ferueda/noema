@@ -1,6 +1,7 @@
 package application
 
 import (
+	"encoding/json"
 	"errors"
 	"slices"
 	"time"
@@ -9,13 +10,23 @@ import (
 	"github.com/ferueda/noema/internal/platform"
 )
 
-// V1JobKnowledgeInput is the typed, durable input selected by one V1 job.
-// Agent-specific preparation remains responsible for deciding how to use it.
-type V1JobKnowledgeInput struct {
-	Job          AgentJobRecordV1        `json:"job"`
-	TriggerEvent domain.Event            `json:"triggerEvent"`
-	Analysis     domain.SemanticAnalysis `json:"analysis"`
-	Facts        []domain.Fact           `json:"facts"`
+// PendingV1JobIdentity contains every value that must still match when a
+// worker claims a previously inspected job.
+type PendingV1JobIdentity struct {
+	ID                   string          `json:"id"`
+	Fingerprint          string          `json:"fingerprint"`
+	EventID              string          `json:"eventId"`
+	AgentName            string          `json:"agentName"`
+	AgentVersion         string          `json:"agentVersion"`
+	PayloadSchemaVersion int             `json:"payloadSchemaVersion"`
+	ConfigurationDigest  string          `json:"configurationDigest"`
+	PayloadJSON          json.RawMessage `json:"payloadJson"`
+}
+
+// PendingV1JobRecord is the read-only first phase of the queue protocol.
+type PendingV1JobRecord struct {
+	PendingV1JobIdentity
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 // V1AgentRunRecord is the generic durable envelope for one V1 job attempt.

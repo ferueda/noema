@@ -94,16 +94,11 @@ func (store *Store) finishV1Job(
 		   AND event_id = ?
 		   AND agent_name = ?
 		   AND agent_version = ?
+		   AND payload_schema_version = ?
+		   AND configuration_digest = ?
 		   AND payload_json = ?
 		   AND status = 'running'
 		   AND started_at = ?
-		   AND EXISTS (
-		       SELECT 1
-		         FROM agent_job_details
-		        WHERE agent_job_details.job_id = jobs.id
-		          AND agent_job_details.payload_schema_version = ?
-		          AND agent_job_details.configuration_digest = ?
-		   )
 	`,
 		run.Result.Outcome,
 		formatTime(run.FinishedAt),
@@ -113,10 +108,10 @@ func (store *Store) finishV1Job(
 		expected.EventID,
 		expected.Agent.Name,
 		expected.Agent.Version,
-		string(payloadJSON),
-		formatTime(*expected.StartedAt),
 		expected.Payload.SchemaVersion,
 		expected.Payload.Configuration.Digest,
+		string(payloadJSON),
+		formatTime(*expected.StartedAt),
 	)
 	if err != nil {
 		return false, fmt.Errorf("finish V1 job: %w", err)

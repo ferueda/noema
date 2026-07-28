@@ -127,12 +127,13 @@ func TestSubscriptionMatchAndV1JobInspectionThroughCLI(t *testing.T) {
 	); err != nil {
 		t.Fatalf("show V1 job: %v; stderr: %s", err, showError.String())
 	}
-	var shown application.AgentJobRecordV1
+	var shown application.V1JobInspection
 	if err := json.Unmarshal(showOutput.Bytes(), &shown); err != nil {
 		t.Fatalf("decode shown V1 job: %v", err)
 	}
-	if shown.ID != first.JobIDs[0] ||
-		shown.Payload.Inputs.AnalysisRunID != semantic.Record.Analysis.Run.ID {
+	if shown.Job.ID != first.JobIDs[0] ||
+		shown.Job.Payload.Inputs.AnalysisRunID != semantic.Record.Analysis.Run.ID ||
+		shown.Run != nil || len(shown.Artifacts) != 0 {
 		t.Fatalf("shown V1 job = %#v", shown)
 	}
 	database, err = sqlitestore.Open(ctx, databasePath)

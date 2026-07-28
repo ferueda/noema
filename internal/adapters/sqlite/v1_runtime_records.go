@@ -28,11 +28,10 @@ func loadV1JobByID(
 		SELECT jobs.id, jobs.fingerprint, jobs.event_id, jobs.agent_name,
 		       jobs.agent_version, jobs.status, jobs.payload_json,
 		       jobs.created_at, jobs.started_at, jobs.finished_at,
-		       agent_job_details.configuration_digest
+		       jobs.configuration_digest
 		  FROM jobs
-		  JOIN agent_job_details ON agent_job_details.job_id = jobs.id
 		 WHERE jobs.id = ?
-		   AND agent_job_details.payload_schema_version = ?
+		   AND jobs.payload_schema_version = ?
 	`, jobID, domain.AgentJobPayloadSchemaVersion))
 }
 

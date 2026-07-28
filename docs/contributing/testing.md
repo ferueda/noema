@@ -65,6 +65,12 @@ reuse, changed-configuration rematching, atomic complete V1 job writes,
 and V1-only list/show behavior. They must not require an Eve process, endpoint,
 route password, Gateway key, or remote approval.
 
+The Content Scout dispatcher integration test is also fully offline. It closes
+the producer database, opens a separate worker connection, runs a fake portable
+executor, admits one evidence-backed artifact, and inspects the terminal job
+through the generic store. Focused dispatcher tests prove zero-claim local
+completion, preflight-before-claim behavior, and safe preparation failure.
+
 - `make test` runs the fast Go suite without the race detector.
 - `make check` is the final local gate and runs all tests with the race detector.
 - Live checks are never implied by either command.

@@ -90,7 +90,7 @@ one pull-request boundary. Implement them through this dependency graph:
    ordered claims, derived facts, and evidence; prepare bounded generalized
    input; run a fake `AgentExecutor`; apply schema, lineage, privacy,
    disclosure, duplicate, and safety admission; and atomically persist the
-   generic run, artifacts, optional idea projection, and job completion. Include
+   generic run, authoritative artifacts, and job completion. Include
    the zero-claim local completion path and replace the obsolete foundation
    spine as part of the V1 cutover. This is the first complete
    offline event → job → execution → artifact vertical slice.
@@ -526,9 +526,7 @@ mixed-database path. Pre-V1 local databases must be recreated.
    pre-execution failure has `not-invoked`, its fixed safe stage and category,
    and no executor receipt; a post-invocation failure has `invoked` and only
    the bounded receipt fields actually validated before failure. Read
-   `noema ideas list` from authoritative `content-idea` artifact payloads; the
-   dedicated table remains a disposable query projection and cannot be
-   required by generic completion.
+   `noema ideas list` from authoritative `content-idea` artifact payloads.
 
    Add one job-centered inspection query that loads the job, trigger event,
    optional run, and ordered generic artifacts without resolving Sessions.
@@ -670,7 +668,7 @@ mixed-database path. Pre-V1 local databases must be recreated.
    noema ideas list
    ```
 
-   Record the resolved artifact/projection choice, portable execution boundary,
+   Record the resolved artifact-only choice, portable execution boundary,
    local Eve startup and private workflow-state location, loopback route auth,
    disabled tool surface, strict agent file, Flex best-effort and Eve recovery
    behavior, unavailable applied-tier and resolved-provider observations,
