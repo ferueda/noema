@@ -11,8 +11,8 @@
   "scripts": {
     "build": "NOEMA_EVE_ROUTE_PASSWORD=\"${NOEMA_EVE_ROUTE_PASSWORD:-eve-build-placeholder}\" eve build",
     "check": "npm run typecheck && npm test && npm run build",
-    "dev": "eve dev",
-    "start": "eve start",
+    "dev": "eve dev --host 127.0.0.1",
+    "start": "eve start --host 127.0.0.1",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

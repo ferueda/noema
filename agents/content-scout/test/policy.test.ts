@@ -34,6 +34,7 @@ describe("Content Scout policy", () => {
       dependencies?: Record<string, string>;
       engines?: Record<string, string>;
       packageManager?: string;
+      scripts?: Record<string, string>;
     };
     const npmConfiguration = await readFile(
       new URL(".npmrc", PACKAGE_ROOT),
@@ -46,6 +47,8 @@ describe("Content Scout policy", () => {
     });
     expect(packageJson.packageManager).toBe("npm@11.16.0");
     expect(packageJson.dependencies?.eve).toBe("0.27.8");
+    expect(packageJson.scripts?.dev).toBe("eve dev --host 127.0.0.1");
+    expect(packageJson.scripts?.start).toBe("eve start --host 127.0.0.1");
     expect(npmConfiguration).toContain("engine-strict=true");
   });
 
