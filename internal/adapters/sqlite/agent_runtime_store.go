@@ -35,10 +35,12 @@ type PendingV1JobRecord struct {
 type PendingV1JobIdentity struct {
 	ID                   string
 	Fingerprint          string
+	EventID              string
 	AgentName            string
 	AgentVersion         string
 	PayloadSchemaVersion int
 	ConfigurationDigest  string
+	PayloadJSON          []byte
 }
 
 // InspectOldestPendingV1Job ignores walking-skeleton rows without a V1
@@ -104,10 +106,13 @@ func (store *Store) ClaimPendingV1Job(
 ) (bool, error) {
 	if !validRuntimeIdentifier(expected.ID) ||
 		!runtimeDigestPattern.MatchString(expected.Fingerprint) ||
+		!validRuntimeIdentifier(expected.EventID) ||
 		!validRuntimeIdentifier(expected.AgentName) ||
 		!validRuntimeIdentifier(expected.AgentVersion) ||
 		expected.PayloadSchemaVersion != domain.AgentJobPayloadSchemaVersion ||
 		!runtimeDigestPattern.MatchString(expected.ConfigurationDigest) ||
+		len(expected.PayloadJSON) == 0 ||
+		len(expected.PayloadJSON) > maxAgentJobPayloadBytes ||
 		startedAt.IsZero() {
 		return false, ErrAgentRuntimeDataInvalid
 	}
@@ -116,8 +121,10 @@ func (store *Store) ClaimPendingV1Job(
 		   SET status = 'running', started_at = ?
 		 WHERE id = ?
 		   AND fingerprint = ?
+		   AND event_id = ?
 		   AND agent_name = ?
 		   AND agent_version = ?
+		   AND payload_json = ?
 		   AND status = 'pending'
 		   AND EXISTS (
 		       SELECT 1
@@ -130,8 +137,10 @@ func (store *Store) ClaimPendingV1Job(
 		formatTime(startedAt),
 		expected.ID,
 		expected.Fingerprint,
+		expected.EventID,
 		expected.AgentName,
 		expected.AgentVersion,
+		string(expected.PayloadJSON),
 		expected.PayloadSchemaVersion,
 		expected.ConfigurationDigest,
 	)

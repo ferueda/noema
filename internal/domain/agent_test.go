@@ -424,13 +424,19 @@ func validContentIdea() ContentIdeaV1 {
 
 func TestArtifactEnvelopeValidatesCanonicalPayloadAndDerivedIdentity(t *testing.T) {
 	idea := validContentIdea()
-	payload, err := json.Marshal(idea)
-	if err != nil {
-		t.Fatalf("encode idea: %v", err)
+	marshalIdea := func(value ContentIdeaV1) json.RawMessage {
+		t.Helper()
+		payload, err := json.Marshal(value)
+		if err != nil {
+			t.Fatalf("encode idea: %v", err)
+		}
+		return payload
 	}
+	payload := marshalIdea(idea)
+	jobFingerprint := strings.Repeat("1", 64)
 	evidence := []EvidenceRef{{ID: "evidence_one"}}
 	fingerprint, err := ContentIdeaArtifactFingerprint(
-		strings.Repeat("1", 64), idea, []string{"fact_one"}, evidence,
+		jobFingerprint, idea, []string{"fact_one"}, evidence,
 		[]EvidenceRef{}, ArtifactSafetyReviewRequired,
 	)
 	if err != nil {
@@ -440,6 +446,7 @@ func TestArtifactEnvelopeValidatesCanonicalPayloadAndDerivedIdentity(t *testing.
 		ID: platform.DerivedID("artifact_", fingerprint), Fingerprint: fingerprint,
 		Kind: ArtifactKindContentIdea, SchemaVersion: ContentIdeaSchemaVersion,
 		PayloadJSON: payload, RunID: "run_one", TriggerEventID: "event_one",
+		JobFingerprint: jobFingerprint,
 		Inputs: KnowledgeInputRefsV1{
 			AnalysisRunID: "analysis_one", ClaimIDs: []string{"claim_one"},
 		},
@@ -451,6 +458,13 @@ func TestArtifactEnvelopeValidatesCanonicalPayloadAndDerivedIdentity(t *testing.
 	}
 	if err := artifact.Validate(); err != nil {
 		t.Fatalf("validate artifact: %v", err)
+	}
+	reranked := artifact
+	rerankedIdea := idea
+	rerankedIdea.Rank = 2
+	reranked.PayloadJSON = marshalIdea(rerankedIdea)
+	if err := reranked.Validate(); err != nil {
+		t.Fatalf("validate rank-only artifact change: %v", err)
 	}
 
 	tests := []struct {
@@ -466,7 +480,71 @@ func TestArtifactEnvelopeValidatesCanonicalPayloadAndDerivedIdentity(t *testing.
 		{"payload claim mismatch", func(value *Artifact) {
 			changed := idea
 			changed.ClaimIDs = []string{"claim_other"}
-			value.PayloadJSON, _ = json.Marshal(changed)
+			value.PayloadJSON = marshalIdea(changed)
+		}},
+		{"stale concept fingerprint", func(value *Artifact) {
+			changed := idea
+			changed.Concept = "A changed concept"
+			value.PayloadJSON = marshalIdea(changed)
+		}},
+		{"stale core lesson fingerprint", func(value *Artifact) {
+			changed := idea
+			changed.CoreLesson = "A changed lesson."
+			value.PayloadJSON = marshalIdea(changed)
+		}},
+		{"stale audience benefit fingerprint", func(value *Artifact) {
+			changed := idea
+			changed.AudienceBenefit = "A changed benefit."
+			value.PayloadJSON = marshalIdea(changed)
+		}},
+		{"stale hook fingerprint", func(value *Artifact) {
+			changed := idea
+			changed.Hook = "A changed hook."
+			value.PayloadJSON = marshalIdea(changed)
+		}},
+		{"stale resonance fingerprint", func(value *Artifact) {
+			changed := idea
+			changed.Resonance = "A changed reason."
+			value.PayloadJSON = marshalIdea(changed)
+		}},
+		{"stale confidence fingerprint", func(value *Artifact) {
+			changed := idea
+			changed.Confidence = 0.8
+			value.PayloadJSON = marshalIdea(changed)
+		}},
+		{"stale short post fingerprint", func(value *Artifact) {
+			changed := idea
+			changed.ShortPost.Angle = "A changed short-post angle."
+			value.PayloadJSON = marshalIdea(changed)
+		}},
+		{"stale thread fingerprint", func(value *Artifact) {
+			changed := idea
+			changed.Thread.Angle = "A changed thread angle."
+			value.PayloadJSON = marshalIdea(changed)
+		}},
+		{"stale article fingerprint", func(value *Artifact) {
+			changed := idea
+			changed.Article.Angle = "A changed article angle."
+			value.PayloadJSON = marshalIdea(changed)
+		}},
+		{"stale claim lineage fingerprint", func(value *Artifact) {
+			changed := idea
+			changed.ClaimIDs = []string{"claim_other"}
+			value.PayloadJSON = marshalIdea(changed)
+			value.ClaimIDs = []string{"claim_other"}
+			value.Inputs.ClaimIDs = []string{"claim_other"}
+		}},
+		{"stale fact lineage fingerprint", func(value *Artifact) {
+			value.FactIDs = []string{"fact_other"}
+		}},
+		{"stale supporting evidence fingerprint", func(value *Artifact) {
+			value.SupportingEvidence = []EvidenceRef{{ID: "evidence_other"}}
+		}},
+		{"stale contradicting evidence fingerprint", func(value *Artifact) {
+			value.ContradictingEvidence = []EvidenceRef{{ID: "evidence_other"}}
+		}},
+		{"stale job fingerprint", func(value *Artifact) {
+			value.JobFingerprint = strings.Repeat("2", 64)
 		}},
 	}
 	for _, test := range tests {

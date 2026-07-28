@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS artifacts (
     payload_json TEXT NOT NULL,
     run_id TEXT NOT NULL REFERENCES agent_runs(id),
     event_id TEXT NOT NULL REFERENCES events(id),
+    job_fingerprint TEXT NOT NULL CHECK (length(job_fingerprint) > 0),
     inputs_json TEXT NOT NULL,
     claim_ids_json TEXT NOT NULL,
     fact_ids_json TEXT NOT NULL,

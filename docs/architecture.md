@@ -734,6 +734,7 @@ A typed, reviewable result with its own lifecycle. Its generic envelope records:
 
 - Artifact ID, kind, and schema version
 - Producing run and input event or request
+- Complete producing job fingerprint
 - Versioned typed payload
 - Supporting and contradicting evidence references when applicable
 - Creation time, status, and supersession when later required

@@ -72,12 +72,15 @@ func TestAgentRuntimeMigrationReplaysWithoutBackfillingFoundationJobs(t *testing
 				t.Fatalf("find table %s: %v", table, err)
 			}
 		}
-		var claimIDsColumn string
-		if err := database.QueryRowContext(
-			ctx,
-			"SELECT name FROM pragma_table_info('artifacts') WHERE name = 'claim_ids_json'",
-		).Scan(&claimIDsColumn); err != nil {
-			t.Fatalf("find artifact claim lineage column: %v", err)
+		for _, column := range []string{"job_fingerprint", "claim_ids_json"} {
+			var found string
+			if err := database.QueryRowContext(
+				ctx,
+				"SELECT name FROM pragma_table_info('artifacts') WHERE name = ?",
+				column,
+			).Scan(&found); err != nil {
+				t.Fatalf("find artifact column %s: %v", column, err)
+			}
 		}
 		if err := database.Close(); err != nil {
 			t.Fatalf("close migrated database: %v", err)
@@ -186,15 +189,58 @@ func TestPendingV1QueueIgnoresFoundationRowsAndClaimsExactIdentity(t *testing.T)
 	}
 	identity := PendingV1JobIdentity{
 		ID: record.ID, Fingerprint: record.Fingerprint,
+		EventID:   record.EventID,
 		AgentName: record.AgentName, AgentVersion: record.AgentVersion,
 		PayloadSchemaVersion: record.PayloadSchemaVersion,
 		ConfigurationDigest:  record.ConfigurationDigest,
+		PayloadJSON:          record.PayloadJSON,
 	}
-	claimed, err := store.ClaimPendingV1Job(ctx, identity, now.Add(time.Minute))
+	if _, err := database.ExecContext(
+		ctx,
+		"UPDATE jobs SET payload_json = '{\"schemaVersion\":1,\"changed\":true}' WHERE id = ?",
+		record.ID,
+	); err != nil {
+		t.Fatalf("change inspected payload: %v", err)
+	}
+	if claimed, err := store.ClaimPendingV1Job(ctx, identity, now.Add(time.Minute)); err != nil || claimed {
+		t.Fatalf("claim changed payload = %v, %v", claimed, err)
+	}
+	if _, err := database.ExecContext(ctx, `
+		INSERT INTO events (
+			id, fingerprint, type, subject_id, payload_json, evidence_json, created_at
+		) VALUES ('event-runtime-other', ?, 'analysis.completed',
+		          'analysis-runtime-other', '{}', '[]', ?)
+	`, strings.Repeat("e", 64), formatTime(now)); err != nil {
+		t.Fatalf("insert alternate event: %v", err)
+	}
+	if _, err := database.ExecContext(ctx, `
+		INSERT INTO event_subject_types (event_id, subject_type)
+		VALUES ('event-runtime-other', 'analysis')
+	`); err != nil {
+		t.Fatalf("insert alternate event subject: %v", err)
+	}
+	if _, err := database.ExecContext(ctx, `
+		UPDATE jobs SET payload_json = ?, event_id = 'event-runtime-other'
+		 WHERE id = ?
+	`, string(record.PayloadJSON), record.ID); err != nil {
+		t.Fatalf("change inspected event: %v", err)
+	}
+	if claimed, err := store.ClaimPendingV1Job(ctx, identity, now.Add(2*time.Minute)); err != nil || claimed {
+		t.Fatalf("claim changed event = %v, %v", claimed, err)
+	}
+	if _, err := database.ExecContext(
+		ctx,
+		"UPDATE jobs SET event_id = ? WHERE id = ?",
+		record.EventID,
+		record.ID,
+	); err != nil {
+		t.Fatalf("restore inspected event: %v", err)
+	}
+	claimed, err := store.ClaimPendingV1Job(ctx, identity, now.Add(3*time.Minute))
 	if err != nil || !claimed {
 		t.Fatalf("claim exact V1 job = %v, %v", claimed, err)
 	}
-	if claimed, err := store.ClaimPendingV1Job(ctx, identity, now.Add(2*time.Minute)); err != nil || claimed {
+	if claimed, err := store.ClaimPendingV1Job(ctx, identity, now.Add(4*time.Minute)); err != nil || claimed {
 		t.Fatalf("repeat claim = %v, %v", claimed, err)
 	}
 	var foundationStatus string

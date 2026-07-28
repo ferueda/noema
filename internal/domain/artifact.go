@@ -133,6 +133,7 @@ type Artifact struct {
 	PayloadJSON           json.RawMessage      `json:"payloadJson"`
 	RunID                 string               `json:"runId"`
 	TriggerEventID        string               `json:"triggerEventId"`
+	JobFingerprint        string               `json:"jobFingerprint"`
 	Inputs                KnowledgeInputRefsV1 `json:"inputs"`
 	ClaimIDs              []string             `json:"claimIds"`
 	FactIDs               []string             `json:"factIds"`
@@ -313,6 +314,7 @@ func (value Artifact) Validate() error {
 		value.SchemaVersion < 1 ||
 		!validAgentID(value.RunID) ||
 		!validAgentID(value.TriggerEventID) ||
+		!agentDigestPattern.MatchString(value.JobFingerprint) ||
 		value.Inputs.Validate() != nil ||
 		!validUniqueAgentIDs(value.ClaimIDs) ||
 		!validUniqueAgentIDs(value.FactIDs) ||
@@ -344,6 +346,17 @@ func (value Artifact) Validate() error {
 			if !slices.Contains(value.Inputs.ClaimIDs, claimID) {
 				return errors.New("content idea artifact claim is outside the job inputs")
 			}
+		}
+		expected, err := ContentIdeaArtifactFingerprint(
+			value.JobFingerprint,
+			idea,
+			value.FactIDs,
+			value.SupportingEvidence,
+			value.ContradictingEvidence,
+			value.SafetyStatus,
+		)
+		if err != nil || expected != value.Fingerprint {
+			return errors.New("content idea artifact fingerprint mismatch")
 		}
 	}
 	return nil

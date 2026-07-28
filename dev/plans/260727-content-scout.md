@@ -155,9 +155,10 @@ database or alter retained facts, claims, analyses, or semantic events.
      metadata, privacy outcome, fixed safe failure category and stage when
      failed, and produced artifact IDs; and
    - an `Artifact` envelope containing kind, schema version, canonical typed
-     JSON payload, producing run and trigger event, the triggering V1 inputs,
-     locally resolved ordered supporting fact IDs, supporting and contradicting
-     evidence, proposal status, and creation time.
+     JSON payload, producing run and trigger event, the complete job
+     fingerprint, the triggering V1 inputs, locally resolved ordered supporting
+     fact IDs, supporting and contradicting evidence, proposal status, and
+     creation time.
 
    Move the existing content fields into a Content Scout-owned
    `ContentIdeaV1` payload and candidate type. Treat the candidate array order
@@ -503,9 +504,9 @@ database or alter retained facts, claims, analyses, or semantic events.
    - `agent_job_details`, keyed by the existing job ID, stores payload schema
      version and configuration digest for exact worker selection; and
    - `artifacts`, keyed by generic artifact ID and unique fingerprint, stores
-     the versioned envelope, canonical payload JSON, event/run/input lineage,
-     ordered artifact-specific claim and fact IDs, evidence JSON, status, and
-     timestamp.
+     the versioned envelope, canonical payload JSON, job fingerprint,
+     event/run/input lineage, ordered artifact-specific claim and fact IDs,
+     evidence JSON, status, and timestamp.
 
    Continue storing `AgentJobPayloadV1` in `jobs.payload_json` and
    `AgentRunResultV1` in `agent_runs.output_json`; do not alter either table in
