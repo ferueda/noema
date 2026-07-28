@@ -1,7 +1,7 @@
 # Produce evidence-backed content ideas through a portable agent boundary
 
 - Status: approved 2026-07-28
-- Plan review: pass (`20260728-060216-bf7beb`)
+- Plan review: pass (`20260728-172109-09facf`)
 - Roadmap: [V0 Milestone 3: Content Scout](../../docs/roadmap.md#v0-milestone-3-content-scout)
 
 ## Goal
@@ -56,6 +56,75 @@ The implementation must preserve these constraints:
   permitted only as protocol machinery.
 - Remote work remains explicit, route-pinned, privacy-filtered, and
   human-reviewed. No idea is treated as safe to publish automatically.
+
+## Delivery slices
+
+The numbered changes below are the complete Milestone 3 acceptance ledger, not
+one pull-request boundary. Implement them through this dependency graph:
+
+```text
+1. Contracts and database compatibility freeze
+   ├── 2. Retained event → deterministic V1 job
+   │      └── 3. Offline dispatcher → admitted artifacts
+   ├── 4A. Go Eve HTTP adapter
+   └── 4B. TypeScript Eve agent
+                  │
+3 + 4A + 4B ──────┴──→ 5. Production integration and acceptance
+```
+
+1. **Contracts and database compatibility freeze.** Add the shared V1 domain
+   values, execution and candidate JSON Schemas, configuration shapes,
+   canonical digest rules, cross-language fixtures, additive runtime tables,
+   and SQLite-private legacy job and run readers. Define the two-phase queue
+   contract as inspect oldest pending V1 job → perform local or remote
+   preflight → claim that exact still-pending job. Do not switch job insertion,
+   worker behavior, or public commands yet. This serial prerequisite prevents a
+   half-migrated worker and freezes the contract used by every later branch.
+2. **Retained event to deterministic V1 job.** Add the in-code Content Scout
+   definition, strict agent and disclosure configuration loading, subscription
+   matcher, atomic V1 job and detail insertion, safe list/show inspection, and
+   explicit `subscriptions match` command. This remains entirely local: it
+   creates or reuses work without an executor, endpoint, credential, remote
+   authority, or model call.
+3. **Offline dispatcher to admitted artifacts.** Load and validate the job's
+   ordered claims, derived facts, and evidence; prepare bounded generalized
+   input; run a fake `AgentExecutor`; apply schema, lineage, privacy,
+   disclosure, duplicate, and safety admission; and atomically persist the
+   generic run, artifacts, optional idea projection, and job completion. Include
+   the zero-claim local completion path and replace the obsolete foundation
+   spine only after legacy readers are active. This is the first complete
+   offline event → job → execution → artifact vertical slice.
+4. **Parallel executor adapters after Slice 1.**
+   - **4A: Go Eve HTTP adapter.** Own only `internal/adapters/eve/` and its
+     fixtures and tests: loopback and route authentication, health and info
+     checks, fresh sessions, the exact Eve 0.27.8 stream-format-19 state
+     machine, bounds, forbidden events, failure cascades, safe receipts,
+     redirects, timeouts, and sanitized errors.
+   - **4B: TypeScript Eve agent.** Own only `agents/content-scout/`: pinned
+     Node, npm, and Eve dependencies, instructions, strict output-schema use,
+     Azure-only GPT-5.4-mini Flex routing, authenticated HTTP channel, disabled
+     capabilities, absent cross-job state, and contract tests against the
+     frozen fixtures.
+5. **Production integration and acceptance.** Wire `worker --once` to the real
+   Eve adapter, add remote authority and endpoint handling, complete job
+   inspection, root Node/npm setup and CI, the fixed public canary, regression
+   gates, and operator documentation. After routine checks and the public
+   canary, explicitly run one selected real semantic analysis and review its
+   receipt, exact lineage, privacy result, and zero-to-five ideas. The private
+   run is acceptance evidence, not an automatic test or committed fixture.
+
+Slices 2, 4A, and 4B may proceed in parallel in isolated branches or worktrees
+after Slice 1 freezes their shared contracts. Slice 3 may begin after Slice 2
+while 4A and 4B continue. Slice 5 integrates only after 3, 4A, and 4B pass their
+own offline checks. The public positive Eve stream fixture is accepted only
+after the fixed canary confirms that exact live sequence.
+
+Every slice updates the tests and contributor or operator documentation for the
+behavior it introduces. A slice must leave `make check` passing and must not
+temporarily weaken legacy database reads, semantic processing, privacy, or
+remote-authority gates. Mutable configuration files and operational credentials
+never become semantic job inputs; a job retains the bounded sanitized policy
+values required to execute the exact reviewed configuration.
 
 ## Changes
 
@@ -118,13 +187,15 @@ The implementation must preserve these constraints:
    milestone does not rewrite or drop user data.
 
    Define the result combinations strictly. `skipped-no-claims` is successful,
-   has no receipt, and has no artifacts. `not-invoked` is failed, records the
-   fixed preparation or local-admission stage and safe category, and prohibits
-   any executor receipt. `invoked` may succeed or fail: success requires one
-   validated receipt, while failure retains a receipt only when the adapter
-   safely observed and validated one before the later failure. Failed results
-   have no artifact IDs. Privacy metadata contains only policy stages that
-   actually completed; absent values remain absent rather than being invented.
+   has no receipt, and has no artifacts. `not-invoked` is failed, records a
+   fixed stage and safe category for work that failed before calling
+   `AgentExecutor`, and prohibits any executor receipt. Every response-decoding
+   or local-admission failure after that call uses `invoked`. `invoked` may
+   succeed or fail: success requires one validated receipt, while failure
+   retains a receipt only when the adapter safely observed and validated one
+   before the later failure. Failed results have no artifact IDs. Privacy
+   metadata contains only policy stages that actually completed; absent values
+   remain absent rather than being invented.
 
 2. `contracts/agent-execution/v1/`,
    `contracts/agents/content-scout/v1/`,
