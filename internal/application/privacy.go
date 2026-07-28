@@ -23,7 +23,7 @@ const (
 	privacyLocalPathPlaceholder      = "<redacted:local-path>"
 	privacyURLCredentialsPlaceholder = "<redacted:url-credentials>"
 	privacyPrivateHostPlaceholder    = "<redacted:local-or-private-host>"
-	privacyPrivateHostURLPlaceholder = "redacted-local-or-private-host.invalid"
+	privacyPrivateHostSentinel       = "noema-redacted-host.invalid"
 )
 
 var (
@@ -35,7 +35,7 @@ var (
 	jwtCandidatePattern  = regexp.MustCompile(`(?:^|[^A-Za-z0-9_-])([A-Za-z0-9_-]{4,})\.([A-Za-z0-9_-]{4,})\.([A-Za-z0-9_-]*)(?:$|[^A-Za-z0-9_-])`)
 
 	quotedAbsolutePathPattern     = regexp.MustCompile(`(?i)(["'\x60])((?:~?/|[A-Z]:[\\/])[^"'\x60\r\n]+)(["'\x60])`)
-	posixPathPattern              = regexp.MustCompile(`(^|[\t\r\n >"'(:=\[{\x60])((?:~(?:/[^/\s"'<>),;}\]]+)+|/(?:[^/\s"'<>),;}\]]+)(?:/[^/\s"'<>),;}\]]+)*))`)
+	posixPathPattern              = regexp.MustCompile(`(^|[\t\r\n >"'(:=\[{\x60])((?:~(?:/[^/\s"'<>),;}\]]+)+|/(?:[^/\s"'<>),;}\]]+)(?:/[^/\s"'<>),;}\]]+)+|/(?:tmp|root)))`)
 	windowsPathPattern            = regexp.MustCompile(`(?i)(^|[\t\r\n >"'(=\[{\x60])([A-Z]:[\\/][^\\/\s"'<>),;}\]]+(?:[\\/][^\\/\s"'<>),;}\]]+)*)`)
 	urlPattern                    = regexp.MustCompile(`(?i)\b[a-z][a-z0-9+.-]*://[^\s<>"']+`)
 	urlCredentialCandidatePattern = regexp.MustCompile(`(?i)\b[a-z][a-z0-9+.-]*://[^\s/@]+(?::[^\s/@]*)?@`)
@@ -261,12 +261,11 @@ func redactURLs(value string, counts map[string]int) string {
 			counts[privacyURLCredentials]++
 		}
 		if isLocalOrPrivateHost(parsed.Hostname()) {
-			// Keep a host-shaped placeholder so a following URL path remains a
-			// URL path during the second safety pass.
-			parsed.Host = privacyPrivateHostURLPlaceholder
+			parsed.Host = privacyPrivateHostSentinel
 			counts[privacyLocalOrPrivateHost]++
 		}
 		sanitized := parsed.String()
+		sanitized = strings.Replace(sanitized, privacyPrivateHostSentinel, privacyPrivateHostPlaceholder, 1)
 		if hadCredentials {
 			prefix := parsed.Scheme + "://"
 			sanitized = strings.Replace(sanitized, prefix, prefix+privacyURLCredentialsPlaceholder+"@", 1)

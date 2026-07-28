@@ -19,8 +19,11 @@ const (
 )
 
 var (
-	disclosureLexemePattern      = regexp.MustCompile(`[\p{L}\p{N}][\p{L}\p{N}._/@:+-]*`)
-	disclosurePhrasePattern      = regexp.MustCompile(`\p{Lu}[\p{L}\p{N}]*(?:[ -]+\p{Lu}[\p{L}\p{N}]*)+`)
+	disclosureLexemePattern       = regexp.MustCompile(`[\p{L}\p{N}][\p{L}\p{N}._/@:+-]*`)
+	disclosurePhrasePattern       = regexp.MustCompile(`\p{Lu}[\p{L}\p{N}]*(?:[ -]+\p{Lu}[\p{L}\p{N}]*)+`)
+	disclosureAbsolutePathPattern = regexp.MustCompile(
+		`(^|[\t\r\n >"'(:=\[{\x60])(/[^/\s"'<>),;}\]]+(?:/[^/\s"'<>),;}\]]+)*)`,
+	)
 	disclosureIdentifierPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)\b[a-z][a-z0-9+.-]*://[^\s<>"']+`),
 		regexp.MustCompile(`(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b`),
@@ -326,7 +329,9 @@ func disclosureIdentifierLocations(value string) [][]int {
 			unique[[2]int{location[0], location[1]}] = struct{}{}
 		}
 	}
-	for _, location := range disclosureCapturedLocations(value, posixPathPattern, 2) {
+	for _, location := range disclosureCapturedLocations(
+		value, disclosureAbsolutePathPattern, 2,
+	) {
 		unique[[2]int{location[0], location[1]}] = struct{}{}
 	}
 	result := make([][]int, 0, len(unique))

@@ -77,7 +77,7 @@ func TestPrivacyPolicyPreflightRedactsSupportedLocalDetails(t *testing.T) {
 	}
 	if !strings.Contains(sanitized[0], privacyLocalPathPlaceholder) ||
 		!strings.Contains(sanitized[1], "https://"+privacyURLCredentialsPlaceholder+"@example.com/resource") ||
-		!strings.Contains(sanitized[2], "http://"+privacyPrivateHostURLPlaceholder+"/api") ||
+		!strings.Contains(sanitized[2], "http://"+privacyPrivateHostPlaceholder+"/api") ||
 		!strings.Contains(sanitized[2], "https://example.com/public") {
 		t.Fatalf("sanitized values = %#v", sanitized)
 	}
@@ -119,23 +119,6 @@ func TestPrivacyPolicyPostflightRejectsInsteadOfRedacting(t *testing.T) {
 	safe, err := (PrivacyPolicy{}).Postflight("relative/path.go", "https://example.com/public", "release.1.2")
 	if err != nil || len(safe.BlockedCategories) != 0 {
 		t.Fatalf("safe postflight = %#v, %v", safe, err)
-	}
-}
-
-func TestPrivacyPolicyPostflightRejectsSingleComponentAbsolutePath(t *testing.T) {
-	report, err := (PrivacyPolicy{}).Postflight("Do not expose /secret")
-	var violation PrivacyViolation
-	if !errors.As(err, &violation) ||
-		!reflect.DeepEqual(report.BlockedCategories, []string{privacyLocalPath}) ||
-		!reflect.DeepEqual(violation.Categories, []string{privacyLocalPath}) {
-		t.Fatalf("single-component path postflight = %#v / %#v, %v", report, violation, err)
-	}
-
-	report, err = (PrivacyPolicy{}).Postflight(
-		"An ordinary lesson about verification and failed tests",
-	)
-	if err != nil || len(report.BlockedCategories) != 0 {
-		t.Fatalf("ordinary prose postflight = %#v, %v", report, err)
 	}
 }
 

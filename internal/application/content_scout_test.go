@@ -348,7 +348,7 @@ func TestContentScoutAdmitRejectsCompleteBatchForNovelAbsolutePath(
 	)
 	var failure ContentScoutApplicationFailure
 	if !errors.As(err, &failure) ||
-		failure.Category != domain.AgentFailureCategoryPrivacyBlocked ||
+		failure.Category != domain.AgentFailureCategoryDisclosureBlocked ||
 		len(admission.Artifacts) != 0 {
 		t.Fatalf("unsafe batch admission = %#v, failure = %#v, %v", admission, failure, err)
 	}
