@@ -207,6 +207,18 @@ func (dispatcher ContentScoutDispatcherV1) RunOnce(
 		}
 		return dispatcher.persistFailure(ctx, job, failure)
 	}
+	if !contentScoutReceiptMatchesRequest(response.Receipt, request) {
+		receipt := response.Receipt
+		failure := contentScoutRunFailure{
+			stage:       domain.AgentFailureStageResponseDecode,
+			category:    domain.AgentFailureCategoryExecutorMismatch,
+			disposition: domain.AgentExecutionDispositionInvoked,
+			execution:   &execution,
+			receipt:     &receipt,
+			privacy:     prepared.Privacy,
+		}
+		return dispatcher.persistFailure(ctx, job, failure)
+	}
 
 	finishedAt := dispatcher.Now().UTC()
 	runID := platform.DerivedID("run_", job.ID)
@@ -248,6 +260,16 @@ func (dispatcher ContentScoutDispatcherV1) RunOnce(
 		Claimed: true, JobID: job.ID, Outcome: run.Result.Outcome,
 		Disposition: run.Result.Disposition, ArtifactIDs: artifactIDs,
 	}, nil
+}
+
+func contentScoutReceiptMatchesRequest(
+	receipt domain.AgentExecutionReceiptV1,
+	request domain.AgentExecutionRequestV1,
+) bool {
+	return receipt.ExecutorKind == request.Execution.ExecutorKind &&
+		receipt.ExecutorVersion == request.Execution.ExecutorVersion &&
+		receipt.RequestedRoute != nil &&
+		*receipt.RequestedRoute == request.Configuration.Route
 }
 
 func contentScoutExecutionIdentity(

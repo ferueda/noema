@@ -97,6 +97,77 @@ func TestContentScoutDispatcherPersistsPreparationFailureWithoutInvocation(
 	}
 }
 
+func TestContentScoutDispatcherRejectsMismatchedExecutionReceipt(
+	t *testing.T,
+) {
+	tests := []struct {
+		name   string
+		mutate func(*domain.AgentExecutionReceiptV1)
+	}{
+		{
+			name: "executor kind",
+			mutate: func(receipt *domain.AgentExecutionReceiptV1) {
+				receipt.ExecutorKind = "different-executor"
+			},
+		},
+		{
+			name: "executor version",
+			mutate: func(receipt *domain.AgentExecutionReceiptV1) {
+				receipt.ExecutorVersion = "different-version"
+			},
+		},
+		{
+			name: "requested route",
+			mutate: func(receipt *domain.AgentExecutionReceiptV1) {
+				receipt.RequestedRoute.ServiceTier = "different-tier"
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newContentScoutFixture(t, nil)
+			store := newContentScoutDispatcherStore(t, fixture)
+			executor := &contentScoutReceiptMismatchExecutor{
+				mutate: test.mutate,
+			}
+
+			result, err := (ContentScoutDispatcherV1{
+				Store: store, Executor: executor, AllowRemote: true,
+				Preflight: func(
+					context.Context,
+					AgentJobRecordV1,
+					domain.AgentExecutionIdentity,
+				) error {
+					return nil
+				},
+				Now: dispatcherTestClock(fixture.job.CreatedAt),
+			}).RunOnce(context.Background())
+			if err != nil {
+				t.Fatalf("dispatch mismatched receipt: %v", err)
+			}
+			if !result.Claimed ||
+				result.Outcome != domain.AgentRunOutcomeFailed ||
+				result.Disposition != domain.AgentExecutionDispositionInvoked ||
+				result.FailureCategory != domain.AgentFailureCategoryExecutorMismatch ||
+				len(result.ArtifactIDs) != 0 ||
+				executor.calls != 1 ||
+				store.completed != nil ||
+				store.failed == nil ||
+				store.failed.Result.Failure == nil ||
+				store.failed.Result.Failure.Stage != domain.AgentFailureStageResponseDecode ||
+				store.failed.Result.Failure.Category != domain.AgentFailureCategoryExecutorMismatch ||
+				store.failed.Result.Receipt == nil ||
+				len(store.failed.Result.ArtifactIDs) != 0 {
+				t.Fatalf(
+					"mismatched receipt result = %#v / %#v / %#v",
+					result, store, executor,
+				)
+			}
+		})
+	}
+}
+
 type contentScoutDispatcherStore struct {
 	reader    *contentScoutKnowledgeReader
 	job       AgentJobRecordV1
@@ -217,6 +288,34 @@ func (executor *contentScoutDispatcherExecutor) Execute(
 	return domain.AgentExecutionResponseV1{}, errors.New("unexpected execution")
 }
 
+type contentScoutReceiptMismatchExecutor struct {
+	calls  int
+	mutate func(*domain.AgentExecutionReceiptV1)
+}
+
+func (executor *contentScoutReceiptMismatchExecutor) Execute(
+	_ context.Context,
+	request domain.AgentExecutionRequestV1,
+	_ domain.StructuredOutputSchema,
+) (domain.AgentExecutionResponseV1, error) {
+	executor.calls++
+	route := request.Configuration.Route
+	receipt := domain.AgentExecutionReceiptV1{
+		ExecutorKind:        request.Execution.ExecutorKind,
+		ExecutorVersion:     request.Execution.ExecutorVersion,
+		SessionID:           "executor-session",
+		TurnID:              "executor-turn",
+		CompletedModelSteps: 1,
+		RequestedRoute:      &route,
+	}
+	executor.mutate(&receipt)
+	return domain.AgentExecutionResponseV1{
+		ContractVersion: domain.AgentExecutionContractVersion,
+		CandidateJSON:   json.RawMessage(`{"ideas":[]}`),
+		Receipt:         receipt,
+	}, nil
+}
+
 func dispatcherTestClock(createdAt time.Time) func() time.Time {
 	current := createdAt
 	return func() time.Time {
@@ -227,3 +326,4 @@ func dispatcherTestClock(createdAt time.Time) func() time.Time {
 
 var _ ContentScoutDispatchStore = (*contentScoutDispatcherStore)(nil)
 var _ AgentExecutor = (*contentScoutDispatcherExecutor)(nil)
+var _ AgentExecutor = (*contentScoutReceiptMismatchExecutor)(nil)
