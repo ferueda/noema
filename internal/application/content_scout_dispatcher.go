@@ -19,6 +19,8 @@ var (
 	)
 )
 
+const contentScoutPersistenceTimeout = 5 * time.Second
+
 // ContentScoutDispatchStore is the durable boundary needed for one V1 job.
 // Agent-specific knowledge interpretation remains in ContentScoutHandlerV1.
 type ContentScoutDispatchStore interface {
@@ -106,7 +108,9 @@ func (dispatcher ContentScoutDispatcherV1) RunOnce(
 	if !claimed {
 		return ContentScoutDispatchResult{JobID: pending.ID}, nil
 	}
-	job, found, err = dispatcher.Store.LoadV1Job(ctx, pending.ID)
+	loadCtx, cancelLoad := contentScoutPersistenceContext(ctx)
+	job, found, err = dispatcher.Store.LoadV1Job(loadCtx, pending.ID)
+	cancelLoad()
 	if err != nil || !found || job.Status != domain.JobRunning || job.StartedAt == nil {
 		if err != nil {
 			return ContentScoutDispatchResult{}, err
@@ -251,7 +255,9 @@ func (dispatcher ContentScoutDispatcherV1) RunOnce(
 		},
 		StartedAt: *job.StartedAt, FinishedAt: finishedAt,
 	}
-	if _, err := dispatcher.Store.CompleteV1Job(ctx, V1JobCompletion{
+	persistCtx, cancel := contentScoutPersistenceContext(ctx)
+	defer cancel()
+	if _, err := dispatcher.Store.CompleteV1Job(persistCtx, V1JobCompletion{
 		Job: job, Run: run, Artifacts: admission.Artifacts,
 	}); err != nil {
 		return ContentScoutDispatchResult{}, err
@@ -347,7 +353,9 @@ func (dispatcher ContentScoutDispatcherV1) persistSkipped(
 		},
 		StartedAt: *job.StartedAt, FinishedAt: finishedAt,
 	}
-	if _, err := dispatcher.Store.CompleteV1Job(ctx, V1JobCompletion{
+	persistCtx, cancel := contentScoutPersistenceContext(ctx)
+	defer cancel()
+	if _, err := dispatcher.Store.CompleteV1Job(persistCtx, V1JobCompletion{
 		Job: job, Run: run, Artifacts: []domain.Artifact{},
 	}); err != nil {
 		return ContentScoutDispatchResult{}, err
@@ -380,7 +388,9 @@ func (dispatcher ContentScoutDispatcherV1) persistFailure(
 		},
 		StartedAt: *job.StartedAt, FinishedAt: finishedAt,
 	}
-	if _, err := dispatcher.Store.FailV1Job(ctx, job, run); err != nil {
+	persistCtx, cancel := contentScoutPersistenceContext(ctx)
+	defer cancel()
+	if _, err := dispatcher.Store.FailV1Job(persistCtx, job, run); err != nil {
 		return ContentScoutDispatchResult{}, err
 	}
 	return ContentScoutDispatchResult{
@@ -388,4 +398,13 @@ func (dispatcher ContentScoutDispatcherV1) persistFailure(
 		Disposition: run.Result.Disposition,
 		ArtifactIDs: []string{}, FailureCategory: failure.category,
 	}, nil
+}
+
+func contentScoutPersistenceContext(
+	ctx context.Context,
+) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(
+		context.WithoutCancel(ctx),
+		contentScoutPersistenceTimeout,
+	)
 }

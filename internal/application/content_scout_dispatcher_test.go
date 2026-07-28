@@ -158,6 +158,48 @@ func TestContentScoutDispatcherCompletesWithValidZeroBudgetFactText(
 	}
 }
 
+func TestContentScoutDispatcherPersistsTerminalFailureAfterCallerCancellation(
+	t *testing.T,
+) {
+	fixture := newContentScoutFixture(t, nil)
+	store := newContentScoutDispatcherStore(t, fixture)
+	ctx, cancel := context.WithCancel(context.Background())
+	executor := &contentScoutResultExecutor{
+		execute: func(
+			domain.AgentExecutionRequestV1,
+		) (domain.AgentExecutionResponseV1, error) {
+			cancel()
+			return domain.AgentExecutionResponseV1{},
+				errors.New("execution canceled")
+		},
+	}
+
+	result, err := (ContentScoutDispatcherV1{
+		Store: store, Executor: executor, AllowRemote: true,
+		Preflight: func(
+			context.Context,
+			AgentJobRecordV1,
+			domain.AgentExecutionIdentity,
+		) error {
+			return nil
+		},
+		Now: dispatcherTestClock(fixture.job.CreatedAt),
+	}).RunOnce(ctx)
+	if err != nil {
+		t.Fatalf("dispatch canceled execution: %v", err)
+	}
+	if !errors.Is(ctx.Err(), context.Canceled) ||
+		result.Outcome != domain.AgentRunOutcomeFailed ||
+		result.Disposition != domain.AgentExecutionDispositionInvoked ||
+		result.FailureCategory != domain.AgentFailureCategoryExecutorFailed ||
+		len(result.ArtifactIDs) != 0 ||
+		store.failed == nil ||
+		store.completed != nil ||
+		len(store.failed.Result.ArtifactIDs) != 0 {
+		t.Fatalf("canceled execution result = %#v / %#v", result, store)
+	}
+}
+
 func TestContentScoutDispatcherRejectsMismatchedExecutionReceipt(
 	t *testing.T,
 ) {
@@ -443,9 +485,12 @@ func (store *contentScoutDispatcherStore) LoadV1Job(
 }
 
 func (store *contentScoutDispatcherStore) CompleteV1Job(
-	_ context.Context,
+	ctx context.Context,
 	completion V1JobCompletion,
 ) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
 	if ValidateV1JobCompletion(completion) != nil {
 		return false, errors.New("invalid completion")
 	}
@@ -455,10 +500,13 @@ func (store *contentScoutDispatcherStore) CompleteV1Job(
 }
 
 func (store *contentScoutDispatcherStore) FailV1Job(
-	_ context.Context,
+	ctx context.Context,
 	job AgentJobRecordV1,
 	run V1AgentRunRecord,
 ) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
 	if ValidateV1JobFailure(job, run) != nil {
 		return false, errors.New("invalid failure")
 	}
