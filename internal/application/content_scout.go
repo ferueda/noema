@@ -159,7 +159,7 @@ func (handler ContentScoutHandlerV1) Prepare(
 		),
 	)
 	disclosure, generalized, disclosureReport, err := compileContentDisclosurePolicyV1(
-		privateValues, sanitizedValues, configuration.approvedPublicTerms(),
+		privateValues, sanitizedValues, configuration.approvedTerms,
 	)
 	if err != nil {
 		return PreparedContentScoutV1{}, contentScoutFailure(
@@ -202,23 +202,12 @@ func contentScoutConfigurationFromJob(
 	configuration := ContentScoutConfiguration{
 		agent: job.Agent, identity: job.Payload.Configuration,
 		agentFileDigest: handler.AgentFileDigest,
+		approvedTerms:   append([]string{}, handler.ApprovedPublicTerms...),
 	}
 	if configuration.validate() != nil {
 		return ContentScoutConfiguration{}, errors.New("Content Scout configuration is invalid")
 	}
 	return configuration, nil
-}
-
-func (value ContentScoutConfiguration) approvedPublicTerms() []string {
-	var handler contentScoutHandlerConfiguration
-	if _, err := decodeStrictBoundedJSON(
-		bytes.NewReader(value.identity.HandlerConfigurationJSON),
-		maxContentScoutConfigurationBytes,
-		&handler,
-	); err != nil {
-		return nil
-	}
-	return append([]string{}, handler.ApprovedPublicTerms...)
 }
 
 func validateContentScoutAnalysisInput(record SemanticAnalysisRecord) error {

@@ -157,7 +157,7 @@ func TestContentScoutDispatcherRejectsMismatchedExecutionReceipt(
 				store.failed.Result.Failure == nil ||
 				store.failed.Result.Failure.Stage != domain.AgentFailureStageResponseDecode ||
 				store.failed.Result.Failure.Category != domain.AgentFailureCategoryExecutorMismatch ||
-				store.failed.Result.Receipt == nil ||
+				store.failed.Result.Receipt != nil ||
 				len(store.failed.Result.ArtifactIDs) != 0 {
 				t.Fatalf(
 					"mismatched receipt result = %#v / %#v / %#v",
@@ -197,6 +197,18 @@ func TestContentScoutDispatcherPersistsSafeInvokedFailures(t *testing.T) {
 			wantReceipt:  true,
 		},
 		{
+			name: "executor failure with mismatched partial receipt",
+			execute: func(domain.AgentExecutionRequestV1) (domain.AgentExecutionResponseV1, error) {
+				return domain.AgentExecutionResponseV1{
+					Receipt: domain.AgentExecutionReceiptV1{
+						ExecutorKind: "different-executor",
+					},
+				}, errors.New("private executor failure")
+			},
+			wantStage:    domain.AgentFailureStageExecution,
+			wantCategory: domain.AgentFailureCategoryExecutorMismatch,
+		},
+		{
 			name: "invalid response",
 			execute: func(request domain.AgentExecutionRequestV1) (domain.AgentExecutionResponseV1, error) {
 				return domain.AgentExecutionResponseV1{
@@ -207,6 +219,21 @@ func TestContentScoutDispatcherPersistsSafeInvokedFailures(t *testing.T) {
 			wantStage:    domain.AgentFailureStageResponseDecode,
 			wantCategory: domain.AgentFailureCategoryResponseInvalid,
 			wantReceipt:  true,
+		},
+		{
+			name: "invalid response with mismatched partial receipt",
+			execute: func(request domain.AgentExecutionRequestV1) (domain.AgentExecutionResponseV1, error) {
+				route := request.Configuration.Route
+				route.ServiceTier = "different-tier"
+				return domain.AgentExecutionResponseV1{
+					CandidateJSON: json.RawMessage(`{}`),
+					Receipt: domain.AgentExecutionReceiptV1{
+						RequestedRoute: &route,
+					},
+				}, nil
+			},
+			wantStage:    domain.AgentFailureStageResponseDecode,
+			wantCategory: domain.AgentFailureCategoryExecutorMismatch,
 		},
 		{
 			name: "candidate admission failure",

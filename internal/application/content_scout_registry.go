@@ -137,6 +137,7 @@ type ContentScoutConfiguration struct {
 	agent           domain.AgentIdentity
 	identity        domain.AgentConfigurationIdentity
 	agentFileDigest string
+	approvedTerms   []string
 }
 
 // LoadContentScoutConfiguration strictly validates both local configuration
@@ -205,6 +206,7 @@ func LoadContentScoutConfiguration(
 	}
 	result := ContentScoutConfiguration{
 		agent: agent.Agent, identity: identity, agentFileDigest: agentFileDigest,
+		approvedTerms: append([]string{}, terms...),
 	}
 	if result.validate() != nil {
 		return ContentScoutConfiguration{}, errors.New("Content Scout configuration identity is invalid")
@@ -253,7 +255,9 @@ func (value ContentScoutConfiguration) validate() error {
 		SchemaVersion:       ContentScoutDisclosureSchemaVersion,
 		ApprovedPublicTerms: handler.ApprovedPublicTerms,
 	})
-	if err != nil || !sameStrings(terms, handler.ApprovedPublicTerms) {
+	if err != nil ||
+		!sameStrings(terms, handler.ApprovedPublicTerms) ||
+		!sameStrings(value.approvedTerms, handler.ApprovedPublicTerms) {
 		return errors.New("Content Scout approved public terms are invalid")
 	}
 	disclosure, err := json.Marshal(contentScoutDisclosureFile{

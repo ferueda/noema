@@ -173,13 +173,13 @@ func (dispatcher ContentScoutDispatcherV1) RunOnce(
 	response, executeErr := dispatcher.Executor.Execute(ctx, request, outputSchema)
 	if executeErr != nil {
 		category := domain.AgentFailureCategoryExecutorFailed
-		var receipt *domain.AgentExecutionReceiptV1
-		if response.Receipt.ValidateObserved() == nil {
-			copy := response.Receipt
-			receipt = &copy
-			if copy.FailureCategory != "" {
-				category = copy.FailureCategory
-			}
+		receipt, mismatched := contentScoutCorrelatedObservedReceipt(
+			response.Receipt, request,
+		)
+		if mismatched {
+			category = domain.AgentFailureCategoryExecutorMismatch
+		} else if receipt != nil && receipt.FailureCategory != "" {
+			category = receipt.FailureCategory
 		}
 		failure := contentScoutRunFailure{
 			stage:       domain.AgentFailureStageExecution,
@@ -192,14 +192,16 @@ func (dispatcher ContentScoutDispatcherV1) RunOnce(
 		return dispatcher.persistFailure(ctx, job, failure)
 	}
 	if response.Validate() != nil {
-		var receipt *domain.AgentExecutionReceiptV1
-		if response.Receipt.ValidateObserved() == nil {
-			copy := response.Receipt
-			receipt = &copy
+		category := domain.AgentFailureCategoryResponseInvalid
+		receipt, mismatched := contentScoutCorrelatedObservedReceipt(
+			response.Receipt, request,
+		)
+		if mismatched {
+			category = domain.AgentFailureCategoryExecutorMismatch
 		}
 		failure := contentScoutRunFailure{
 			stage:       domain.AgentFailureStageResponseDecode,
-			category:    domain.AgentFailureCategoryResponseInvalid,
+			category:    category,
 			disposition: domain.AgentExecutionDispositionInvoked,
 			execution:   &execution,
 			receipt:     receipt,
@@ -208,13 +210,11 @@ func (dispatcher ContentScoutDispatcherV1) RunOnce(
 		return dispatcher.persistFailure(ctx, job, failure)
 	}
 	if !contentScoutReceiptMatchesRequest(response.Receipt, request) {
-		receipt := response.Receipt
 		failure := contentScoutRunFailure{
 			stage:       domain.AgentFailureStageResponseDecode,
 			category:    domain.AgentFailureCategoryExecutorMismatch,
 			disposition: domain.AgentExecutionDispositionInvoked,
 			execution:   &execution,
-			receipt:     &receipt,
 			privacy:     prepared.Privacy,
 		}
 		return dispatcher.persistFailure(ctx, job, failure)
@@ -270,6 +270,25 @@ func contentScoutReceiptMatchesRequest(
 		receipt.ExecutorVersion == request.Execution.ExecutorVersion &&
 		receipt.RequestedRoute != nil &&
 		*receipt.RequestedRoute == request.Configuration.Route
+}
+
+func contentScoutCorrelatedObservedReceipt(
+	receipt domain.AgentExecutionReceiptV1,
+	request domain.AgentExecutionRequestV1,
+) (*domain.AgentExecutionReceiptV1, bool) {
+	if receipt.ValidateObserved() != nil {
+		return nil, false
+	}
+	if receipt.ExecutorKind != "" &&
+		receipt.ExecutorKind != request.Execution.ExecutorKind ||
+		receipt.ExecutorVersion != "" &&
+			receipt.ExecutorVersion != request.Execution.ExecutorVersion ||
+		receipt.RequestedRoute != nil &&
+			*receipt.RequestedRoute != request.Configuration.Route {
+		return nil, true
+	}
+	copy := receipt
+	return &copy, false
 }
 
 func contentScoutExecutionIdentity(
