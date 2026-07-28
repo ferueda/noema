@@ -1,0 +1,33 @@
+{
+  "name": "content-scout",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24.18.0",
+    "npm": "11.16.0"
+  },
+  "packageManager": "npm@11.16.0",
+  "scripts": {
+    "build": "NOEMA_EVE_ROUTE_PASSWORD=\"${NOEMA_EVE_ROUTE_PASSWORD:-eve-build-placeholder}\" eve build",
+    "check": "npm run typecheck && npm test && npm run build",
+    "dev": "eve dev",
+    "start": "eve start",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/gateway": "4.0.26",
+    "ai": "7.0.34",
+    "eve": "0.27.8",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/json-schema": "7.0.15",
+    "@types/node": "24.13.3",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "typescript": "6.0.3",
+    "vitest": "4.1.10"
+  }
+}

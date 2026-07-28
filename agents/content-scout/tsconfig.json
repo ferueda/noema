@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "module": "NodeNext",
+    "noEmit": true,
+    "noUncheckedIndexedAccess": true,
+    "strict": true,
+    "target": "ES2024",
+    "types": [
+      "node",
+      "vitest/globals"
+    ],
+    "verbatimModuleSyntax": true
+  },
+  "include": [
+    "agent/**/*.ts",
+    "test/**/*.ts"
+  ]
+}
