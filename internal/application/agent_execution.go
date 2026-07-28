@@ -15,7 +15,7 @@ const (
 	AgentExecutionRequestSchemaDigest  = "695bb06e7a7b3698cf9205643e74814b901cccaa916364dc4f4cbe3ee74f37e4"
 	AgentExecutionResponseSchemaDigest = "57c279c25b6c1b21d00a95fa09a71b10397ee527595a3bbc9a42a5a86bf1f671"
 	ContentScoutInputSchemaName        = "content-scout-input"
-	ContentScoutInputSchemaDigest      = "66fcd21212e77af2bad2b80c0b423736c13031fe3597d44776d694275cc1d98d"
+	ContentScoutInputSchemaDigest      = "7c431016c261bf3a3bc17aa12493f498e012d3168b70e5ec5f64ece10fcd900d"
 	ContentScoutCandidatesSchemaName   = "content-scout-candidates"
 	ContentScoutCandidatesSchemaDigest = "6859d77424e02745841a7348a3c88e74874a928c4ef0f0b831257b81e5c8c965"
 )

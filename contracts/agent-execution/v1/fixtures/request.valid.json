@@ -44,7 +44,7 @@
   "input": {
     "schemaName": "content-scout-input",
     "schemaVersion": 1,
-    "schemaDigest": "66fcd21212e77af2bad2b80c0b423736c13031fe3597d44776d694275cc1d98d",
+    "schemaDigest": "7c431016c261bf3a3bc17aa12493f498e012d3168b70e5ec5f64ece10fcd900d",
     "canonicalJson": {
       "schemaVersion": 1,
       "analysisRunId": "analysis_synthetic",
@@ -82,6 +82,7 @@
               "framework": "go",
               "command": {
                 "text": "go test ./...",
+                "emittedUtf8Bytes": 13,
                 "originalUtf8Bytes": 13,
                 "truncated": false
               },

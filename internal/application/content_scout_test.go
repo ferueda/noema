@@ -172,6 +172,75 @@ func TestContentScoutPrepareAppliesPrivacyBeforeDisclosure(t *testing.T) {
 	}
 }
 
+func TestContentScoutPrepareTracksOutboundBytesAfterSelectedTextGeneralization(
+	t *testing.T,
+) {
+	tests := map[string]struct {
+		source      string
+		assign      func(*domain.FactValue, *domain.SelectedText)
+		selectValue func(domain.ContentScoutFactValueV1) *domain.ContentScoutSelectedTextV1
+	}{
+		"command local path": {
+			source: "/x/y",
+			assign: func(value *domain.FactValue, selected *domain.SelectedText) {
+				value.Command = selected
+			},
+			selectValue: func(value domain.ContentScoutFactValueV1) *domain.ContentScoutSelectedTextV1 {
+				return value.Command
+			},
+		},
+		"test command private identifier": {
+			source: "XZQ",
+			assign: func(value *domain.FactValue, selected *domain.SelectedText) {
+				value.Test = &domain.TestFactValue{
+					Framework: "go",
+					Command:   selected,
+				}
+			},
+			selectValue: func(value domain.ContentScoutFactValueV1) *domain.ContentScoutSelectedTextV1 {
+				return value.Test.Command
+			},
+		},
+		"error private identifier": {
+			source: "XZQ",
+			assign: func(value *domain.FactValue, selected *domain.SelectedText) {
+				value.Error = selected
+			},
+			selectValue: func(value domain.ContentScoutFactValueV1) *domain.ContentScoutSelectedTextV1 {
+				return value.Error
+			},
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			fixture := newContentScoutFixture(t, nil)
+			fact := fixture.reader.facts["fact-one"]
+			fact.Value = domain.FactValue{}
+			test.assign(&fact.Value, &domain.SelectedText{
+				Text: test.source, EmittedUTF8Bytes: len([]byte(test.source)),
+				OriginalUTF8Bytes: len([]byte(test.source)),
+			})
+			fixture.reader.facts["fact-one"] = fact
+
+			prepared, err := (ContentScoutHandlerV1{Knowledge: fixture.reader}).Prepare(
+				context.Background(), fixture.job,
+			)
+			if err != nil {
+				t.Fatalf("prepare generalized selected text: %v", err)
+			}
+			selected := test.selectValue(prepared.Input.Facts[0].Value)
+			if selected == nil ||
+				selected.Text == test.source ||
+				selected.OriginalUTF8Bytes != len([]byte(test.source)) ||
+				selected.EmittedUTF8Bytes != len([]byte(selected.Text)) ||
+				selected.EmittedUTF8Bytes <= selected.OriginalUTF8Bytes ||
+				prepared.Input.Validate() != nil {
+				t.Fatalf("generalized selected text = %#v", selected)
+			}
+		})
+	}
+}
+
 func TestContentScoutAdmitFiltersUnsupportedCandidatesAndDerivesLineage(
 	t *testing.T,
 ) {

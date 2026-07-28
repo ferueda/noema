@@ -479,8 +479,8 @@ func contentScoutSelectedText(value *domain.SelectedText) *domain.ContentScoutSe
 		return nil
 	}
 	return &domain.ContentScoutSelectedTextV1{
-		Text: value.Text, OriginalUTF8Bytes: value.OriginalUTF8Bytes,
-		Truncated: value.Truncated,
+		Text: value.Text, EmittedUTF8Bytes: value.EmittedUTF8Bytes,
+		OriginalUTF8Bytes: value.OriginalUTF8Bytes, Truncated: value.Truncated,
 	}
 }
 
@@ -522,31 +522,13 @@ func canonicalContentScoutInput(
 
 func contentScoutFreeText(input domain.ContentScoutInputV1) []string {
 	result := make([]string, 0)
-	for _, claim := range input.Claims {
-		result = append(result, claim.Statement)
-	}
-	for _, fact := range input.Facts {
-		if fact.Value.Tool != nil {
-			if fact.Value.Tool.Name != nil {
-				result = append(result, *fact.Value.Tool.Name)
-			}
-			if fact.Value.Tool.Namespace != nil {
-				result = append(result, *fact.Value.Tool.Namespace)
-			}
-		}
-		if fact.Value.Command != nil {
-			result = append(result, fact.Value.Command.Text)
-		}
-		if fact.Value.Test != nil {
-			result = append(result, fact.Value.Test.Framework)
-			if fact.Value.Test.Command != nil {
-				result = append(result, fact.Value.Test.Command.Text)
-			}
-		}
-		if fact.Value.Error != nil {
-			result = append(result, fact.Value.Error.Text)
-		}
-	}
+	_ = walkContentScoutFreeText(
+		&input,
+		func(value *string, _ *domain.ContentScoutSelectedTextV1) error {
+			result = append(result, *value)
+			return nil
+		},
+	)
 	return result
 }
 
@@ -555,70 +537,75 @@ func applyContentScoutFreeText(
 	values []string,
 ) error {
 	index := 0
-	next := func() (string, bool) {
-		if index >= len(values) {
-			return "", false
-		}
-		value := values[index]
-		index++
-		return value, true
+	err := walkContentScoutFreeText(
+		input,
+		func(target *string, selected *domain.ContentScoutSelectedTextV1) error {
+			if index >= len(values) {
+				return errors.New("Content Scout free-text traversal is incomplete")
+			}
+			*target = values[index]
+			if selected != nil {
+				selected.EmittedUTF8Bytes = len([]byte(*target))
+			}
+			index++
+			return nil
+		},
+	)
+	if err != nil {
+		return err
 	}
+	if index != len(values) {
+		return errors.New("Content Scout free-text traversal has extra values")
+	}
+	return nil
+}
+
+func walkContentScoutFreeText(
+	input *domain.ContentScoutInputV1,
+	visit func(*string, *domain.ContentScoutSelectedTextV1) error,
+) error {
 	for claimIndex := range input.Claims {
-		value, ok := next()
-		if !ok {
-			return errors.New("Content Scout free-text traversal is incomplete")
+		if err := visit(&input.Claims[claimIndex].Statement, nil); err != nil {
+			return err
 		}
-		input.Claims[claimIndex].Statement = value
 	}
 	for factIndex := range input.Facts {
 		fact := &input.Facts[factIndex]
 		if fact.Value.Tool != nil {
 			if fact.Value.Tool.Name != nil {
-				value, ok := next()
-				if !ok {
-					return errors.New("Content Scout free-text traversal is incomplete")
+				if err := visit(fact.Value.Tool.Name, nil); err != nil {
+					return err
 				}
-				*fact.Value.Tool.Name = value
 			}
 			if fact.Value.Tool.Namespace != nil {
-				value, ok := next()
-				if !ok {
-					return errors.New("Content Scout free-text traversal is incomplete")
+				if err := visit(fact.Value.Tool.Namespace, nil); err != nil {
+					return err
 				}
-				*fact.Value.Tool.Namespace = value
 			}
 		}
 		if fact.Value.Command != nil {
-			value, ok := next()
-			if !ok {
-				return errors.New("Content Scout free-text traversal is incomplete")
+			if err := visit(&fact.Value.Command.Text, fact.Value.Command); err != nil {
+				return err
 			}
-			fact.Value.Command.Text = value
 		}
 		if fact.Value.Test != nil {
-			value, ok := next()
-			if !ok {
-				return errors.New("Content Scout free-text traversal is incomplete")
+			if err := visit(&fact.Value.Test.Framework, nil); err != nil {
+				return err
 			}
-			fact.Value.Test.Framework = value
 			if fact.Value.Test.Command != nil {
-				value, ok = next()
-				if !ok {
-					return errors.New("Content Scout free-text traversal is incomplete")
+				if err := visit(
+					&fact.Value.Test.Command.Text,
+					fact.Value.Test.Command,
+				); err != nil {
+					return err
 				}
-				fact.Value.Test.Command.Text = value
 			}
 		}
 		if fact.Value.Error != nil {
-			value, ok := next()
-			if !ok {
-				return errors.New("Content Scout free-text traversal is incomplete")
+			if err := visit(&fact.Value.Error.Text, fact.Value.Error); err != nil {
+				return err
 			}
-			fact.Value.Error.Text = value
 		}
-	}
-	if index != len(values) {
-		return errors.New("Content Scout free-text traversal has extra values")
 	}
 	return nil
 }

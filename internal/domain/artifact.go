@@ -52,6 +52,7 @@ type ContentScoutToolValueV1 struct {
 
 type ContentScoutSelectedTextV1 struct {
 	Text              string `json:"text"`
+	EmittedUTF8Bytes  int    `json:"emittedUtf8Bytes"`
 	OriginalUTF8Bytes int    `json:"originalUtf8Bytes"`
 	Truncated         bool   `json:"truncated"`
 }
@@ -414,7 +415,8 @@ func validSelectedText(value *ContentScoutSelectedTextV1) bool {
 	return value == nil ||
 		len(value.Text) > 0 &&
 			len(value.Text) <= maxContentTextBytes &&
-			value.OriginalUTF8Bytes >= len([]byte(value.Text))
+			value.EmittedUTF8Bytes == len([]byte(value.Text)) &&
+			value.OriginalUTF8Bytes > 0
 }
 
 func validOptionalContentText(value *string, maximum int) bool {

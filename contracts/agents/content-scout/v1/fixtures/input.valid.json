@@ -35,6 +35,7 @@
           "framework": "go",
           "command": {
             "text": "go test ./...",
+            "emittedUtf8Bytes": 13,
             "originalUtf8Bytes": 13,
             "truncated": false
           },

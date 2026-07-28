@@ -64,12 +64,17 @@
       "additionalProperties": false,
       "required": [
         "text",
+        "emittedUtf8Bytes",
         "originalUtf8Bytes",
         "truncated"
       ],
       "properties": {
         "text": {
           "$ref": "#/$defs/boundedText"
+        },
+        "emittedUtf8Bytes": {
+          "type": "integer",
+          "minimum": 1
         },
         "originalUtf8Bytes": {
           "type": "integer",
