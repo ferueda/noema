@@ -10,7 +10,9 @@ retains the implementation record.
 
 ## Active
 
-None.
+- [260727-content-scout.md](260727-content-scout.md) — implement the first
+  retained-event subscription, generic agent job and artifact lifecycle,
+  portable agent-execution contract, and evidence-backed Eve Content Scout.
 
 ## Queued
 

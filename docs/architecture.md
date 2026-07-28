@@ -2,6 +2,7 @@
 
 - Status: accepted design baseline
 - Date: 2026-07-22
+- Updated: 2026-07-28
 - Scope: local-first foundation and staged V0
 
 ## Executive summary
@@ -17,11 +18,15 @@ stores their typed outputs. Events trigger agents; they do not carry all of the
 evidence an agent may need. Agents use evidence references to retrieve bounded
 context from the knowledge layer.
 
-The first implementation is a standalone Go application with a Noema-owned
-SQLite database. Sessions is the first evidence plane. Content Scout is the
-first agent. One explicitly selected session is processed through independently
-inspectable milestones before broader scans are considered. A manual producer
-followed by a one-shot worker remains the first complete execution mode.
+The first core implementation is a standalone Go application with a
+Noema-owned SQLite database. Focused agents are separate event consumers behind
+a versioned execution contract and do not have to use Go or run inside the
+Noema process. Sessions is the first evidence plane. Content Scout is the first
+agent and Eve is its first execution-runtime experiment. One explicitly
+selected session is processed through independently inspectable milestones
+before broader scans are considered. A manual producer followed by a one-shot
+dispatcher and one local agent invocation remains the first complete execution
+mode.
 
 ## Design influences
 
@@ -42,6 +47,11 @@ References:
 - <https://x.com/dbredvick/status/2078108962319217145>
 - <https://x.com/dbredvick/status/2078150905078206789>
 - <https://www.cerebras.ai/blog/how-we-built-our-knowledge-base>
+- <https://eve.dev/docs/agent-config>
+- <https://eve.dev/docs/concepts/default-harness>
+- <https://eve.dev/docs/guides/auth-and-route-protection>
+- <https://eve.dev/docs/guides/client/output-schema>
+- <https://eve.dev/docs/concepts/sessions-runs-and-streaming>
 
 These are influences, not specifications. Noema adapts them for private,
 personal-scale work and explicit human control.
@@ -75,11 +85,15 @@ Canonical evidence planes
 │                         Queue / subscriptions                │
 │                                  │                           │
 │                                  ▼                           │
-│                         Focused agent runtime                │
+│                   Agent jobs and dispatch                    │
 │                                  │                           │
 │                                  ▼                           │
-│                    Ideas, proposals, and drafts              │
+│                 Result admission and artifacts              │
 └──────────────────────────────────────────────────────────────┘
+          │ versioned execution request and result
+          ▼
+Focused agent executors
+  Eve / Go / Python / other runtimes
           │
           ▼
 Human review and explicit decisions
@@ -130,27 +144,33 @@ they do not share their application-specific output fields.
 
 ## V0 execution roles
 
-One Go binary provides two separate execution roles. The scan command is the
-producer. It admits evidence and writes the derived records for the milestone
-being exercised. Once semantic claims are real, it can publish events and
-commit matching jobs. The worker is the consumer. It starts separately and
-knows nothing about Sessions; it only claims queued jobs and dispatches
-subscribed agents.
+One Go binary provides Noema's producer and dispatcher roles. The scan command
+is the producer. It admits evidence and writes the derived records for the
+milestone being exercised. Once semantic claims are real, it can publish events
+and commit matching jobs. The worker is the dispatcher. It starts separately,
+knows nothing about Sessions, claims queued jobs, prepares bounded execution
+requests, and admits returned results.
+
+The focused agent is a third role behind a versioned JSON contract. V0 runs the
+Eve Content Scout as a separate local process and gives it one fresh execution
+for each claimed Noema job. Eve owns that invocation's model loop and local
+workflow state. It does not read SQLite, fetch Sessions evidence, choose its own
+Noema inputs, or persist authoritative artifacts.
 
 ```mermaid
 flowchart LR
     S["One explicit Sessions session"]
     H["Human review"]
 
-    subgraph N["One Noema binary, two execution roles"]
+    subgraph N["Noema Go core"]
         SCAN["Producer<br/>noema scan sessions"]
         ADMIT["Canonical evidence<br/>admission"]
         FACTS["Deterministic facts"]
         CLAIMS["Validated semantic claims"]
         EVENTS["SQLite event store"]
         QUEUE["SQLite job queue"]
-        WORKER["Consumer<br/>noema worker --once"]
-        SCOUT["Content Scout"]
+        WORKER["Dispatcher<br/>noema worker --once"]
+        RESULT["Result admission"]
         IDEAS["Content ideas"]
 
         SCAN --> ADMIT
@@ -159,19 +179,27 @@ flowchart LR
         CLAIMS --> EVENTS
         EVENTS --> QUEUE
         QUEUE --> WORKER
-        WORKER --> SCOUT
-        SCOUT --> IDEAS
+        RESULT --> IDEAS
     end
 
+    subgraph E["Independent agent runtime"]
+        SCOUT["Eve Content Scout"]
+    end
+
+    WORKER -->|"AgentExecutionRequestV1"| SCOUT
+    SCOUT -->|"AgentExecutionResponseV1"| RESULT
     S --> SCAN
     IDEAS --> H
 ```
 
 The CLI is a presentation and composition boundary, not one combined domain
-component. In V0, both roles link the same internal packages and use SQLite as
-their durable handoff. Later, a scheduler, daemon, Inngest workflow, or
-Cloudflare worker may invoke the same application boundaries without changing
-the domain model.
+component. In V0, the producer and dispatcher link the same internal packages
+and use SQLite as their durable handoff. The dispatcher and agent communicate
+only through the versioned execution contract. The first transport is Eve's
+loopback HTTP session API; it is an adapter, not part of the domain model.
+Later, another local process, a scheduler, an Inngest function, or a Cloudflare
+Worker may implement the same contract without changing Noema's knowledge,
+event, job, or artifact model.
 
 The foundation's generic `Source`, `Distiller`, and time-range `ScanRequest`
 remain test seams, not the real Sessions workflow. Milestone 1 added a separate,
@@ -360,7 +388,9 @@ prevents an updated projection from existing without the event that describes
 the change.
 
 Each focused agent declares the event types it handles. New events create
-durable jobs for matching subscriptions.
+durable jobs for matching subscriptions. The job, not the raw event, is the
+wake-up boundary: it fixes the agent version, complete configuration identity,
+and immutable knowledge inputs selected for that execution.
 
 The target local queue provides at-least-once execution, so consumers are
 designed to be idempotent. The experimental V0 makes one terminal attempt. A
@@ -371,10 +401,18 @@ Episode building is not part of the immediate V0 flow. Episodes remain a later,
 revisable grouping hypothesis; one selected session is never assumed to equal
 one work episode.
 
-### 7. Retrieve evidence
+### 7. Prepare and dispatch bounded agent input
 
-An agent receives an event envelope and narrow retrieval tools. It follows
-evidence references to request only the context it needs.
+The Noema dispatcher loads a job's immutable knowledge identities and uses the
+agent-specific input policy to prepare one bounded, privacy-filtered
+`AgentExecutionRequest`. The request includes the trigger identity and only the
+admitted facts, claims, artifacts, or evidence references authorized for that
+agent. It does not grant the executor direct access to SQLite or Sessions.
+
+V0 fully hydrates Content Scout's small selected input before dispatch, so the
+Eve agent has no retrieval tools. Later agents may receive narrow Noema
+retrieval tools or APIs that return the same evidence-result shape; they still
+do not receive storage access.
 
 Initial retrieval uses:
 
@@ -388,17 +426,20 @@ covers the higher-level facts, claims, and artifacts it owns.
 Full-text search over normalized Noema knowledge is the next retrieval strategy.
 Embeddings and fusion come later behind the same boundary.
 
-### 8. Produce a typed artifact
+### 8. Admit a result and produce a typed artifact
 
-An agent returns a validated, typed artifact such as a content idea, workflow
-proposal, or draft. Noema stores the artifact, its evidence references, agent
-and model versions, input event, and run outcome.
+An agent executor returns an untrusted, versioned result. Noema validates the
+result schema, checks every cited knowledge identity, derives evidence lineage
+locally, applies output privacy and safety policy, and only then creates typed
+artifacts such as content ideas, workflow proposals, or drafts. It stores the
+artifact, its evidence references, agent and executor versions, input event,
+and run outcome.
 
 The generic runtime understands the artifact envelope, not the payload's
-business fields. The in-code agent handler validates its own versioned payload
-before the runtime commits it. Agent-specific tables or views may project an
-artifact for convenient queries, but they are not required by the queue or
-worker.
+business fields. Agent-specific Noema admission code validates its versioned
+payload before the dispatcher commits it. Agent-specific tables or views may
+project an artifact for convenient queries, but they are not required by the
+queue or dispatcher.
 
 Creating an artifact may publish another internal event. External side effects
 require a separate explicit approval path.
@@ -418,11 +459,12 @@ require a separate explicit approval path.
 | Event store | Durable domain events and replay order | Full evidence bodies |
 | Subscription matcher | Event-to-agent matching and deterministic job identity | Extraction or agent reasoning |
 | Queue | Subscription jobs, leases, attempts, retry state | Agent reasoning |
-| Agent runtime | Job lifecycle, model invocation, allowed retrieval, artifact envelopes, run records | Agent-specific payload meaning or external authority |
-| Agent handler | Typed input assembly, output validation, and artifact payload | Queue lifecycle or source access |
+| Agent dispatcher | Job lifecycle, bounded input assembly, executor invocation, result admission, artifact envelopes, run records | Agent reasoning, model loops, or source access |
+| Agent executor | One versioned request, agent instructions, model and allowed tool execution, one versioned result, bounded execution metadata | Noema event or job authority, SQLite access, evidence selection, artifact admission |
+| Agent-specific admission | Typed output validation, local lineage derivation, and artifact payload construction | Queue lifecycle, model execution, or source access |
 | Artifact store | Generic artifact envelopes, payloads, versions, and lineage | Agent-specific interpretation or external publication |
 | Presentation | Commands and review views | Evidence admission, extraction, or model policy |
-| Composition root | Concrete adapters and provider wiring | Domain behavior |
+| Composition root | Concrete storage, source, executor, and provider wiring | Domain behavior |
 
 Dependencies point inward toward domain and application contracts. Only the
 composition root knows concrete storage, source, queue, and model
@@ -616,18 +658,21 @@ A focused subscriber:
 
 - Name and version
 - Subscribed event types
-- Allowed retrieval tools
-- Instructions and output schema
-- Model requirements
+- Versioned execution-input contract and output schema
+- Allowed retrieval capability
+- Instructions and model requirements
+- Executor kind, agent-definition version, and runtime compatibility
 - Retry and idempotency policy
 
-The first version may define agents in code. A public plugin format is not
-required.
+Noema keeps the subscription and admission definition in code. The executable
+agent may live in another package, language, process, or platform. A public
+plugin format is not required.
 
 Agent execution is stateless between jobs. The event and immutable job payload
-identify what changed; the agent retrieves admitted facts, claims, and bounded
-evidence; the run and artifact stores retain the result. Durable continuity
-never depends on a model remembering a prior run.
+identify what changed; the dispatcher supplies admitted facts, claims, and
+bounded evidence or explicitly allowed retrieval; the run and artifact stores
+retain the admitted result. A fresh executor session may use durable mechanics
+internally, but Noema never depends on that session as cross-job memory.
 
 ### Subscription job
 
@@ -640,21 +685,48 @@ A durable request created by matching one event to one agent subscription:
 - Status, attempt count, timestamps, and bounded failure details
 
 The job contains stable knowledge identities, not transcript bodies or an
-agent-specific output payload. The queue owns its lifecycle; the registered
-agent handler owns the typed output.
+agent-specific output payload. The queue owns its lifecycle; Noema's
+agent-specific admission code owns the typed artifact payload.
+
+### Agent execution contract
+
+The language-neutral wake-up boundary between Noema and one focused agent:
+
+- Contract schema version and job identity
+- Trigger event identity and agent definition identity
+- Bounded, privacy-filtered input payload with its own schema version
+- Required output-schema identity
+- Execution deadline and authority flags
+- One versioned untrusted result or a fixed safe failure category
+- Executor, session or invocation, model, usage, cost, and request identities
+  when the executor exposes them
+
+The contract is JSON at the process boundary. The V0 Eve adapter uses a fresh
+loopback HTTP session and consumes Eve 0.27.8's durable NDJSON stream format
+19. The adapter accepts only the documented one-turn, one-step structured
+result lifecycle plus the pinned terminal failure cascades. It rejects action,
+input, authorization, subagent, compaction, cancellation, continuation, extra
+step, and unknown events. Another adapter may use a subprocess, queue,
+workflow, or remote endpoint without changing the job or artifact models.
+
+Noema does not accept artifacts directly from this boundary. It accepts
+agent-specific candidates, validates them locally, derives provenance from
+known inputs, and constructs the authoritative artifact envelopes itself.
 
 ### Agent run
 
 One attempt to process an event:
 
-- Event, agent, model alias, requested model, and resolved provider identity
+- Event, agent, executor kind and version, model alias, requested model, and
+  resolved provider identity when exposed
 - Started and finished times
-- Status and attempts
+- Noema job attempt plus bounded executor step or recovery metadata when exposed
 - Tool requests or bounded audit metadata
 - Validated output or failure
 - Prompt and output-schema versions
 - Requested privacy and routing policy
-- Cost, usage, latency, and provider request identity when available
+- Cost, usage, latency, executor session, and provider request identity when
+  available
 
 ### Artifact
 
@@ -669,6 +741,13 @@ A typed, reviewable result with its own lifecycle. Its generic envelope records:
 Agent handlers use concrete payload types such as `ContentIdeaV1` or
 `CodingAssessmentV1`. The runtime persists them through the same envelope.
 Content ideas are the first artifact kind.
+
+Artifact identity is derived from the complete job fingerprint, artifact kind
+and schema, admitted typed content, locally derived claim/fact/evidence lineage,
+and runtime-assigned safety status. Presentation rank, run timestamps, and
+executor transport metadata do not participate. This keeps the same idea
+stable when a filtered sibling changes its rank while making changed content or
+lineage a different artifact.
 
 ## Initial persistence
 
@@ -712,7 +791,7 @@ Milestone 1 removes agent configuration and job creation from evidence and fact
 processing. Milestone 2 produces stable analysis events independent of any
 subscriber. Milestone 3 introduces deterministic subscription matching, a
 generic job input reference, agent result, and artifact envelope, and Content
-Scout-specific payload validation outside the generic worker. The existing
+Scout-specific payload validation outside the generic dispatcher. The existing
 `content_ideas` table may remain as a query projection, but core job completion
 cannot require it.
 
@@ -817,7 +896,10 @@ events, and `analysis.completed`. Milestone 3 runs generic subscription matching
 against that retained event and stores the resulting Content Scout job
 atomically with the matching operation. Neither evidence processing nor
 semantic extraction knows which agent subscribed. A separate
-`noema worker --once` invocation claims one pending job and makes one attempt. A
+`noema worker --once` invocation claims one pending job, prepares its versioned
+execution request, and dispatches one agent invocation. The executor may use
+more than one internal model step or framework recovery according to its
+recorded versioned policy; that does not create another Noema job attempt. A
 failed job is terminal and inspectable. V0 does not yet claim at-least-once
 delivery, retry safety, leases, or replay; those remain target queue semantics
 to add only after the first agent path proves useful.
@@ -843,44 +925,87 @@ Facets should come from meaningful metadata, not speculative columns. Initial
 facets may include time range, project or workspace, observation kind, source
 kind, artifact kind, and confidence.
 
-## Agent runtime
+## Agent dispatch and execution
 
-The standalone application ultimately owns model invocation through a
-provider-neutral interface. Existing Codex sessions may help prototype and
-evaluate instructions, but production behavior does not require a human to
+Noema owns the durable runtime around an agent invocation, not the agent's
+programming language or model loop. Existing Codex sessions may help prototype
+and evaluate instructions, but production behavior does not require a human to
 open Codex and copy evidence between commands.
 
-The model boundary may point to a local or remote provider. A remote provider
-must be explicitly configured. Noema must apply its deterministic privacy
-filter before sending bounded evidence, and the user must be able to understand
-which classes of data can leave the machine. Selecting the first provider does
-not weaken the local-by-default product boundary.
+The Noema dispatcher:
 
-The runtime:
+1. Inspects the oldest eligible subscribed job and its immutable knowledge
+   input identities without changing job state.
+2. Completes a valid no-input job locally, or validates remote authority and
+   executor identity before claiming a job that requires execution.
+3. Loads the event envelope, immutable knowledge inputs, and agent definition.
+4. Prepares and privacy-filters one bounded versioned execution request.
+5. Invokes the configured executor adapter.
+6. Treats the returned result and metadata as untrusted.
+7. Runs agent-specific schema, lineage, privacy, and safety admission.
+8. Stores the run and generic artifact envelopes atomically.
+9. Publishes an authorized resulting internal event when later required.
+10. Completes or retries the Noema job according to Noema's queue policy.
 
-1. Claims a subscribed job.
-2. Loads the event envelope and agent definition.
-3. Exposes only the allowed retrieval tools.
-4. Invokes the configured model.
-5. Lets the registered handler validate its typed output.
-6. Stores the run and generic artifact envelope atomically.
-7. Publishes any resulting internal event.
-8. Completes or retries the job.
+A completed analysis with no admitted claims still creates a Content Scout job
+so the result is durable and inspectable. The dispatcher claims and completes
+that job locally with a `skipped-no-claims` run disposition and zero artifacts.
+It does not require remote approval, executor configuration, route credentials,
+an Eve probe, or an executor call. Those checks apply only when a job has
+claims that will cross the remote boundary.
 
-A model provider is not allowed to become the domain boundary. Provider
-responses are parsed and validated before entering application state.
+Run outcome and executor activity are separate. A terminal failure before
+executor invocation is recorded as `not-invoked` with a fixed safe stage and
+category and no receipt. A failure after invocation is `invoked` and retains
+only bounded receipt fields that were actually observed and validated. Missing
+metadata stays absent; no failure record claims that model execution occurred
+when it did not.
+
+The agent executor owns its instructions, model calls, and explicitly granted
+tools. It may be local or remote and may use TypeScript, Go, Python, Eve, or
+another framework. It receives no implicit database, source, or publication
+authority.
+
+V0 uses an independently running Eve Content Scout on a loopback address. It
+receives a fresh execution for every job, has all built-in shell, filesystem,
+web, delegation, question, and connection tools disabled, and has no
+cross-job memory. The only permitted framework mechanism is Eve's internal
+structured-output finalizer; it is not agent authority and cannot access
+external state. Eve's local Workflow state is an operational execution copy,
+not Noema state; Noema never reads it to establish a job or artifact outcome.
+Remote Eve deployment, callbacks, and cross-machine delivery remain later
+choices.
+
+A shared V0 HTTP Basic password protects Eve's info and session routes even on
+loopback. Both processes read it from `NOEMA_EVE_ROUTE_PASSWORD`; the username
+is the fixed value `noema`. The password is an operational secret, not agent
+configuration: it never enters job identity, SQLite, receipts, errors, logs, or
+command output. Eve's public health route remains only a liveness check.
+
+A model provider or agent framework is not allowed to become the domain
+boundary. Executor results are parsed and validated before entering application
+state.
 
 ## Model gateway
 
-Noema owns a small structured-generation interface. Semantic extractors and
-agents call that interface using a task-level model alias, instructions,
-bounded input, and an output schema. They do not import a provider SDK, use a
-provider model name, or interpret a provider response directly.
+Noema owns a small structured-generation interface for its semantic extraction
+stages. Semantic extractors call that interface using a task-level model alias,
+instructions, bounded input, and an output schema. They do not import a
+provider SDK, use a provider model name, or interpret a provider response
+directly.
 
-The first remote implementation uses Vercel AI Gateway through its
-OpenAI-compatible Chat Completions API. The adapter may use the official OpenAI
-Go client, but its request and response types remain inside the adapter. Vercel
-is an initial transport and routing choice, not part of Noema's domain model.
+Focused agents sit behind the separate agent-execution contract. An agent
+implementation may use AI SDK, Eve, a direct model SDK, or no model at all.
+Noema records the agent's reviewed execution identity and whatever bounded
+model receipt the executor contract exposes, then performs local result
+admission. This keeps provider transport concerns out of jobs and artifacts
+without forcing every agent runtime through one in-process Go model interface.
+
+The first Noema-owned structured-generation implementation uses Vercel AI
+Gateway through its OpenAI-compatible Chat Completions API. The adapter may use
+the official OpenAI Go client, but its request and response types remain inside
+the adapter. Vercel is an initial transport and routing choice, not part of
+Noema's domain model.
 
 Model aliases resolve through configuration. A route includes:
 
@@ -964,11 +1089,12 @@ filtering, only the selected structural entry data, bounded text,
 deterministic facts, evidence IDs, omissions, and coverage cross the model
 boundary. Source identity and transcript storage do not.
 
-Beginning in Milestone 2, initial evaluation routes use `openai/gpt-oss-120b`
-served by Cerebras for semantic extraction and `openai/gpt-5.4-mini` served by
-Azure for Content Scout. Retention and training requests are explicit,
-recorded route choices. These are configurable starting points, not permanent
-dependencies.
+Beginning in Milestone 2, semantic evaluation routes use
+`openai/gpt-oss-120b` served by Cerebras through Noema's direct Gateway
+adapter. Content Scout uses `openai/gpt-5.4-mini` served only by Azure through
+the Eve agent's AI SDK Gateway route. Retention and training requests are
+explicit, recorded route choices. These are configurable starting points, not
+permanent dependencies.
 
 Noema does not rely on gateway defaults for provider selection. Evaluation runs
 pin the provider so latency, cost, and output quality remain comparable.
@@ -979,17 +1105,19 @@ V0 remote stages pin exactly one provider per route and reject multi-provider
 configuration. Comparison models are separate, explicitly selected routes.
 Automatic fallback remains a later production option, not V0 behavior.
 
-Every model result is validated against Noema's local output schema before it
-can create an observation or agent artifact. OpenAI compatibility only
-standardizes the transport; it does not prove that providers implement
-parameters or schemas identically.
+Every semantic model result and agent-executor result is validated against a
+Noema-owned local output schema before it can create a claim or agent artifact.
+OpenAI or agent-protocol compatibility standardizes transport only; it does not
+prove that providers or runtimes implement parameters or schemas identically.
 
-Remote model execution is opt-in. Before a request leaves the machine, Noema
-applies its deterministic privacy filter and checks the configured route. If a
-configured retention, training, provider, or structured-output request cannot
-be honored, the call fails. Retention and training may be configured as false;
-there is no command-line override that silently changes the reviewed file. No
-configured remote route means no remote request.
+Remote model execution is opt-in. Before a request reaches either a direct
+model adapter or an agent executor, Noema applies its deterministic privacy
+filter and checks the reviewed execution configuration. If a configured
+retention, training, provider, or structured-output request cannot be
+represented, the call fails before the job is claimed. Retention and training
+may be configured as false; there is no command-line override that silently
+changes the reviewed configuration. No configured remote route or agent
+executor means no remote request.
 
 The Gateway adapter rejects missing or rewritten resolved provider/model
 metadata, non-`stop` completions, refusals, tool calls, malformed usage or cost,
@@ -1006,16 +1134,42 @@ that conflicts with linked evidence. Evidence and fact-reference failures also
 distinguish missing, unknown, duplicate, overlapping, out-of-selection, and
 over-limit references where applicable.
 
-Semantic extraction and agent runs record enough information to explain and
-compare model behavior:
+Semantic extraction records enough information to explain and compare model
+behavior:
 
 - Model alias and requested canonical model.
 - Gateway, resolved inference provider, and resolved provider model.
-- Agent, instructions, and output-schema versions.
+- Instructions and output-schema versions.
 - Privacy and routing policy requested.
 - Input and output token usage, latency, and cost when available.
 - Gateway generation or provider request identity when available.
 - Validation outcome and bounded failure details.
+
+Agent runs record the equivalent values exposed by the versioned executor
+contract without inventing missing observations. Eve 0.27.8's public durable
+stream exposes the requested model through agent inspection, a Gateway
+generation ID, usage, and cost. It does not expose the applied service tier or
+resolved inference provider. Content Scout therefore records the requested
+Azure-only route and requested `flex` tier, plus the observed Gateway
+generation ID, usage, and cost. It leaves applied tier and resolved provider
+unset rather than presenting configuration as an observed response.
+
+Eve requests `flex` through `modelOptions.providerOptions.gateway.serviceTier`.
+The complete provider filter, service tier, privacy choices, model wrapper,
+agent instructions, output schema, disabled-tool set, Eve version, and recovery
+profile belong to Content Scout's configuration digest. Eve may retry a
+retry-class model failure or empty response inside one invocation according to
+that versioned framework behavior. Noema records one job attempt and the
+observed completed model steps; it does not describe an Eve invocation as
+exactly one provider request.
+
+Eve's info response exposes info-schema version `1`, not the installed package
+version. It can prove the observable model route, provider options,
+instructions, and capability inventory before claim. The first public package
+version observation is `session.started.runtime.eveVersion`, after invocation;
+a mismatch is therefore an invoked terminal failure. Model-wrapper temperature
+and some session limits are requested configuration, not runtime observations,
+because Eve 0.27.8 does not expose them through these public contracts.
 
 ## Content Scout
 
@@ -1029,6 +1183,25 @@ not their evidence bodies.
 Milestone 3 matches the retained event to Content Scout and creates one durable
 job. This preserves the limit of five ideas across the selected analysis
 without making event publication depend on Content Scout.
+
+The dispatcher prepares the job's sanitized `ContentScoutInputV1` and sends it
+through `AgentExecutionRequestV1` to a separately running local Eve agent. The
+agent owns its instructions and model loop and returns only
+`ContentScoutCandidatesV1`. Noema rejects any tool request, unknown stream
+event, invalid candidate, unsupported claim reference, or unsafe text, then
+constructs `content-idea` artifacts from the admitted candidates and local
+lineage. The Eve process never receives Sessions coordinates or database
+credentials and never writes Noema state.
+
+Content Scout's deterministic disclosure policy generalizes protected
+source-derived terms before execution and rejects their reappearance. It also
+rejects a closed set of identifier-shaped output absent from the sanitized
+input, safe technical vocabulary, or exact approved public terms. URLs, paths,
+hostnames, email and IP addresses, issue keys, repository and package
+coordinates, UUIDs, hashes, code-style names, and opaque codes are in that
+set. Ordinary prose may introduce ordinary words. V0 does not pretend that
+code can identify every newly invented proper name with normal sentence shape;
+human review covers that residual risk.
 
 The completed-analysis event has a stable identity independent of any agent or
 subscriber configuration. A first subscription creates a job from that
@@ -1053,8 +1226,10 @@ It looks for practical lessons about AI-assisted software development,
 including tips, explanations, experiences, mistakes, experiments, and informed
 opinions.
 
-One analysis returns at most five ideas ranked by strength. It does not force
-variety between content styles and does not fill a quota with weak ideas.
+One analysis returns at most five ideas ordered by strength. Noema preserves
+the relative order of admitted candidates and assigns their final sequential
+ranks after filtering. It does not force variety between content styles and
+does not fill a quota with weak ideas.
 
 Each idea contains:
 
@@ -1109,8 +1284,9 @@ adapters. Real behavior is added in three milestones:
    untrusted candidate claims against evidence and stronger facts, and persist
    admitted claims and events.
 3. **Content Scout.** Match admitted knowledge to the focused agent, run the
-   separate generic worker, and store zero to five evidence-backed
-   `content-idea` artifacts.
+   separate Noema dispatcher and local Eve agent through the versioned
+   execution contract, and store zero to five evidence-backed `content-idea`
+   artifacts.
 
 The full sequence is complete when one explicitly approved real session can
 cross all three milestones; every idea resolves through claims and facts to
@@ -1132,7 +1308,8 @@ Possible later mappings:
 
 | Need | Possible implementation |
 | --- | --- |
-| Durable multi-step agents and approvals | Inngest or Cloudflare Workflows |
+| Focused model and tool execution | Eve, a local executable, or another agent runtime |
+| Durable multi-step orchestration and approvals | Eve, Inngest, or Cloudflare Workflows |
 | Remote event delivery | Cloudflare Queues |
 | Remote relational projections | Cloudflare D1 |
 | Semantic retrieval | Local vector index or Cloudflare Vectorize |
@@ -1149,8 +1326,11 @@ to remote infrastructure without a separate privacy design.
 - Noema consumes Sessions only through the public CLI and does not duplicate
   its canonical transcript store or provider parsing.
 - Go and SQLite are the first implementation stack.
+- Agent implementations are language- and runtime-neutral consumers behind a
+  versioned JSON execution contract.
 - Noema owns deterministic facts, semantic claims, events, queue state, agent
-  runs, and outputs.
+  run admission, and outputs. An agent framework may own its model and tool
+  loop but not Noema jobs, lineage, or artifacts.
 - One explicit canonical Sessions identity is processed before time-range or
   ambient scans.
 - Later multi-session operations select one transcript-free manifest cohort and
@@ -1183,14 +1363,18 @@ to remote infrastructure without a separate privacy design.
 - Subscription matching, not evidence processing, creates agent jobs.
 - Jobs reference a stable trigger and immutable knowledge inputs; the generic
   payload does not require a scan or Content Scout fields.
-- Agent executions are stateless; durable continuity belongs to SQLite records,
-  not model memory.
-- The generic worker persists versioned artifact envelopes. Registered handlers
-  own typed payload validation; Content Scout fields do not belong in the
-  generic agent or completion contracts.
+- Agent executions are stateless across jobs; durable product continuity
+  belongs to Noema records, not model or framework memory.
+- The generic dispatcher persists versioned artifact envelopes.
+  Agent-specific Noema admission owns typed payload validation; Content Scout
+  fields do not belong in generic job, execution, or completion contracts.
 - The local queue comes before a remote workflow engine.
 - Structured and full-text retrieval come before embeddings.
 - Content Scout is the first agent.
+- Eve is the first Content Scout execution-runtime experiment. V0 calls it only
+  on loopback, starts a fresh execution per Noema job, disables every
+  user-callable tool, and treats Eve's durable state as a non-authoritative
+  operational copy.
 - Coding Evaluation is an accepted later agent after multi-session analysis and
   attribution are trustworthy.
 - The first complete execution mode is a manual producer followed by a separate
@@ -1198,7 +1382,8 @@ to remote infrastructure without a separate privacy design.
 - The first interface is a CLI.
 - The first artifact is an evidence-backed content idea, not a complete draft.
 - Agent outputs require human review before external action.
-- Noema owns a provider-neutral structured-generation interface.
+- Noema owns a provider-neutral structured-generation interface for semantic
+  stages and a separate language-neutral execution contract for focused agents.
 - Vercel AI Gateway is the initial remote model-gateway adapter.
 - The initial gateway transport is OpenAI-compatible Chat Completions.
 - Models and inference providers are selected through explicit, configurable
@@ -1210,6 +1395,10 @@ to remote infrastructure without a separate privacy design.
 - Gateway output is validated locally before it enters Noema's derived state.
 - The first Content Scout subscription uses one completed-analysis batch event
   so one selected analysis creates at most one Content Scout job.
+- The first Content Scout model route is owned by its Eve agent definition:
+  `openai/gpt-5.4-mini`, Azure only, requested `flex` tier, explicit privacy
+  choices, and a versioned framework recovery profile. Noema records requested
+  values and only the runtime metadata Eve's public contract actually exposes.
 - Milestone 2 publishes that event as part of semantic analysis; Milestone 3
   only matches the retained event to subscriptions.
 - Knowledge units and a second model verification pass require evidence from
@@ -1225,6 +1414,8 @@ small boundary:
 - The semantic-claim persistence projection and queries.
 - Exact generic artifact payload encoding and whether `content_ideas` remains a
   projection after the Milestone 3 cutover.
+- Authentication, callbacks, recovery, and retention for agent executors beyond
+  the V0 loopback-only Eve process.
 - How later artifact-specific previews build on Milestone 1's digest-locked,
   bounded evidence resolution.
 - How the privacy filter combines deterministic rules and model review.

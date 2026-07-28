@@ -2,6 +2,7 @@
 
 - Status: accepted product roadmap
 - Date: 2026-07-22
+- Updated: 2026-07-28
 
 ## Purpose and authority
 
@@ -65,14 +66,23 @@ The following decisions are fixed for V0:
   artifacts.
 - V0 starts with one explicitly selected canonical session. Time-range,
   multi-session, and ambient scans come later.
-- Go, SQLite, manual execution, and human review remain the V0 operating model.
+- Go, SQLite, manual execution, and human review remain the V0 Noema-core
+  operating model. Focused agents may use another language or runtime behind
+  the versioned execution contract.
 - The separate producer and worker boundary remains because event-driven,
   focused agents are a core product hypothesis, not because V0 needs separate
   deployments.
 - Subscription matching creates `SubscriptionJob` records from stable events.
   Evidence and semantic processing do not name or configure downstream agents.
-- The generic worker records agent runs and versioned artifact envelopes.
-  Registered in-code handlers own typed payload validation.
+- The generic worker is a dispatcher. It records agent runs and versioned
+  artifact envelopes while agent-specific Noema admission owns typed payload
+  validation.
+- Agent implementations receive a bounded versioned JSON request and return an
+  untrusted versioned result. They do not read Noema SQLite or become the
+  authority for jobs, provenance, or artifacts.
+- Content Scout is the first runtime-portability experiment: its agent runs in
+  a separate local Eve process with every user-callable tool disabled, while
+  Noema keeps event, job, result-admission, and artifact ownership.
 - Generic jobs reference a stable trigger and immutable knowledge inputs rather
   than a scan or one agent's payload shape.
 - Content Scout produces ideas, not complete drafts, and never publishes.
@@ -352,14 +362,29 @@ useful, safe content ideas.
   A changed agent configuration creates a new job against the retained event
   and ordered claim identities; it does not re-emit claims or rerun semantic
   extraction.
-- Run the existing one-shot worker as a separate process role.
+- Run the existing one-shot worker as a separate Noema dispatcher role.
 - Replace the scan- and Content Scout-specific generic job payload, `Agent`,
   worker result, and job completion contracts with immutable knowledge input
   references, a generic agent result, and a versioned artifact envelope.
   Content Scout retains its own typed `ContentIdeaV1` validation.
+- Add a versioned language-neutral agent-execution request and response
+  contract. Dispatch each Content Scout job to one fresh session in a
+  separately running loopback-only Eve agent.
+- Keep the first Eve agent intentionally narrow: no shell, filesystem, web,
+  delegation, question, connection, schedule, subagent, or retrieval tools; no
+  cross-job memory; and no authority to read SQLite, retrieve Sessions, or
+  publish content. Eve's internal structured-output finalizer is protocol
+  machinery, not an agent capability.
+- Keep Content Scout's instructions and model loop in the Eve agent. Keep input
+  selection, privacy filtering, output-schema ownership, lineage validation,
+  safety admission, and artifact construction in Noema.
+- Protect Eve's info and session routes with a loopback-only shared operational
+  credential that never enters job identity or persistence.
 - Load only the immutable claim identities in the job payload and their bounded
   facts and evidence references.
-- Produce zero to five ranked content ideas. Each includes:
+- Produce zero to five ordered content candidates. After admission and any
+  filtering, Noema preserves their relative strength order and assigns final
+  sequential artifact ranks. Each idea includes:
   - concept and core lesson;
   - audience benefit;
   - hook and reason it may resonate;
@@ -373,15 +398,25 @@ useful, safe content ideas.
 ### Gate
 
 - Producer and worker communicate only through SQLite.
+- The worker and Eve agent communicate only through the versioned execution
+  contract; neither imports the other's implementation.
+- Shared Go and TypeScript contract fixtures prove the boundary independently
+  of the live runtime, while the fixed public Eve canary proves its real
+  loopback HTTP and NDJSON behavior.
 - Every idea traces through admitted claims and facts to exact Sessions
   evidence.
+- Deterministic output admission rejects protected source terms and the closed
+  V0 identifier grammar; ordinary safe prose and exact approved public terms
+  remain usable, and residual proper-name risk stays visible for human review.
 - Changed Content Scout configuration can rerun without semantic
   re-extraction.
 - An exact unchanged run creates no duplicate jobs, runs, or ideas.
 - Empty results and terminal failures remain inspectable.
+- A valid zero-claim job completes locally with zero artifacts and no remote
+  authority, Eve configuration, credential, probe, or executor call.
 - No complete draft is generated and no content is published.
-- Generic queue, worker, run, and completion ports do not import or return
-  Content Scout payload types.
+- Generic queue, dispatcher, execution, run, and completion ports do not import
+  or return Content Scout artifact payload types.
 
 ## V0 completion gate
 
@@ -436,8 +471,9 @@ The expected order after V0 is:
    structured and full-text retrieval miss useful knowledge.
 11. **Scheduling.** Automate runs only when useful manual runs are regularly
    missed.
-12. **Remote execution.** Consider Inngest or Cloudflare only when local durable
-    execution, waiting, approval, or access becomes the actual constraint.
+12. **Remote execution.** Consider a deployed Eve agent, Inngest, or Cloudflare
+    only when local durable execution, waiting, approval, or access becomes the
+    actual constraint.
 
 ### Incremental session windows milestone
 
@@ -569,7 +605,9 @@ general ability and performs no external action.
 - More sources or agents.
 - Coding assessments or personal-development recommendations.
 - Cross-session semantic deduplication or strengthening.
-- A daemon, scheduler, retries, leases, replay, or distributed execution.
+- A daemon, scheduler, Noema retries, leases, replay, or cross-machine agent
+  execution. The loopback Eve process is a local executor, not a remote
+  deployment.
 - PostgreSQL, a graph database, embeddings, or a vector database.
 - Inngest, Cloudflare storage or execution, a web UI, or a public plugin system.
 
