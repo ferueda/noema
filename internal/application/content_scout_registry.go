@@ -133,9 +133,9 @@ type contentScoutHandlerConfiguration struct {
 // ContentScoutConfiguration is the complete local identity required to create
 // a Content Scout job. It never contains an endpoint or credential.
 type ContentScoutConfiguration struct {
-	Agent           domain.AgentIdentity
-	Identity        domain.AgentConfigurationIdentity
-	AgentFileDigest string
+	agent           domain.AgentIdentity
+	identity        domain.AgentConfigurationIdentity
+	agentFileDigest string
 }
 
 // LoadContentScoutConfiguration strictly validates both local configuration
@@ -202,9 +202,70 @@ func LoadContentScoutConfiguration(
 	if err != nil || identity.Validate() != nil {
 		return ContentScoutConfiguration{}, errors.New("Content Scout configuration identity is invalid")
 	}
-	return ContentScoutConfiguration{
-		Agent: agent.Agent, Identity: identity, AgentFileDigest: agentFileDigest,
-	}, nil
+	result := ContentScoutConfiguration{
+		agent: agent.Agent, identity: identity, agentFileDigest: agentFileDigest,
+	}
+	if result.validate() != nil {
+		return ContentScoutConfiguration{}, errors.New("Content Scout configuration identity is invalid")
+	}
+	return result, nil
+}
+
+func (value ContentScoutConfiguration) validate() error {
+	output := domain.StructuredOutputSchemaIdentity{
+		Name:        ContentScoutCandidatesSchemaName,
+		Version:     domain.ContentIdeaSchemaVersion,
+		Disposition: domain.StructuredOutputDispositionStrict,
+		Digest:      ContentScoutCandidatesSchemaDigest,
+	}
+	if value.agent != (domain.AgentIdentity{
+		Name: ContentScoutAgentName, Version: ContentScoutAgentVersion,
+	}) ||
+		value.identity.PromptVersion != ContentScoutInstructionsVersion ||
+		value.identity.OutputSchema != output ||
+		value.identity.Route != (domain.AgentRouteIdentity{
+			Alias:        ContentScoutRouteAlias,
+			Gateway:      ContentScoutGateway,
+			Model:        ContentScoutModel,
+			Provider:     ContentScoutProvider,
+			RouteVersion: ContentScoutRouteVersion,
+			ServiceTier:  ContentScoutServiceTier,
+		}) ||
+		value.identity.PrivacyPolicyVersion != PrivacyPolicyVersion ||
+		value.identity.DisclosurePolicyVersion != ContentScoutDisclosurePolicyVersion ||
+		value.identity.SafetyPolicyVersion != ContentScoutSafetyPolicyVersion ||
+		value.identity.RetrievalPolicyVersion != ContentScoutRetrievalPolicyVersion ||
+		!contentScoutDigestPattern.MatchString(value.agentFileDigest) ||
+		value.identity.Validate() != nil {
+		return errors.New("Content Scout configuration does not match its registered definition")
+	}
+	var handler contentScoutHandlerConfiguration
+	if _, err := decodeStrictBoundedJSON(
+		bytes.NewReader(value.identity.HandlerConfigurationJSON),
+		maxContentScoutConfigurationBytes,
+		&handler,
+	); err != nil || handler.AgentFileDigest != value.agentFileDigest ||
+		!contentScoutDigestPattern.MatchString(handler.DisclosureConfigurationDigest) {
+		return errors.New("Content Scout handler configuration is invalid")
+	}
+	terms, err := normalizeApprovedPublicTerms(contentScoutDisclosureFile{
+		SchemaVersion:       ContentScoutDisclosureSchemaVersion,
+		ApprovedPublicTerms: handler.ApprovedPublicTerms,
+	})
+	if err != nil || !sameStrings(terms, handler.ApprovedPublicTerms) {
+		return errors.New("Content Scout approved public terms are invalid")
+	}
+	disclosure, err := json.Marshal(contentScoutDisclosureFile{
+		SchemaVersion: ContentScoutDisclosureSchemaVersion, ApprovedPublicTerms: terms,
+	})
+	if err != nil {
+		return errors.New("Content Scout disclosure identity is unavailable")
+	}
+	digest, err := platform.Fingerprint(json.RawMessage(disclosure))
+	if err != nil || digest != handler.DisclosureConfigurationDigest {
+		return errors.New("Content Scout disclosure identity does not match approved terms")
+	}
+	return nil
 }
 
 func validateContentScoutAgentFile(value contentScoutAgentFile) error {

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/ferueda/noema/internal/domain"
 )
 
 func TestLoadContentScoutConfigurationCanonicalizesSafeIdentity(t *testing.T) {
@@ -21,15 +23,15 @@ func TestLoadContentScoutConfigurationCanonicalizesSafeIdentity(t *testing.T) {
 			"schemaVersion": 1
 		}`,
 	)
-	if first.Identity.Digest != second.Identity.Digest ||
-		first.AgentFileDigest != second.AgentFileDigest {
+	if first.identity.Digest != second.identity.Digest ||
+		first.agentFileDigest != second.agentFileDigest {
 		t.Fatalf("equivalent configuration digests differ: %#v / %#v", first, second)
 	}
 	var handler map[string]any
-	if err := json.Unmarshal(first.Identity.HandlerConfigurationJSON, &handler); err != nil {
+	if err := json.Unmarshal(first.identity.HandlerConfigurationJSON, &handler); err != nil {
 		t.Fatalf("decode handler configuration: %v", err)
 	}
-	if len(handler) != 3 || handler["agentFileDigest"] != first.AgentFileDigest ||
+	if len(handler) != 3 || handler["agentFileDigest"] != first.agentFileDigest ||
 		handler["disclosureConfigurationDigest"] == "" {
 		t.Fatalf("handler configuration = %#v", handler)
 	}
@@ -42,9 +44,20 @@ func TestLoadContentScoutConfigurationCanonicalizesSafeIdentity(t *testing.T) {
 		"NOEMA_EVE_ROUTE_PASSWORD",
 		"AI_GATEWAY_API_KEY",
 	} {
-		if bytes.Contains(first.Identity.HandlerConfigurationJSON, []byte(forbidden)) {
+		if bytes.Contains(first.identity.HandlerConfigurationJSON, []byte(forbidden)) {
 			t.Fatalf("handler configuration contains %q", forbidden)
 		}
+	}
+
+	changed := first
+	changed.identity.Route.Provider = "cerebras"
+	var err error
+	changed.identity.Digest, err = domain.AgentConfigurationDigest(changed.identity)
+	if err != nil {
+		t.Fatalf("digest changed configuration: %v", err)
+	}
+	if changed.validate() == nil {
+		t.Fatal("constructed configuration outside the registered route was accepted")
 	}
 }
 

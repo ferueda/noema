@@ -161,15 +161,15 @@ func TestValidateAgentJobRecordV1RejectsChangedIdentity(t *testing.T) {
 		Inputs: domain.KnowledgeInputRefsV1{
 			AnalysisRunID: "analysis-one", ClaimIDs: []string{"claim-one"},
 		},
-		Configuration: configuration.Identity,
+		Configuration: configuration.identity,
 	}
-	fingerprint, err := domain.AgentJobFingerprint("event-one", configuration.Agent, payload)
+	fingerprint, err := domain.AgentJobFingerprint("event-one", configuration.agent, payload)
 	if err != nil {
 		t.Fatalf("fingerprint job: %v", err)
 	}
 	job := AgentJobRecordV1{
 		ID: platform.DerivedID("job_", fingerprint), Fingerprint: fingerprint,
-		EventID: "event-one", Agent: configuration.Agent, Status: domain.JobPending,
+		EventID: "event-one", Agent: configuration.agent, Status: domain.JobPending,
 		Payload: payload, CreatedAt: now,
 	}
 	if err := ValidateAgentJobRecordV1(job); err != nil {

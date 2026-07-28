@@ -54,10 +54,7 @@ func (matcher SubscriptionMatcher) MatchContentScout(
 	configuration ContentScoutConfiguration,
 ) (SubscriptionMatchResult, error) {
 	if matcher.Store == nil || matcher.Now == nil || analysisID == "" ||
-		configuration.Agent != (domain.AgentIdentity{
-			Name: ContentScoutAgentName, Version: ContentScoutAgentVersion,
-		}) ||
-		configuration.Identity.Validate() != nil {
+		configuration.validate() != nil {
 		return SubscriptionMatchResult{}, errors.New("Content Scout match request is invalid")
 	}
 	record, err := matcher.Store.LoadSemanticAnalysis(ctx, analysisID)
@@ -74,9 +71,9 @@ func (matcher SubscriptionMatcher) MatchContentScout(
 			AnalysisRunID: analysisID,
 			ClaimIDs:      append([]string{}, claimIDs...),
 		},
-		Configuration: configuration.Identity,
+		Configuration: configuration.identity,
 	}
-	fingerprint, err := domain.AgentJobFingerprint(event.ID, configuration.Agent, payload)
+	fingerprint, err := domain.AgentJobFingerprint(event.ID, configuration.agent, payload)
 	if err != nil {
 		return SubscriptionMatchResult{}, errors.New("Content Scout job identity is unavailable")
 	}
@@ -84,7 +81,7 @@ func (matcher SubscriptionMatcher) MatchContentScout(
 		ID:          platform.DerivedID("job_", fingerprint),
 		Fingerprint: fingerprint,
 		EventID:     event.ID,
-		Agent:       configuration.Agent,
+		Agent:       configuration.agent,
 		Status:      domain.JobPending,
 		Payload:     payload,
 		CreatedAt:   matcher.Now().UTC(),
@@ -99,7 +96,7 @@ func (matcher SubscriptionMatcher) MatchContentScout(
 	return SubscriptionMatchResult{
 		AnalysisID:          analysisID,
 		EventID:             event.ID,
-		ConfigurationDigest: configuration.Identity.Digest,
+		ConfigurationDigest: configuration.identity.Digest,
 		Jobs:                []SubscriptionJobMatch{{ID: job.ID, Created: created}},
 	}, nil
 }
