@@ -331,6 +331,45 @@ func TestContentScoutAdmitRejectsUnknownAndUnsafeOutputWithoutEchoingIt(
 	}
 }
 
+func TestContentScoutAdmitRejectsCompleteBatchForNovelAbsolutePath(
+	t *testing.T,
+) {
+	fixture := newContentScoutFixture(t, nil)
+	prepared := prepareContentScoutFixture(t, fixture)
+	candidates := domain.ContentScoutCandidatesV1{Ideas: []domain.ContentIdeaCandidateV1{
+		contentScoutCandidate("A useful lesson about verification", []string{"claim-one"}),
+		contentScoutCandidate("Do not expose /secret", []string{"claim-one"}),
+	}}
+
+	admission, err := prepared.AdmitCandidates(
+		marshalCandidates(t, candidates),
+		"run-one",
+		time.Date(2026, 7, 28, 20, 0, 0, 0, time.UTC),
+	)
+	var failure ContentScoutApplicationFailure
+	if !errors.As(err, &failure) ||
+		failure.Category != domain.AgentFailureCategoryPrivacyBlocked ||
+		len(admission.Artifacts) != 0 {
+		t.Fatalf("unsafe batch admission = %#v, failure = %#v, %v", admission, failure, err)
+	}
+	if strings.Contains(err.Error(), "/secret") {
+		t.Fatalf("failure exposed generated path: %v", err)
+	}
+
+	safeAdmission, err := prepared.AdmitCandidates(
+		marshalCandidates(t, domain.ContentScoutCandidatesV1{
+			Ideas: []domain.ContentIdeaCandidateV1{
+				contentScoutCandidate("A useful lesson about verification", []string{"claim-one"}),
+			},
+		}),
+		"run-two",
+		time.Date(2026, 7, 28, 20, 1, 0, 0, time.UTC),
+	)
+	if err != nil || len(safeAdmission.Artifacts) != 1 {
+		t.Fatalf("ordinary prose admission = %#v, %v", safeAdmission, err)
+	}
+}
+
 func TestContentScoutAdmitUsesStrictCandidateDecodingAndDuplicateChecks(
 	t *testing.T,
 ) {

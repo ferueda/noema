@@ -326,6 +326,9 @@ func disclosureIdentifierLocations(value string) [][]int {
 			unique[[2]int{location[0], location[1]}] = struct{}{}
 		}
 	}
+	for _, location := range disclosureCapturedLocations(value, posixPathPattern, 2) {
+		unique[[2]int{location[0], location[1]}] = struct{}{}
+	}
 	result := make([][]int, 0, len(unique))
 	for location := range unique {
 		result = append(result, []int{location[0], location[1]})
@@ -348,6 +351,22 @@ func disclosureIdentifierLocations(value string) [][]int {
 		}
 	}
 	return merged
+}
+
+func disclosureCapturedLocations(
+	value string,
+	pattern *regexp.Regexp,
+	group int,
+) [][]int {
+	result := make([][]int, 0)
+	for _, location := range pattern.FindAllStringSubmatchIndex(value, -1) {
+		offset := group * 2
+		if offset+1 >= len(location) || location[offset] < 0 {
+			continue
+		}
+		result = append(result, []int{location[offset], location[offset+1]})
+	}
+	return result
 }
 
 func normalizeDisclosureValue(value string) string {

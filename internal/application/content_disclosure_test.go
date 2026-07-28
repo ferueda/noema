@@ -54,6 +54,10 @@ func TestContentDisclosurePolicyRejectsNovelIdentifiersButAllowsOrdinaryProse(
 	if err == nil || report.counts[disclosureNovelIdentifier] != 1 {
 		t.Fatalf("novel identifier result = %#v, %v", report, err)
 	}
+	report, err = policy.Postflight("The hidden path was /secret")
+	if err == nil || report.counts[disclosureNovelIdentifier] != 1 {
+		t.Fatalf("novel absolute path result = %#v, %v", report, err)
+	}
 }
 
 func TestContentDisclosurePolicyDoesNotLetSafePrefixExemptPrivateIdentifier(
