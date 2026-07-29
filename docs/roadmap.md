@@ -168,7 +168,7 @@ processing identity.
 - Validate schema, evidence, confidence, status, contradiction, privacy, and
   consistency with stronger deterministic facts.
 - Store admitted claims, processing identity, safe failures, and
-  consumer-neutral knowledge events.
+  consumer-neutral domain events.
 - Record a separate semantic `AnalysisRun`.
 - Keep summaries optional and rebuildable.
 - Commit the semantic analysis, claims, granular events, and

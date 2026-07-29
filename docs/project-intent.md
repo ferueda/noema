@@ -305,7 +305,7 @@ outcomes remain unknown, and source capture omissions remain visible.
    privacy, contradiction, and deterministic-consistency checks.
 4. Preserve whether each claim is observed, inferred, or uncertain, together
    with confidence and contradictory evidence.
-5. Store admitted claims and consumer-neutral knowledge events atomically.
+5. Store admitted claims and consumer-neutral domain events atomically.
 
 The semantic evaluator remains a development tool, not a product stage. The
 reviewed V2 corpus showed no unsupported admitted claim, while conservative
