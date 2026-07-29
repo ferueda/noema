@@ -349,8 +349,9 @@ second verifier or continue prompt tuning from this corpus alone.
 
 - Status: in progress — V1 contracts, clean persistence, deterministic local
   subscription matching, the offline dispatcher, local admission, terminal
-  runs, and artifact persistence are implemented; production Eve wiring,
-  canary proof, and real-session acceptance remain
+  runs, artifact persistence, and the strict Go Eve adapter are implemented;
+  the TypeScript Eve agent, production wiring, canary proof, and real-session
+  acceptance remain
 
 ### Goal
 
