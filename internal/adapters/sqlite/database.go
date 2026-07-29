@@ -15,6 +15,10 @@ import (
 //go:embed migrations/*.sql
 var migrationFiles embed.FS
 
+var errIncompatibleV1Schema = errors.New(
+	"database schema is incompatible with V1; create a new database",
+)
+
 func Open(ctx context.Context, path string) (*sql.DB, error) {
 	database, err := sql.Open("sqlite", path)
 	if err != nil {
@@ -25,11 +29,15 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 		database.Close()
 		return nil, err
 	}
+	if err := rejectPreV1Schema(ctx, database); err != nil {
+		database.Close()
+		return nil, err
+	}
 	if err := migrate(ctx, database); err != nil {
 		database.Close()
 		return nil, err
 	}
-	if err := validateMigratedEvents(ctx, database); err != nil {
+	if err := validateCurrentSchema(ctx, database); err != nil {
 		database.Close()
 		return nil, err
 	}
@@ -72,21 +80,119 @@ func migrate(ctx context.Context, database *sql.DB) error {
 	return nil
 }
 
-func validateMigratedEvents(ctx context.Context, database *sql.DB) error {
-	var eventID, eventType string
-	err := database.QueryRowContext(ctx, `
-		SELECT events.id, events.type
-		  FROM events
-		  LEFT JOIN event_subject_types ON event_subject_types.event_id = events.id
-		 WHERE event_subject_types.event_id IS NULL
-		 ORDER BY events.id
-		 LIMIT 1
-	`).Scan(&eventID, &eventType)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil
+func rejectPreV1Schema(ctx context.Context, database *sql.DB) error {
+	for _, table := range retiredTables() {
+		found, err := schemaTableExists(ctx, database, table)
+		if err != nil {
+			return err
+		}
+		if found {
+			return errIncompatibleV1Schema
+		}
 	}
-	if err != nil {
-		return fmt.Errorf("validate event subject types: %w", err)
+	for _, requirement := range currentSchemaRequirements() {
+		found, err := schemaTableExists(ctx, database, requirement.table)
+		if err != nil {
+			return err
+		}
+		if !found {
+			continue
+		}
+		count, err := schemaColumnCount(ctx, database, requirement.table, requirement.column)
+		if err != nil {
+			return err
+		}
+		if count != 1 {
+			return errIncompatibleV1Schema
+		}
 	}
-	return fmt.Errorf("event %s has unsupported type %s", eventID, eventType)
+	return nil
+}
+
+func validateCurrentSchema(ctx context.Context, database *sql.DB) error {
+	for _, requirement := range currentSchemaRequirements() {
+		count, err := schemaColumnCount(ctx, database, requirement.table, requirement.column)
+		if err != nil {
+			return err
+		}
+		if count != 1 {
+			return errIncompatibleV1Schema
+		}
+	}
+	for _, table := range retiredTables() {
+		found, err := schemaTableExists(ctx, database, table)
+		if err != nil {
+			return err
+		}
+		if found {
+			return errIncompatibleV1Schema
+		}
+	}
+	return nil
+}
+
+func retiredTables() []string {
+	return []string{
+		"scans",
+		"evidence_chunks",
+		"observations",
+		"jobs",
+		"agent_runs",
+		"content_ideas",
+		"event_subject_types",
+	}
+}
+
+func currentSchemaRequirements() []struct {
+	table  string
+	column string
+} {
+	return []struct {
+		table  string
+		column string
+	}{
+		{table: "events", column: "id"},
+		{table: "events", column: "fingerprint"},
+		{table: "events", column: "schema_version"},
+		{table: "events", column: "type"},
+		{table: "events", column: "subject_type"},
+		{table: "events", column: "subject_id"},
+		{table: "events", column: "payload_json"},
+		{table: "events", column: "references_json"},
+		{table: "events", column: "created_at"},
+		{table: "event_outbox", column: "event_id"},
+		{table: "event_outbox", column: "status"},
+		{table: "event_outbox", column: "attempt_count"},
+		{table: "event_outbox", column: "last_failure_category"},
+		{table: "event_outbox", column: "acknowledgement_id"},
+		{table: "event_outbox", column: "delivered_at"},
+	}
+}
+
+func schemaTableExists(ctx context.Context, database *sql.DB, table string) (bool, error) {
+	var count int
+	if err := database.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?",
+		table,
+	).Scan(&count); err != nil {
+		return false, fmt.Errorf("validate V1 database schema: %w", err)
+	}
+	return count == 1, nil
+}
+
+func schemaColumnCount(
+	ctx context.Context,
+	database *sql.DB,
+	table string,
+	column string,
+) (int, error) {
+	query := fmt.Sprintf(
+		"SELECT COUNT(*) FROM pragma_table_info('%s') WHERE name = ?",
+		table,
+	)
+	var count int
+	if err := database.QueryRowContext(ctx, query, column).Scan(&count); err != nil {
+		return 0, fmt.Errorf("validate V1 database schema: %w", err)
+	}
+	return count, nil
 }

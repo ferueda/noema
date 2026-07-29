@@ -106,13 +106,13 @@ func TestSemanticAnalysisDurabilityThroughCLI(t *testing.T) {
 		t.Fatalf("reopen semantic database: %v", err)
 	}
 	defer database.Close()
-	for _, table := range []string{"jobs", "agent_runs", "content_ideas"} {
+	for _, table := range []string{"events", "event_outbox"} {
 		var count int
 		if err := database.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&count); err != nil {
 			t.Fatalf("count %s: %v", table, err)
 		}
-		if count != 0 {
-			t.Fatalf("%s count = %d, want 0", table, count)
+		if count != 4 {
+			t.Fatalf("%s count = %d, want 4", table, count)
 		}
 	}
 }

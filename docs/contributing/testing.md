@@ -35,6 +35,12 @@ Prefer an existing layer and directory before inventing a new test structure.
 One acceptance criterion should not be repeated at every layer unless each test
 protects a distinct failure mode.
 
+Publisher tests use fake adapters or temporary JSONL files. They must prove
+that failed attempts retain only a safe category, acknowledged attempts become
+delivered, repeated one-shot calls do not redeliver acknowledged events, and
+concurrent attempts do not intentionally select the same pending event. They do
+not run a consumer or claim end-to-end consumer completion.
+
 ## Fixture and state safety
 
 - Create SQLite databases and filesystem state under a test-owned temporary

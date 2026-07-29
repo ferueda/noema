@@ -35,6 +35,31 @@ It must not leave a `noema` binary or mutate tracked source.
 The GitHub Actions workflow calls the same `make check` target. Do not duplicate
 gate logic in workflow YAML.
 
+## Local event publication
+
+Inspect events and their outbox state:
+
+```sh
+go run ./cmd/noema events list --status pending --database /path/to/noema.db
+go run ./cmd/noema events show '<event-id>' --database /path/to/noema.db
+```
+
+Publish the oldest pending event to a visible local JSONL transport:
+
+```sh
+go run ./cmd/noema events publish --once \
+  --output /path/to/events.jsonl \
+  --database /path/to/noema.db
+```
+
+The command performs one bounded attempt. It has no retry loop and does not run
+a subscriber or agent. `delivered` means only that the JSONL adapter completed
+and synced its append before Noema committed the acknowledgement.
+
+Noema V1 intentionally rejects databases from the removed pre-V1 runtime
+scaffold. Recreate the local database instead of adding a compatibility or
+backfill path. Sessions remains the canonical evidence store.
+
 ## Failure flow
 
 1. Read the first failing command and its native Go diagnostic.
