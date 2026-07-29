@@ -158,6 +158,54 @@ func TestPublisherRemovesPartialRecordBeforeRetry(t *testing.T) {
 	}
 }
 
+func TestPublisherRefusesRetryUntilIncompleteTailRepairSucceeds(t *testing.T) {
+	tests := []struct {
+		name string
+		file *jsonlTestFile
+	}{
+		{
+			name: "truncate failure",
+			file: &jsonlTestFile{
+				partialWrite: true,
+				truncateErr:  errors.New("truncate failed"),
+			},
+		},
+		{
+			name: "repair sync failure",
+			file: &jsonlTestFile{
+				partialWrite:          true,
+				truncateWithoutChange: true,
+				syncErr:               errors.New("repair sync failed"),
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			publisher := &Publisher{
+				path: "ignored",
+				open: func(string, int, fs.FileMode) (appendFile, error) {
+					return test.file, nil
+				},
+			}
+			event := jsonlTestEvent(t, "analysis-1")
+			if _, err := publisher.Publish(context.Background(), event); !errors.Is(err, ErrPublicationFailed) {
+				t.Fatalf("partial publication error = %v", err)
+			}
+			if test.file.Len() == 0 {
+				t.Fatal("fixture did not retain the unsafe partial tail")
+			}
+			writes := test.file.writeCalls
+			test.file.partialWrite = false
+			if _, err := publisher.Publish(context.Background(), event); !errors.Is(err, ErrPublicationFailed) {
+				t.Fatalf("unsafe retry error = %v", err)
+			}
+			if test.file.writeCalls != writes {
+				t.Fatalf("unsafe retry appended after fragment: writes=%d, want %d", test.file.writeCalls, writes)
+			}
+		})
+	}
+}
+
 func jsonlTestEvent(t *testing.T, analysisID string) domain.DomainEvent {
 	t.Helper()
 	event, err := domain.NewDomainEvent(
@@ -183,9 +231,14 @@ type jsonlTestFile struct {
 	writeErr     error
 	syncErr      error
 	closeErr     error
+	truncateErr  error
+
+	truncateWithoutChange bool
+	writeCalls            int
 }
 
 func (file *jsonlTestFile) Write(contents []byte) (int, error) {
+	file.writeCalls++
 	if file.writeErr != nil {
 		return 0, file.writeErr
 	}
@@ -193,6 +246,17 @@ func (file *jsonlTestFile) Write(contents []byte) (int, error) {
 		return file.Buffer.Write(contents[:len(contents)-1])
 	}
 	return file.Buffer.Write(contents)
+}
+
+func (file *jsonlTestFile) ReadAt(destination []byte, offset int64) (int, error) {
+	if offset < 0 || offset > int64(file.Len()) {
+		return 0, errors.New("invalid read offset")
+	}
+	read := copy(destination, file.Bytes()[offset:])
+	if read != len(destination) {
+		return read, io.EOF
+	}
+	return read, nil
 }
 
 func (file *jsonlTestFile) Seek(offset int64, whence int) (int64, error) {
@@ -203,8 +267,14 @@ func (file *jsonlTestFile) Seek(offset int64, whence int) (int64, error) {
 }
 
 func (file *jsonlTestFile) Truncate(size int64) error {
+	if file.truncateErr != nil {
+		return file.truncateErr
+	}
 	if size < 0 || size > int64(file.Len()) {
 		return errors.New("invalid truncate")
+	}
+	if file.truncateWithoutChange {
+		return nil
 	}
 	contents := append([]byte{}, file.Bytes()[:size]...)
 	file.Buffer.Reset()
