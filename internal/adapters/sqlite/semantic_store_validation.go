@@ -83,7 +83,9 @@ func validateCompletedSemanticRecord(record application.SemanticAnalysisRecord) 
 				RecordID:   factID,
 			})
 		}
-		if event.Type != "claim.admitted" || event.SubjectType != "claim" || event.SubjectID != claim.ID ||
+		if event.Type != domain.EventTypeClaimAdmitted ||
+			event.SubjectType != domain.EventReferenceClaim ||
+			event.SubjectID != claim.ID ||
 			event.SchemaVersion != domain.DomainEventSchemaVersionV1 ||
 			eventPayloadString(event.Payload, "claimId") != claim.ID ||
 			eventPayloadString(event.Payload, "analysisId") != run.ID ||
@@ -100,7 +102,8 @@ func validateCompletedSemanticRecord(record application.SemanticAnalysisRecord) 
 			RecordID:   claimID,
 		})
 	}
-	if completed.Type != "analysis.completed" || completed.SubjectType != "analysis" ||
+	if completed.Type != domain.EventTypeAnalysisCompleted ||
+		completed.SubjectType != domain.EventReferenceAnalysis ||
 		completed.SubjectID != run.ID ||
 		completed.SchemaVersion != domain.DomainEventSchemaVersionV1 ||
 		eventPayloadString(completed.Payload, "analysisId") != run.ID ||

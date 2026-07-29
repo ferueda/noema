@@ -2,6 +2,7 @@ package domain
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -95,7 +96,7 @@ func TestDomainEventValidationRejectsInvalidIdentityAndBounds(t *testing.T) {
 		{name: "schema", change: func(event *DomainEvent) { event.SchemaVersion = 2 }},
 		{name: "ID", change: func(event *DomainEvent) { event.ID = "evt_other" }},
 		{name: "fingerprint", change: func(event *DomainEvent) { event.Fingerprint = strings.Repeat("0", 64) }},
-		{name: "type", change: func(event *DomainEvent) { event.Type = "completed" }},
+		{name: "type", change: func(event *DomainEvent) { event.Type = "analysis.updated" }},
 		{name: "subject type", change: func(event *DomainEvent) { event.SubjectType = "consumer" }},
 		{name: "subject ID", change: func(event *DomainEvent) { event.SubjectID = "" }},
 		{name: "creation time", change: func(event *DomainEvent) { event.CreatedAt = time.Time{} }},
@@ -106,8 +107,8 @@ func TestDomainEventValidationRejectsInvalidIdentityAndBounds(t *testing.T) {
 		{name: "reference", change: func(event *DomainEvent) {
 			event.References = []EventReference{{RecordType: "agent-run", RecordID: "run_1"}}
 		}},
-		{name: "oversized payload", change: func(event *DomainEvent) {
-			event.Payload["detail"] = strings.Repeat("x", maxEventPayloadBytes)
+		{name: "unexpected payload field", change: func(event *DomainEvent) {
+			event.Payload["detail"] = "not part of the V1 contract"
 		}},
 	}
 	for _, test := range tests {
@@ -123,24 +124,68 @@ func TestDomainEventValidationRejectsInvalidIdentityAndBounds(t *testing.T) {
 	}
 }
 
-func TestDomainEventPayloadAcceptsBoundedDomainMetadata(t *testing.T) {
-	event, err := NewDomainEvent(
+func TestDomainEventRejectsConsumerSpecificAndPrivatePayloadFields(t *testing.T) {
+	for _, field := range []string{
+		"consumerName",
+		"prompt",
+		"model",
+		"evidence",
+		"rawTranscript",
+		"consumerInput",
+	} {
+		t.Run(field, func(t *testing.T) {
+			_, err := NewDomainEvent(
+				EventTypeClaimAdmitted,
+				EventReferenceClaim,
+				"claim_123",
+				map[string]any{
+					"claimId":    "claim_123",
+					"analysisId": "analysis_123",
+					field:        "must not cross the event boundary",
+				},
+				[]EventReference{{
+					RecordType: EventReferenceAnalysis,
+					RecordID:   "analysis_123",
+				}},
+				time.Now(),
+			)
+			if err == nil {
+				t.Fatal("consumer-specific or private payload field was accepted")
+			}
+		})
+	}
+}
+
+func TestDomainEventRejectsUnsupportedEventTypeAndOversizedPayload(t *testing.T) {
+	if _, err := NewDomainEvent(
 		"fact.observed",
 		EventReferenceFact,
 		"fact_123",
-		map[string]any{
-			"factId":    "fact_123",
-			"factKind":  "tool-call",
-			"toolCount": 1,
-		},
-		nil,
+		map[string]any{"factId": "fact_123"},
+		[]EventReference{},
 		time.Now(),
-	)
-	if err != nil {
-		t.Fatalf("bounded domain metadata was rejected: %v", err)
+	); err == nil {
+		t.Fatal("unsupported V1 event type was accepted")
 	}
-	if err := event.Validate(); err != nil {
-		t.Fatalf("validate event: %v", err)
+
+	claimIDs := make([]string, 100)
+	references := make([]EventReference, 100)
+	for index := range claimIDs {
+		claimIDs[index] = fmt.Sprintf("claim_%03d_%s", index, strings.Repeat("x", 190))
+		references[index] = EventReference{
+			RecordType: EventReferenceClaim,
+			RecordID:   claimIDs[index],
+		}
+	}
+	if _, err := NewDomainEvent(
+		EventTypeAnalysisCompleted,
+		EventReferenceAnalysis,
+		"analysis_123",
+		map[string]any{"analysisId": "analysis_123", "claimIds": claimIDs},
+		references,
+		time.Now(),
+	); err == nil {
+		t.Fatal("oversized V1 event payload was accepted")
 	}
 }
 

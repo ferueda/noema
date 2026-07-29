@@ -47,7 +47,10 @@ func TestPublisherAppendsCompleteDomainEvent(t *testing.T) {
 	if err := decoded.Validate(); err != nil {
 		t.Fatalf("validate decoded event: %v", err)
 	}
-	if !reflect.DeepEqual(decoded, event) {
+	if decoded.ID != event.ID ||
+		decoded.Fingerprint != event.Fingerprint ||
+		decoded.CreatedAt != event.CreatedAt ||
+		!reflect.DeepEqual(decoded.References, event.References) {
 		t.Fatalf("decoded event does not match: %#v", decoded)
 	}
 	info, err := os.Stat(path)
@@ -121,19 +124,51 @@ func TestPublisherRejectsCanceledContextBeforeOpeningFile(t *testing.T) {
 	}
 }
 
+func TestPublisherRemovesPartialRecordBeforeRetry(t *testing.T) {
+	file := &jsonlTestFile{partialWrite: true}
+	publisher := &Publisher{
+		path: "ignored",
+		open: func(string, int, fs.FileMode) (appendFile, error) {
+			return file, nil
+		},
+	}
+	event := jsonlTestEvent(t, "analysis-1")
+
+	if _, err := publisher.Publish(context.Background(), event); !errors.Is(err, ErrPublicationFailed) {
+		t.Fatalf("partial publication error = %v", err)
+	}
+	if file.Len() != 0 {
+		t.Fatalf("partial publication left %d bytes", file.Len())
+	}
+
+	file.partialWrite = false
+	if _, err := publisher.Publish(context.Background(), event); err != nil {
+		t.Fatalf("retry publication: %v", err)
+	}
+	contents := file.Bytes()
+	if bytes.Count(contents, []byte{'\n'}) != 1 {
+		t.Fatalf("retry JSONL = %q", contents)
+	}
+	var decoded domain.DomainEvent
+	if err := json.Unmarshal(bytes.TrimSuffix(contents, []byte{'\n'}), &decoded); err != nil {
+		t.Fatalf("decode retry event: %v", err)
+	}
+	if decoded.ID != event.ID {
+		t.Fatalf("retry event ID = %q, want %q", decoded.ID, event.ID)
+	}
+}
+
 func jsonlTestEvent(t *testing.T, analysisID string) domain.DomainEvent {
 	t.Helper()
 	event, err := domain.NewDomainEvent(
-		"analysis.completed",
+		domain.EventTypeAnalysisCompleted,
 		domain.EventReferenceAnalysis,
 		analysisID,
 		map[string]any{
 			"analysisId": analysisID,
+			"claimIds":   []string{},
 		},
-		[]domain.EventReference{{
-			RecordType: domain.EventReferenceAnalysis,
-			RecordID:   analysisID,
-		}},
+		[]domain.EventReference{},
 		time.Date(2026, 7, 28, 10, 0, 0, 0, time.UTC),
 	)
 	if err != nil {
@@ -155,9 +190,26 @@ func (file *jsonlTestFile) Write(contents []byte) (int, error) {
 		return 0, file.writeErr
 	}
 	if file.partialWrite {
-		return len(contents) - 1, nil
+		return file.Buffer.Write(contents[:len(contents)-1])
 	}
 	return file.Buffer.Write(contents)
+}
+
+func (file *jsonlTestFile) Seek(offset int64, whence int) (int64, error) {
+	if offset != 0 || whence != io.SeekEnd {
+		return 0, errors.New("unsupported seek")
+	}
+	return int64(file.Len()), nil
+}
+
+func (file *jsonlTestFile) Truncate(size int64) error {
+	if size < 0 || size > int64(file.Len()) {
+		return errors.New("invalid truncate")
+	}
+	contents := append([]byte{}, file.Bytes()[:size]...)
+	file.Buffer.Reset()
+	_, _ = file.Buffer.Write(contents)
+	return nil
 }
 
 func (file *jsonlTestFile) Sync() error {
@@ -168,4 +220,4 @@ func (file *jsonlTestFile) Close() error {
 	return file.closeErr
 }
 
-var _ io.Writer = (*jsonlTestFile)(nil)
+var _ appendFile = (*jsonlTestFile)(nil)

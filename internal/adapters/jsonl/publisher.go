@@ -18,6 +18,8 @@ var (
 
 type appendFile interface {
 	io.Writer
+	io.Seeker
+	Truncate(int64) error
 	Sync() error
 	Close() error
 }
@@ -63,11 +65,17 @@ func (publisher *Publisher) Publish(
 	if err != nil {
 		return "", ErrPublicationFailed
 	}
+	startOffset, err := file.Seek(0, io.SeekEnd)
+	if err != nil {
+		_ = file.Close()
+		return "", ErrPublicationFailed
+	}
 	written, writeErr := file.Write(encoded)
 	if writeErr == nil && written != len(encoded) {
 		writeErr = io.ErrShortWrite
 	}
 	if writeErr != nil {
+		rollbackAppend(file, startOffset)
 		_ = file.Close()
 		return "", ErrPublicationFailed
 	}
@@ -79,4 +87,10 @@ func (publisher *Publisher) Publish(
 		return "", ErrPublicationFailed
 	}
 	return "", nil
+}
+
+func rollbackAppend(file appendFile, offset int64) {
+	if err := file.Truncate(offset); err == nil {
+		_ = file.Sync()
+	}
 }

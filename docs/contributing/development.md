@@ -54,7 +54,9 @@ go run ./cmd/noema events publish --once \
 
 The command performs one bounded attempt. It has no retry loop and does not run
 a subscriber or agent. `delivered` means only that the JSONL adapter completed
-and synced its append before Noema committed the acknowledgement.
+and synced its append before Noema committed the acknowledgement. Treat the
+configured JSONL path as owned by this publisher; do not have unrelated writers
+append to it concurrently.
 
 Noema V1 intentionally rejects databases from the removed pre-V1 runtime
 scaffold. Recreate the local database instead of adding a compatibility or

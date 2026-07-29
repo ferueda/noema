@@ -261,16 +261,14 @@ type publicationTestAttempt struct {
 func publicationTestAttemptFor(t *testing.T) *publicationTestAttempt {
 	t.Helper()
 	event, err := domain.NewDomainEvent(
-		"analysis.completed",
+		domain.EventTypeAnalysisCompleted,
 		domain.EventReferenceAnalysis,
 		"analysis-1",
 		map[string]any{
 			"analysisId": "analysis-1",
+			"claimIds":   []string{},
 		},
-		[]domain.EventReference{{
-			RecordType: domain.EventReferenceAnalysis,
-			RecordID:   "analysis-1",
-		}},
+		[]domain.EventReference{},
 		time.Date(2026, 7, 28, 10, 0, 0, 0, time.UTC),
 	)
 	if err != nil {

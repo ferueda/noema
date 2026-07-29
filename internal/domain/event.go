@@ -4,8 +4,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"math"
-	"reflect"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -22,12 +20,14 @@ const (
 	EventReferenceSummary  = "summary"
 	EventReferenceEpisode  = "episode"
 
+	EventTypeClaimAdmitted     = "claim.admitted"
+	EventTypeAnalysisCompleted = "analysis.completed"
+
 	maxEventIDBytes        = 128
 	maxEventTypeBytes      = 128
 	maxEventSubjectIDBytes = 256
 	maxEventPayloadBytes   = 16 * 1024
 	maxEventReferences     = 256
-	maxEventPayloadDepth   = 16
 )
 
 // EventReference points to one Noema-owned record. It never points to a
@@ -125,7 +125,7 @@ func (event DomainEvent) Validate() error {
 	if !validFingerprint(event.Fingerprint) {
 		return errors.New("domain event fingerprint is invalid")
 	}
-	if !boundedEventValue(event.Type, maxEventTypeBytes) || !validEventType(event.Type) {
+	if !boundedEventValue(event.Type, maxEventTypeBytes) {
 		return errors.New("domain event type is invalid")
 	}
 	if !validEventReferenceType(event.SubjectType) {
@@ -137,9 +137,6 @@ func (event DomainEvent) Validate() error {
 	if event.CreatedAt.IsZero() {
 		return errors.New("domain event creation time is required")
 	}
-	if err := validateEventPayload(event.Payload); err != nil {
-		return err
-	}
 	if len(event.References) > maxEventReferences {
 		return errors.New("domain event has too many references")
 	}
@@ -150,6 +147,9 @@ func (event DomainEvent) Validate() error {
 		if err := reference.Validate(); err != nil {
 			return err
 		}
+	}
+	if err := validateEventContract(event); err != nil {
+		return err
 	}
 	fingerprint, err := DomainEventFingerprint(
 		event.SchemaVersion,
@@ -188,101 +188,108 @@ func validEventReferenceType(value string) bool {
 	}
 }
 
-func validateEventPayload(payload map[string]any) error {
-	if payload == nil {
+func validateEventContract(event DomainEvent) error {
+	if event.Payload == nil {
 		return errors.New("domain event payload is required")
 	}
-	if _, duplicated := payload["schemaVersion"]; duplicated {
-		return errors.New("domain event payload duplicates the envelope schema version")
-	}
-	if err := validateEventPayloadValue(reflect.ValueOf(payload), 0); err != nil {
-		return err
-	}
-	encoded, err := json.Marshal(payload)
+	encoded, err := json.Marshal(event.Payload)
 	if err != nil {
 		return errors.New("domain event payload is not valid JSON")
 	}
 	if len(encoded) > maxEventPayloadBytes {
 		return errors.New("domain event payload is too large")
 	}
+	switch event.Type {
+	case EventTypeClaimAdmitted:
+		return validateClaimAdmittedEvent(event)
+	case EventTypeAnalysisCompleted:
+		return validateAnalysisCompletedEvent(event)
+	default:
+		return errors.New("domain event type is unsupported")
+	}
+}
+
+func validateClaimAdmittedEvent(event DomainEvent) error {
+	if event.SubjectType != EventReferenceClaim || len(event.Payload) != 2 {
+		return errors.New("claim event envelope is invalid")
+	}
+	claimID, claimOK := eventPayloadString(event.Payload, "claimId")
+	analysisID, analysisOK := eventPayloadString(event.Payload, "analysisId")
+	if !claimOK || !analysisOK || claimID != event.SubjectID ||
+		len(event.References) == 0 ||
+		event.References[0] != (EventReference{
+			RecordType: EventReferenceAnalysis,
+			RecordID:   analysisID,
+		}) {
+		return errors.New("claim event payload or analysis reference is invalid")
+	}
+	factIDs := make(map[string]struct{}, len(event.References)-1)
+	for _, reference := range event.References[1:] {
+		if reference.RecordType != EventReferenceFact {
+			return errors.New("claim event contains an invalid record reference")
+		}
+		if _, duplicate := factIDs[reference.RecordID]; duplicate {
+			return errors.New("claim event contains a duplicate fact reference")
+		}
+		factIDs[reference.RecordID] = struct{}{}
+	}
 	return nil
 }
 
-func validateEventPayloadValue(value reflect.Value, depth int) error {
-	if depth > maxEventPayloadDepth {
-		return errors.New("domain event payload is too deeply nested")
+func validateAnalysisCompletedEvent(event DomainEvent) error {
+	if event.SubjectType != EventReferenceAnalysis || len(event.Payload) != 2 {
+		return errors.New("analysis event envelope is invalid")
 	}
-	if !value.IsValid() {
-		return nil
+	analysisID, analysisOK := eventPayloadString(event.Payload, "analysisId")
+	claimIDs, claimsOK := eventPayloadStrings(event.Payload, "claimIds")
+	if !analysisOK || !claimsOK || analysisID != event.SubjectID ||
+		len(claimIDs) != len(event.References) {
+		return errors.New("analysis event payload or references are invalid")
 	}
-	if value.Kind() == reflect.Interface {
-		if value.IsNil() {
-			return nil
+	seen := make(map[string]struct{}, len(claimIDs))
+	for index, claimID := range claimIDs {
+		if event.References[index] != (EventReference{
+			RecordType: EventReferenceClaim,
+			RecordID:   claimID,
+		}) {
+			return errors.New("analysis event claim reference is invalid")
 		}
-		return validateEventPayloadValue(value.Elem(), depth)
+		if _, duplicate := seen[claimID]; duplicate {
+			return errors.New("analysis event contains a duplicate claim reference")
+		}
+		seen[claimID] = struct{}{}
 	}
-	switch value.Kind() {
-	case reflect.Bool,
-		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return nil
-	case reflect.Float32, reflect.Float64:
-		if math.IsInf(value.Float(), 0) || math.IsNaN(value.Float()) {
-			return errors.New("domain event payload contains a non-finite number")
-		}
-		return nil
-	case reflect.String:
-		if !utf8.ValidString(value.String()) {
-			return errors.New("domain event payload contains invalid UTF-8")
-		}
-		return nil
-	case reflect.Map:
-		if value.Type().Key().Kind() != reflect.String {
-			return errors.New("domain event payload contains a non-string key")
-		}
-		iterator := value.MapRange()
-		for iterator.Next() {
-			key := iterator.Key().String()
-			if !boundedEventValue(key, maxEventSubjectIDBytes) {
-				return errors.New("domain event payload key is invalid")
-			}
-			if err := validateEventPayloadValue(iterator.Value(), depth+1); err != nil {
-				return err
-			}
-		}
-		return nil
-	case reflect.Slice, reflect.Array:
-		for index := range value.Len() {
-			if err := validateEventPayloadValue(value.Index(index), depth+1); err != nil {
-				return err
-			}
-		}
-		return nil
-	default:
-		return errors.New("domain event payload contains an unsupported value")
-	}
+	return nil
 }
 
-func validEventType(value string) bool {
-	parts := strings.Split(value, ".")
-	if len(parts) < 2 {
-		return false
-	}
-	for _, part := range parts {
-		if part == "" {
-			return false
-		}
-		for index, character := range part {
-			if character >= 'a' && character <= 'z' {
-				continue
+func eventPayloadString(payload map[string]any, key string) (string, bool) {
+	value, ok := payload[key].(string)
+	return value, ok && boundedEventValue(value, maxEventSubjectIDBytes)
+}
+
+func eventPayloadStrings(payload map[string]any, key string) ([]string, bool) {
+	switch values := payload[key].(type) {
+	case []string:
+		result := append([]string{}, values...)
+		for _, value := range result {
+			if !boundedEventValue(value, maxEventSubjectIDBytes) {
+				return nil, false
 			}
-			if index > 0 && (character == '-' || character >= '0' && character <= '9') {
-				continue
-			}
-			return false
 		}
+		return result, true
+	case []any:
+		result := make([]string, 0, len(values))
+		for _, item := range values {
+			value, ok := item.(string)
+			if !ok || !boundedEventValue(value, maxEventSubjectIDBytes) {
+				return nil, false
+			}
+			result = append(result, value)
+		}
+		return result, true
+	default:
+		return nil, false
 	}
-	return true
 }
 
 func validFingerprint(value string) bool {

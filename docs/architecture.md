@@ -268,13 +268,18 @@ retrieval limits require them.
 A meaningful derived-state change produces a small versioned event such as:
 
 ```text
-fact.observed
 claim.admitted
 analysis.completed
-summary.updated
-episode.created
-episode.updated
 ```
+
+Those are the only V1 event types. A later fact, summary, or episode event must
+add and validate its own exact payload and record-reference shape before it can
+cross the outbox boundary.
+
+- `claim.admitted` carries only `claimId` and `analysisId`; it references that
+  analysis followed by any supporting facts.
+- `analysis.completed` carries only `analysisId` and ordered `claimIds`; its
+  references are the same claims in the same order.
 
 The state change, event, and outbox record commit in one SQLite transaction.
 This prevents derived state from changing without a durable publication record.
@@ -827,8 +832,6 @@ These rejections are active architecture constraints, not deferred V0 choices.
 
 ## Deferred decisions
 
-- Exact event and outbox schemas for the V1 cutover.
-- Whether the first visible publisher writes JSONL or sends an HTTP event.
 - Which hosted event transport follows the local proof.
 - Whether a later need justifies more than one publisher route.
 - The bounded public read interface for external consumers.

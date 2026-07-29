@@ -3,7 +3,6 @@ package sqlite
 import (
 	"context"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -208,9 +207,8 @@ func TestEventInspectionRejectsTamperedEventContent(t *testing.T) {
 	); err != nil {
 		t.Fatalf("tamper event: %v", err)
 	}
-	if _, _, err := store.LoadEvent(ctx, eventID); err == nil ||
-		!strings.Contains(err.Error(), "fingerprint") {
-		t.Fatalf("tampered event error = %v, want fingerprint failure", err)
+	if _, _, err := store.LoadEvent(ctx, eventID); err == nil {
+		t.Fatal("tampered event was accepted")
 	}
 }
 

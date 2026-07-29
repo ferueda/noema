@@ -283,13 +283,23 @@ func loadSemanticEvents(
 ) ([]domain.DomainEvent, error) {
 	events := make([]domain.DomainEvent, 0, len(claims)+1)
 	for _, claim := range claims {
-		event, err := loadEvent(ctx, queryer, "claim.admitted", "claim", claim.ID)
+		event, err := loadEvent(
+			ctx, queryer,
+			domain.EventTypeClaimAdmitted,
+			domain.EventReferenceClaim,
+			claim.ID,
+		)
 		if err != nil {
 			return nil, fmt.Errorf("load claim event %s: %w", claim.ID, err)
 		}
 		events = append(events, event)
 	}
-	completed, err := loadEvent(ctx, queryer, "analysis.completed", "analysis", analysisID)
+	completed, err := loadEvent(
+		ctx, queryer,
+		domain.EventTypeAnalysisCompleted,
+		domain.EventReferenceAnalysis,
+		analysisID,
+	)
 	if errors.Is(err, sql.ErrNoRows) {
 		if len(events) == 0 {
 			return []domain.DomainEvent{}, nil

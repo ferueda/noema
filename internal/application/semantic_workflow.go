@@ -327,7 +327,7 @@ func buildSemanticEvents(analysis domain.SemanticAnalysis) ([]domain.DomainEvent
 			})
 		}
 		event, err := newSemanticEvent(
-			"claim.admitted", "claim", claim.ID,
+			domain.EventTypeClaimAdmitted, domain.EventReferenceClaim, claim.ID,
 			map[string]any{
 				"claimId":    claim.ID,
 				"analysisId": analysis.Run.ID,
@@ -347,7 +347,7 @@ func buildSemanticEvents(analysis domain.SemanticAnalysis) ([]domain.DomainEvent
 		})
 	}
 	completed, err := newSemanticEvent(
-		"analysis.completed", "analysis", analysis.Run.ID,
+		domain.EventTypeAnalysisCompleted, domain.EventReferenceAnalysis, analysis.Run.ID,
 		map[string]any{
 			"analysisId": analysis.Run.ID,
 			"claimIds":   append([]string{}, analysis.Run.ClaimIDs...),
