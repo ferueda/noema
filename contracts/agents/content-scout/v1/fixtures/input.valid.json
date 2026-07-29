@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "analysisRunId": "analysis_synthetic",
+  "coverage": {
+    "scope": "complete-retained-snapshot",
+    "selectedClaimCount": 1,
+    "selectedFactCount": 1
+  },
+  "claims": [
+    {
+      "id": "claim_synthetic_lesson",
+      "type": "lesson",
+      "statement": "A small deterministic check can prevent a repeated integration mistake.",
+      "status": "inferred",
+      "confidence": 0.9,
+      "outcome": null,
+      "supportingFactIds": [
+        "fact_synthetic_test"
+      ],
+      "supportingEvidenceIds": [
+        "evidence_synthetic_test"
+      ],
+      "contradictingEvidenceIds": []
+    }
+  ],
+  "facts": [
+    {
+      "id": "fact_synthetic_test",
+      "kind": "test",
+      "outcome": "success",
+      "value": {
+        "tool": null,
+        "command": null,
+        "test": {
+          "framework": "go",
+          "command": {
+            "text": "go test ./...",
+            "emittedUtf8Bytes": 13,
+            "originalUtf8Bytes": 13,
+            "truncated": false
+          },
+          "passed": 1,
+          "failed": 0,
+          "skipped": 0
+        },
+        "exitCode": null,
+        "error": null
+      },
+      "evidenceIds": [
+        "evidence_synthetic_test"
+      ]
+    }
+  ],
+  "omissions": {
+    "canonicalSegments": 0,
+    "omittedTextFactCount": 0,
+    "omittedTextOriginalUtf8Bytes": 0,
+    "unknownLineage": false
+  }
+}

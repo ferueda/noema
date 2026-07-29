@@ -1,0 +1,389 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:noema:agent:content-scout:input:v1",
+  "title": "ContentScoutInputV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "analysisRunId",
+    "coverage",
+    "claims",
+    "facts",
+    "omissions"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "analysisRunId": {
+      "$ref": "#/$defs/id"
+    },
+    "coverage": {
+      "$ref": "#/$defs/coverage"
+    },
+    "claims": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "$ref": "#/$defs/claim"
+      }
+    },
+    "facts": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "$ref": "#/$defs/fact"
+      }
+    },
+    "omissions": {
+      "$ref": "#/$defs/omissions"
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "idArray": {
+      "type": "array",
+      "maxItems": 256,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/id"
+      }
+    },
+    "boundedText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "selectedText": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "emittedUtf8Bytes",
+        "originalUtf8Bytes",
+        "truncated"
+      ],
+      "properties": {
+        "text": {
+          "$ref": "#/$defs/boundedText"
+        },
+        "emittedUtf8Bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "originalUtf8Bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "selectedClaimCount",
+        "selectedFactCount"
+      ],
+      "properties": {
+        "scope": {
+          "type": "string",
+          "enum": [
+            "complete-retained-snapshot",
+            "partial"
+          ]
+        },
+        "selectedClaimCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 128
+        },
+        "selectedFactCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 256
+        }
+      }
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "type",
+        "statement",
+        "status",
+        "confidence",
+        "outcome",
+        "supportingFactIds",
+        "supportingEvidenceIds",
+        "contradictingEvidenceIds"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "problem",
+            "symptom",
+            "hypothesis",
+            "failed-attempt",
+            "root-cause",
+            "decision",
+            "solution",
+            "verification",
+            "lesson"
+          ]
+        },
+        "statement": {
+          "$ref": "#/$defs/boundedText"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "observed",
+            "inferred",
+            "uncertain"
+          ]
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "outcome": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "success",
+            "failure",
+            "unknown",
+            null
+          ]
+        },
+        "supportingFactIds": {
+          "$ref": "#/$defs/idArray"
+        },
+        "supportingEvidenceIds": {
+          "$ref": "#/$defs/idArray"
+        },
+        "contradictingEvidenceIds": {
+          "$ref": "#/$defs/idArray"
+        }
+      }
+    },
+    "toolValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "name",
+        "namespace"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        },
+        "namespace": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        }
+      }
+    },
+    "testValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "framework",
+        "command",
+        "passed",
+        "failed",
+        "skipped"
+      ],
+      "properties": {
+        "framework": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "command": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/selectedText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "passed": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "failed": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "skipped": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        }
+      }
+    },
+    "factValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tool",
+        "command",
+        "test",
+        "exitCode",
+        "error"
+      ],
+      "properties": {
+        "tool": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/toolValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "command": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/selectedText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "test": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/testValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "exitCode": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/selectedText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "outcome",
+        "value",
+        "evidenceIds"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "kind": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "not-applicable",
+            "success",
+            "failure",
+            "unknown"
+          ]
+        },
+        "value": {
+          "$ref": "#/$defs/factValue"
+        },
+        "evidenceIds": {
+          "$ref": "#/$defs/idArray"
+        }
+      }
+    },
+    "omissions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canonicalSegments",
+        "omittedTextFactCount",
+        "omittedTextOriginalUtf8Bytes",
+        "unknownLineage"
+      ],
+      "properties": {
+        "canonicalSegments": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "omittedTextFactCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "omittedTextOriginalUtf8Bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unknownLineage": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

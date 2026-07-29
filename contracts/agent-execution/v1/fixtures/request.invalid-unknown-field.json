@@ -1,0 +1,57 @@
+{
+  "contractVersion": 1,
+  "jobId": "job_synthetic_content_scout",
+  "jobFingerprint": "1111111111111111111111111111111111111111111111111111111111111111",
+  "triggerEventId": "event_synthetic_analysis_completed",
+  "agent": {
+    "name": "content-scout",
+    "version": "content-scout-v1"
+  },
+  "configuration": {
+    "promptVersion": "content-scout-prompt-v1",
+    "outputSchema": {
+      "name": "content-scout-candidates",
+      "version": 1,
+      "disposition": "strict",
+      "digest": "6859d77424e02745841a7348a3c88e74874a928c4ef0f0b831257b81e5c8c965"
+    },
+    "route": {
+      "alias": "content-scout-v1",
+      "gateway": "vercel-ai-gateway",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "azure",
+      "routeVersion": "content-scout-route-v1",
+      "serviceTier": "flex"
+    },
+    "privacyPolicyVersion": "deterministic-privacy-v1",
+    "disclosurePolicyVersion": "content-disclosure-v1",
+    "safetyPolicyVersion": "content-safety-v1",
+    "retrievalPolicyVersion": "content-scout-knowledge-v1",
+    "digest": "d57f38624ab76712fe009cef87e89edbb01e8d50b09a4898276e7ed65d08a150",
+    "handlerConfigurationJson": {}
+  },
+  "execution": {
+    "executorKind": "eve",
+    "executorVersion": "0.27.8",
+    "agentDefinitionDigest": "4444444444444444444444444444444444444444444444444444444444444444",
+    "contractVersion": 1,
+    "recoveryPolicyVersion": "eve-0.27.8-default-recovery-v1"
+  },
+  "input": {
+    "schemaName": "content-scout-input",
+    "schemaVersion": 1,
+    "schemaDigest": "7c431016c261bf3a3bc17aa12493f498e012d3168b70e5ec5f64ece10fcd900d",
+    "canonicalJson": {}
+  },
+  "requiredOutputSchema": {
+    "name": "content-scout-candidates",
+    "version": 1,
+    "disposition": "strict",
+    "digest": "6859d77424e02745841a7348a3c88e74874a928c4ef0f0b831257b81e5c8c965"
+  },
+  "deadlineAt": "2026-07-28T18:00:00Z",
+  "authority": {
+    "allowRemote": true
+  },
+  "unexpected": "not allowed"
+}

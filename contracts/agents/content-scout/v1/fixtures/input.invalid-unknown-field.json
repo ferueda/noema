@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "analysisRunId": "analysis_synthetic",
+  "coverage": {
+    "scope": "complete-retained-snapshot",
+    "selectedClaimCount": 0,
+    "selectedFactCount": 0
+  },
+  "claims": [],
+  "facts": [],
+  "omissions": {
+    "canonicalSegments": 0,
+    "omittedTextFactCount": 0,
+    "omittedTextOriginalUtf8Bytes": 0,
+    "unknownLineage": false
+  },
+  "transcript": "not allowed"
+}

@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:noema:agent-execution:response:v1",
+  "title": "AgentExecutionResponseV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "candidateJson",
+    "receipt"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": 1
+    },
+    "candidateJson": {
+      "type": "object",
+      "maxProperties": 32
+    },
+    "receipt": {
+      "$ref": "#/$defs/receipt"
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "routeIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "alias",
+        "gateway",
+        "model",
+        "provider",
+        "routeVersion",
+        "serviceTier"
+      ],
+      "properties": {
+        "alias": {
+          "$ref": "#/$defs/name"
+        },
+        "gateway": {
+          "$ref": "#/$defs/name"
+        },
+        "model": {
+          "$ref": "#/$defs/name"
+        },
+        "provider": {
+          "$ref": "#/$defs/name"
+        },
+        "routeVersion": {
+          "$ref": "#/$defs/version"
+        },
+        "serviceTier": {
+          "$ref": "#/$defs/name"
+        }
+      }
+    },
+    "usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inputTokens",
+        "outputTokens",
+        "totalTokens"
+      ],
+      "properties": {
+        "inputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "outputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "totalTokens": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "executorKind",
+        "executorVersion",
+        "sessionId",
+        "turnId",
+        "completedModelSteps",
+        "requestedRoute"
+      ],
+      "properties": {
+        "executorKind": {
+          "$ref": "#/$defs/name"
+        },
+        "executorVersion": {
+          "$ref": "#/$defs/version"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/id"
+        },
+        "turnId": {
+          "$ref": "#/$defs/id"
+        },
+        "completedModelSteps": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4096
+        },
+        "requestedRoute": {
+          "$ref": "#/$defs/routeIdentity"
+        },
+        "gatewayGenerationId": {
+          "$ref": "#/$defs/id"
+        },
+        "usage": {
+          "$ref": "#/$defs/usage"
+        },
+        "costUsd": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+          "maxLength": 64
+        },
+        "latencyMilliseconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 86400000
+        }
+      }
+    }
+  }
+}

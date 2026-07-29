@@ -1,0 +1,27 @@
+{
+  "ideas": [
+    {
+      "concept": "Keep one portable boundary",
+      "coreLesson": "The runtime should not own domain meaning.",
+      "audienceBenefit": "Developers can replace execution frameworks safely.",
+      "hook": "Your agent framework should be replaceable.",
+      "resonance": "Early prototypes often leak framework choices into durable data.",
+      "confidence": 0.9,
+      "shortPost": {
+        "suitable": true,
+        "angle": ""
+      },
+      "thread": {
+        "suitable": false,
+        "angle": ""
+      },
+      "article": {
+        "suitable": false,
+        "angle": ""
+      },
+      "claimIds": [
+        "claim_one"
+      ]
+    }
+  ]
+}

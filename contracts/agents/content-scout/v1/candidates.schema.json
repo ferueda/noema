@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:noema:agent:content-scout:candidates:v1",
+  "title": "ContentScoutCandidatesV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "ideas"
+  ],
+  "properties": {
+    "ideas": {
+      "type": "array",
+      "maxItems": 5,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/candidate"
+      }
+    }
+  },
+  "$defs": {
+    "boundedText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "formatAngle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "suitable",
+        "angle"
+      ],
+      "properties": {
+        "suitable": {
+          "type": "boolean"
+        },
+        "angle": {
+          "type": "string",
+          "maxLength": 1024
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "suitable": {
+                "const": true
+              }
+            },
+            "required": [
+              "suitable"
+            ]
+          },
+          "then": {
+            "properties": {
+              "angle": {
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "concept",
+        "coreLesson",
+        "audienceBenefit",
+        "hook",
+        "resonance",
+        "confidence",
+        "shortPost",
+        "thread",
+        "article",
+        "claimIds"
+      ],
+      "properties": {
+        "concept": {
+          "$ref": "#/$defs/boundedText"
+        },
+        "coreLesson": {
+          "$ref": "#/$defs/boundedText"
+        },
+        "audienceBenefit": {
+          "$ref": "#/$defs/boundedText"
+        },
+        "hook": {
+          "$ref": "#/$defs/boundedText"
+        },
+        "resonance": {
+          "$ref": "#/$defs/boundedText"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "shortPost": {
+          "$ref": "#/$defs/formatAngle"
+        },
+        "thread": {
+          "$ref": "#/$defs/formatAngle"
+        },
+        "article": {
+          "$ref": "#/$defs/formatAngle"
+        },
+        "claimIds": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 128,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/id"
+          }
+        }
+      }
+    }
+  }
+}
