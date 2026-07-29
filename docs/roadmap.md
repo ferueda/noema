@@ -89,7 +89,7 @@ The following decisions are fixed for V0:
 
 ## Foundation: runtime spine
 
-- Status: implemented — scheduled for replacement by the V1 runtime
+- Status: superseded by the V1 runtime
 - Evidence: PR #5
 
 The foundation established the executable shape without claiming that real
@@ -107,10 +107,10 @@ Sessions or model behavior was complete:
 - An end-to-end proof with a fake source, distiller, and agent across fresh
   SQLite connections.
 
-Milestone 3 will remove the obsolete scan/observation worker and its
-Content Scout-specific runtime types rather than preserve them as a second
+Milestone 3 removed the obsolete scan/observation worker and its
+Content Scout-specific runtime types rather than preserving them as a second
 execution path. The pre-V1 schema is disposable scaffold state, not a
-compatibility promise. The clean V1 schema will require recreating pre-V1 local
+compatibility promise. The clean V1 schema requires recreating pre-V1 local
 databases and has no legacy reader, backfill, or dual-write path.
 
 ## V0 Milestone 1: canonical evidence and deterministic facts
@@ -347,9 +347,10 @@ second verifier or continue prompt tuning from this corpus alone.
 
 ## V0 Milestone 3: Content Scout
 
-- Status: in progress — portable V1 contracts, clean persistence, and
-  deterministic local subscription matching are implemented; dispatch and
-  live execution remain
+- Status: in progress — V1 contracts, clean persistence, deterministic local
+  subscription matching, the offline dispatcher, local admission, terminal
+  runs, and artifact persistence are implemented; production Eve wiring,
+  canary proof, and real-session acceptance remain
 
 ### Goal
 

@@ -47,8 +47,11 @@ retained `analysis.completed` event into an inspectable V1 Content Scout job.
 Exact event, ordered claim, agent, and configuration identity reuses that job;
 a changed reviewed configuration creates another job without rerunning
 semantic extraction or publishing another event. Matching is local and makes
-no model or Eve request. `worker --once` remains fail-closed until the
-dispatcher and production Eve integration land.
+no model or Eve request. The offline dispatcher now proves exact claim,
+fact, and evidence preparation, privacy and disclosure admission, terminal
+runs, and artifact-backed idea inspection with a fake executor across separate
+SQLite connections. `worker --once` remains fail-closed until the production
+Eve integration lands.
 
 Milestone 3 is a clean V1 runtime cutover. The current schema contains no
 walking-skeleton scan, observation, or content-idea projection tables, and
