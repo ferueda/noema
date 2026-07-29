@@ -10,13 +10,13 @@ retains the implementation record.
 
 ## Active
 
-- [260727-content-scout.md](260727-content-scout.md) — implement the first
-  retained-event subscription, generic agent job and artifact lifecycle,
-  portable agent-execution contract, and evidence-backed Eve Content Scout.
+- [260728-event-boundary.md](260728-event-boundary.md) — remove the pre-V1
+  agent scaffold and finish Noema at an atomic domain-event and transactional
+  outbox boundary with one generic manual publisher.
 
 ## Queued
 
 - [260722-incremental-evidence-windows.md](260722-incremental-evidence-windows.md) —
-  after V0 feedback and the knowledge-unit checkpoint, plan one growing session
-  into deterministic windows and avoid repeated semantic calls for unchanged
-  work.
+  after Noema V0, external Content Scout feedback, and the knowledge-unit
+  checkpoint, plan one growing session into deterministic windows and avoid
+  repeated semantic calls for unchanged work.

@@ -40,16 +40,27 @@ Contributor guidance:
   make a summary the only retained representation or use it as source evidence.
 - Keep evidence admission, fact extraction, and semantic claims independent of
   downstream uses. Content fields, coding assessments, and workflow proposals
-  belong to agent-specific artifacts, not the knowledge pipeline.
-- Preserve evidence references for derived observations, events, and agent
-  outputs.
+  belong to external consumers, not the knowledge pipeline.
+- Preserve evidence references for derived observations and events.
 - Keep raw private evidence local by default. Do not send it to a remote model
   or service without an explicit product decision and user control.
-- Agents create reviewable artifacts. They do not publish content, edit source
-  systems, or apply workflow changes without explicit approval.
-- A new agent may add a subscription, bounded queries, typed output, and
-  presentation. It must not require source, extraction, queue, or generic
-  worker behavior to understand that output type.
+- End Noema core at the durable domain-event and transactional-outbox boundary.
+  A generic publisher adapter may deliver outbox records, but it must not know
+  which consumers exist or whether they ran successfully.
+- Keep consumer names, subscriptions, instructions, models, tools, prompts,
+  output schemas, jobs, leases, retries, runs, receipts, and consumer-produced
+  artifacts outside Noema's domain, application, and storage layers.
+- Do not build a queue, worker, dispatcher, scheduler, or agent runtime inside
+  Noema. Use an external event transport or workflow system when delivery,
+  fan-out, retries, scheduling, or execution durability is required.
+- Noema events are consumer-neutral. They carry bounded metadata and stable
+  references to Noema-owned records, never a consumer-specific payload.
+- If a downstream result should become Noema knowledge, ingest it through a
+  normal public evidence boundary. Do not add a privileged consumer callback
+  or direct write path.
+- If a proposed change names Content Scout, Coding Evaluation, Eve, or another
+  consumer below the publisher adapter or presentation layer, stop and move
+  that work outside Noema.
 - Do not make Factory work items, Inngest runs, issues, pull requests, or any
   other external artifact required for work to be understood.
 - Prefer one thin end-to-end implementation over unused abstraction.

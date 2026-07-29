@@ -2,9 +2,9 @@
 
 ## Purpose
 
-Tests let humans and agents change Noema while keeping evidence authority,
-lineage, privacy, idempotency, event delivery, and typed artifacts visible. Use
-the cheapest stable layer that proves the behavior.
+Tests let humans and coding agents change Noema while keeping evidence
+authority, lineage, privacy, idempotency, and event publication visible. Use the
+cheapest stable layer that proves the behavior.
 
 ## Principles
 
@@ -25,10 +25,10 @@ the cheapest stable layer that proves the behavior.
 | Layer | Use for | Location |
 | --- | --- | --- |
 | Domain and parser unit | Values, validation, fingerprints, literal fact extraction, and claim admission rules | Beside the owning Go package as `*_test.go` |
-| Application | Analysis stages, event creation, subscription matching, workers, and failure behavior | `internal/application/` |
-| Persistence | Migrations, transactions, idempotency, ordering, and artifact lineage | `internal/adapters/sqlite/` with temporary databases |
+| Application | Analysis stages, event creation, outbox publication, and safe failure behavior | `internal/application/` |
+| Persistence | Migrations, transactions, idempotency, event ordering, and outbox state | `internal/adapters/sqlite/` with temporary databases |
 | Source contract | Versioned Sessions JSON/JSONL parsing, digest mismatch, bounds, omissions, and unsupported schemas | Adapter tests with generic fixtures and fake command execution |
-| CLI and integration | Argument handling, structured output, separate-process roles, and SQLite-only handoff | `cmd/noema/` and `internal/integration/` |
+| CLI and integration | Argument handling, structured output, SQLite durability, and the generic publisher boundary | `cmd/noema/` and `internal/integration/` |
 | Live external | Explicit proof against a real Sessions or model provider boundary | Separate manual command added only when required |
 
 Prefer an existing layer and directory before inventing a new test structure.

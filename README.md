@@ -7,18 +7,18 @@
 > perception: the thing as it is intended or understood by the mind.
 
 The name reflects the project's purpose: turning evidence from our work into
-explicit, traceable knowledge that focused agents can act on.
+explicit, traceable knowledge and meaningful changes that other systems can
+act on.
 
-Noema is a local-first derived-knowledge, event, and agent runtime for personal
-work. It turns canonical evidence from the tools where work happens into
-traceable facts and claims, durable events, and reviewable outputs from small,
-focused agents.
+Noema is a local-first derived-knowledge and event system for personal work. It
+turns canonical evidence from the tools where work happens into traceable facts
+and claims, optional summaries, and durable consumer-neutral events.
 
-The first source is [Sessions](https://github.com/ferueda/sessions). The first
-agent is Content Scout, which finds evidence-backed content ideas from recent
-AI-assisted development work. Content Scout is the first consumer, not the
-product boundary: the same admitted facts and claims should later support
-workflow improvement and personal coding-development agents.
+The first source is [Sessions](https://github.com/ferueda/sessions). Content
+Scout is the first planned external consumer: it can subscribe to Noema events
+through Inngest or another transport and turn admitted knowledge into
+evidence-backed content ideas. A coding coach or workflow-improvement service
+can consume the same events without changing Noema.
 
 Noema is in early implementation. It can process one explicitly selected,
 already-indexed Sessions snapshot into deterministic, inspectable facts without
@@ -42,14 +42,12 @@ state, rationale, and prompt injection. Its single approved run admitted 18 of
 20 batches; human review judged all 20 admitted claims supported and 19 useful.
 The new cases confirmed strong scope, chronology, separation, reversion, and
 prompt-injection behavior while exposing conservative misses for root cause,
-decisions, lessons, and one implemented change. The local producer-to-worker
-spine also persists its foundation records in SQLite; `worker --once` remains
-fail-closed until the later agent-runtime milestone.
+decisions, lessons, and one implemented change.
 
-The foundation still contains Content Scout-specific request, worker, and
-completion seams used by its fake end-to-end proof. The accepted architecture
-requires those seams to become use-case-neutral as the real evidence, claim,
-subscription, and artifact stages are implemented.
+The repository still contains a pre-V1 producer/worker scaffold used to prove a
+SQLite process boundary. That scaffold is not the accepted product
+architecture. Its agent jobs, runs, and Content Scout-shaped output will be
+removed rather than promoted into Noema's V1 model.
 
 The current sources of truth are:
 
@@ -90,8 +88,6 @@ go run ./cmd/noema analyze claims '<fact-analysis-id>' --allow-remote \
   --database /path/to/noema.db
 go run ./cmd/noema analyses show '<analysis-id>' --database /path/to/noema.db
 go run ./cmd/noema analyses show '<analysis-id>' --resolve --database /path/to/noema.db
-go run ./cmd/noema jobs list --database /path/to/noema.db
-go run ./cmd/noema ideas list --database /path/to/noema.db
 ```
 
 Check the live semantic route without loading Sessions or opening SQLite:
@@ -165,8 +161,8 @@ categories for evidence and fact reference failures, attribution, provenance,
 duplicates, values, or outcome failures (wrong claim type, unsupported result,
 or conflicting result) without retaining rejected model prose.
 
-The test suite includes both the foundation's fake source/agent spine and a
-generic fake Sessions executable that proves revision-safe fact processing:
+The test suite includes the temporary foundation scaffold and a generic fake
+Sessions executable that proves revision-safe fact processing:
 
 ```sh
 go test ./...
