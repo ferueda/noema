@@ -201,10 +201,10 @@ Later, another local process, a scheduler, an Inngest function, or a Cloudflare
 Worker may implement the same contract without changing Noema's knowledge,
 event, job, or artifact model.
 
-Milestone 3 makes the explicit-session source, fact extractor, semantic
-workflow, and V1 agent runtime the supported processing paths. The earlier
-generic scan/observation worker is a disposable walking skeleton and is not
-retained as a parallel runtime.
+The explicit-session source, fact extractor, semantic workflow, and V1 agent
+runtime are the supported processing paths. The earlier generic
+scan/observation worker was a disposable walking skeleton and is not retained
+as a parallel runtime.
 
 ## Core flow
 
@@ -752,8 +752,8 @@ lineage a different artifact.
 
 ## Initial persistence
 
-SQLite is both the first durable derived store and the first local queue.
-Milestone 3 defines this clean V1 schema:
+SQLite is both the first durable derived store and the first local queue. The
+clean V1 schema contains:
 
 ```text
 analysis_runs
@@ -888,7 +888,7 @@ failed job is terminal and inspectable. V0 does not yet claim at-least-once
 delivery, retry safety, leases, or replay; those remain target queue semantics
 to add only after the first agent path proves useful.
 
-The planned V1 local matching surface is explicit:
+The V1 local matching surface is explicit:
 
 ```text
 noema subscriptions match <semantic-analysis-id>

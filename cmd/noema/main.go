@@ -49,6 +49,8 @@ func runWithDependencies(
 		return runGateway(ctx, args[1:], stdout, stderr, dependencies)
 	case "worker":
 		return runWorker(ctx, args[1:], stdout, stderr)
+	case "subscriptions":
+		return runSubscriptions(ctx, args[1:], stdout, stderr)
 	case "jobs":
 		return runJobs(ctx, args[1:], stdout, stderr)
 	case "ideas":
@@ -185,26 +187,54 @@ func runWorker(_ context.Context, args []string, _ io.Writer, stderr io.Writer) 
 	if !*allowRemote {
 		return errors.New("worker requires --allow-remote before an agent model request")
 	}
-	return errors.New("Content Scout is not implemented in the walking-skeleton milestone")
+	return errors.New("Content Scout production executor integration is not implemented")
 }
 
 func runJobs(ctx context.Context, args []string, stdout, stderr io.Writer) error {
-	if len(args) == 0 || args[0] != "list" {
-		fmt.Fprintln(stderr, "usage: noema jobs list [--database path]")
-		return errors.New("jobs currently supports only list")
+	if len(args) == 0 {
+		fmt.Fprintln(stderr, "usage: noema jobs <list|show> [job-id] [--database path]")
+		return errors.New("a jobs command is required")
 	}
-	flags := flag.NewFlagSet("jobs list", flag.ContinueOnError)
+	command := args[0]
+	if command != "list" && command != "show" {
+		fmt.Fprintln(stderr, "usage: noema jobs <list|show> [job-id] [--database path]")
+		return errors.New("jobs supports only list and show")
+	}
+	if command == "show" && len(args) < 2 {
+		fmt.Fprintln(stderr, "usage: noema jobs show <job-id> [--database path]")
+		return errors.New("jobs show requires a job id")
+	}
+	flagOffset := 1
+	jobID := ""
+	if command == "show" {
+		jobID = args[1]
+		flagOffset = 2
+	}
+	flags := flag.NewFlagSet("jobs "+command, flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	databasePath := flags.String("database", "", "SQLite database path")
-	if err := flags.Parse(args[1:]); err != nil {
+	if err := flags.Parse(args[flagOffset:]); err != nil {
 		return err
+	}
+	if flags.NArg() != 0 {
+		return errors.New("jobs received unexpected arguments")
 	}
 	store, closeStore, err := openStore(ctx, *databasePath)
 	if err != nil {
 		return err
 	}
 	defer closeStore()
-	jobs, err := store.ListJobs(ctx)
+	if command == "show" {
+		inspection, found, err := store.InspectV1Job(ctx, jobID)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return fmt.Errorf("V1 job %s was not found", jobID)
+		}
+		return writeJSON(stdout, inspection)
+	}
+	jobs, err := store.ListV1Jobs(ctx)
 	if err != nil {
 		return err
 	}
@@ -222,12 +252,15 @@ func runIdeas(ctx context.Context, args []string, stdout, stderr io.Writer) erro
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
 	}
+	if flags.NArg() != 0 {
+		return errors.New("ideas list received unexpected arguments")
+	}
 	store, closeStore, err := openStore(ctx, *databasePath)
 	if err != nil {
 		return err
 	}
 	defer closeStore()
-	ideas, err := store.ListIdeas(ctx)
+	ideas, err := store.ListV1ContentIdeaArtifacts(ctx)
 	if err != nil {
 		return err
 	}
@@ -273,7 +306,10 @@ commands:
   analyze claims  derive validated semantic claims with explicit remote approval
   gateway check   check the live semantic route with fixed public input
   analyses show   inspect a stored analysis; optionally resolve its evidence
+  subscriptions match
+                  match a retained completion event into a V1 agent job
   worker --once   process one pending agent job (next milestone)
-  jobs list       list durable jobs
+  jobs list       list V1 agent jobs
+  jobs show       inspect one V1 agent job
   ideas list      list content ideas`)
 }

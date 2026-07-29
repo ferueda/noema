@@ -379,7 +379,7 @@ func assertRemoteSemanticRows(t *testing.T, ctx context.Context, databasePath st
 		t.Fatalf("open semantic database: %v", err)
 	}
 	defer database.Close()
-	want := map[string]int{"claims": 2, "events": 3, "observations": 0, "jobs": 0, "agent_runs": 0, "content_ideas": 0}
+	want := map[string]int{"claims": 2, "events": 3, "jobs": 0, "agent_runs": 0}
 	for table, wantCount := range want {
 		var count int
 		if err := database.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&count); err != nil {

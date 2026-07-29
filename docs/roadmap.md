@@ -347,9 +347,9 @@ second verifier or continue prompt tuning from this corpus alone.
 
 ## V0 Milestone 3: Content Scout
 
-- Status: in progress — portable V1 execution and Content Scout candidate
-  contracts are implemented; clean persistence, matching, dispatch, and live
-  execution remain
+- Status: in progress — portable V1 contracts, clean persistence, and
+  deterministic local subscription matching are implemented; dispatch and
+  live execution remain
 
 ### Goal
 

@@ -108,6 +108,32 @@ func (store *Store) LoadFactAnalysis(ctx context.Context, id string) (domain.Fac
 	return domain.FactAnalysis{Run: run, Facts: facts}, nil
 }
 
+// LoadFactsByID returns the exact requested facts in the same order. Semantic
+// meaning and claim relationships remain application concerns.
+func (store *Store) LoadFactsByID(
+	ctx context.Context,
+	factIDs []string,
+) ([]domain.Fact, error) {
+	facts := make([]domain.Fact, 0, len(factIDs))
+	for _, factID := range factIDs {
+		fact, err := readFact(store.database.QueryRowContext(ctx, `
+			SELECT id, fingerprint, analysis_run_id, kind, schema_version,
+			       value_json, outcome, extractor_name, extractor_version,
+			       parse_rule, evidence_json, created_at
+			  FROM facts
+			 WHERE id = ?
+		`, factID))
+		if err != nil {
+			return nil, err
+		}
+		if fact.ID != factID {
+			return nil, ErrAgentRuntimeDataInvalid
+		}
+		facts = append(facts, fact)
+	}
+	return facts, nil
+}
+
 type analysisRunQueryer interface {
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }

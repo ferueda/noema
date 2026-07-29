@@ -23,32 +23,40 @@ func TestInspectionCommandsCreateAndReadEmptyDatabase(t *testing.T) {
 	t.Parallel()
 
 	databasePath := filepath.Join(t.TempDir(), "noema.db")
-	for _, test := range []struct {
-		name    string
-		command string
-	}{
-		{name: "jobs", command: "jobs"},
-		{name: "ideas", command: "ideas"},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			var stdout bytes.Buffer
-			var stderr bytes.Buffer
-			err := run(
-				context.Background(),
-				[]string{test.command, "list", "--database", databasePath},
-				&stdout,
-				&stderr,
-			)
-			if err != nil {
-				t.Fatalf("run %s list: %v", test.command, err)
-			}
-			if got := strings.TrimSpace(stdout.String()); got != "[]" {
-				t.Fatalf("%s output = %q, want []", test.command, got)
-			}
-			if stderr.Len() != 0 {
-				t.Fatalf("%s stderr = %q, want empty", test.command, stderr.String())
-			}
-		})
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	err := run(
+		context.Background(),
+		[]string{"jobs", "list", "--database", databasePath},
+		&stdout,
+		&stderr,
+	)
+	if err != nil {
+		t.Fatalf("run jobs list: %v", err)
+	}
+	if got := strings.TrimSpace(stdout.String()); got != "[]" {
+		t.Fatalf("jobs output = %q, want []", got)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("jobs stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestIdeasListReadsEmptyArtifactStore(t *testing.T) {
+	t.Parallel()
+
+	var stdout bytes.Buffer
+	err := run(
+		context.Background(),
+		[]string{"ideas", "list", "--database", filepath.Join(t.TempDir(), "noema.db")},
+		&stdout,
+		&bytes.Buffer{},
+	)
+	if err != nil {
+		t.Fatalf("list ideas: %v", err)
+	}
+	if got := strings.TrimSpace(stdout.String()); got != "[]" {
+		t.Fatalf("ideas output = %q, want []", got)
 	}
 }
 
@@ -144,7 +152,7 @@ func TestSessionFactAnalysisEndToEnd(t *testing.T) {
 		t.Fatalf("reopen database: %v", err)
 	}
 	defer database.Close()
-	for _, table := range []string{"events", "jobs", "agent_runs", "content_ideas"} {
+	for _, table := range []string{"events", "jobs", "agent_runs"} {
 		var count int
 		if err := database.QueryRowContext(context, "SELECT COUNT(*) FROM "+table).Scan(&count); err != nil {
 			t.Fatalf("count %s: %v", table, err)
