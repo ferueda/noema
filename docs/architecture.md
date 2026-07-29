@@ -201,10 +201,10 @@ Later, another local process, a scheduler, an Inngest function, or a Cloudflare
 Worker may implement the same contract without changing Noema's knowledge,
 event, job, or artifact model.
 
-The foundation's generic `Source`, `Distiller`, and time-range `ScanRequest`
-remain test seams, not the real Sessions workflow. Milestone 1 added a separate,
-narrow explicit-session source, fact extractor, and fact-analysis store boundary
-without routing evidence admission through the foundation worker.
+Milestone 3 makes the explicit-session source, fact extractor, semantic
+workflow, and V1 agent runtime the supported processing paths. The earlier
+generic scan/observation worker is a disposable walking skeleton and is not
+retained as a parallel runtime.
 
 ## Core flow
 
@@ -734,12 +734,13 @@ A typed, reviewable result with its own lifecycle. Its generic envelope records:
 
 - Artifact ID, kind, and schema version
 - Producing run and input event or request
+- Complete producing job fingerprint
 - Versioned typed payload
 - Supporting and contradicting evidence references when applicable
 - Creation time, status, and supersession when later required
 
-Agent handlers use concrete payload types such as `ContentIdeaV1` or
-`CodingAssessmentV1`. The runtime persists them through the same envelope.
+Agent-specific admission uses concrete payload types such as `ContentIdeaV1`
+or `CodingAssessmentV1`. The runtime persists them through the same envelope.
 Content ideas are the first artifact kind.
 
 Artifact identity is derived from the complete job fingerprint, artifact kind
@@ -751,64 +752,39 @@ lineage a different artifact.
 
 ## Initial persistence
 
-SQLite is both the first durable derived store and the first local queue. The
-foundation implements this deliberately small schema:
-
-```text
-scans
-evidence_chunks
-observations
-events
-jobs
-agent_runs
-content_ideas
-```
-
-Milestone 1 adds two use-case-neutral tables without rewriting that foundation:
+SQLite is both the first durable derived store and the first local queue.
+Milestone 3 defines this clean V1 schema:
 
 ```text
 analysis_runs
 facts
-```
-
-Milestone 2 adds the derived semantic projection and an additive event subject
-type sidecar without rewriting the foundation event envelope:
-
-```text
 semantic_analysis_details
 claims
-event_subject_types
+events
+jobs
+agent_runs
+artifacts
 ```
 
-The foundation schema proves the process boundary, not the final generic
-contracts. Its
-`scans.job_id`, `ScanRequest.ContentScoutConfigKey`, `JobPayload.ScanID`,
-`Observation.Summary`, `Agent.Run` returning `[]ContentIdeaDraft`,
-`JobCompletion.Ideas`, and `content_ideas` write path are Content Scout-specific
-or overly broad scaffold seams.
+The initial walking-skeleton schema proved the SQLite process boundary, not the
+final generic contracts. Milestone 1 separated fact processing from agent
+configuration and job creation. Milestone 2 produced stable analysis events
+independent of any subscriber. Milestone 3 removes the obsolete
+scan/observation runtime and its projections, then stores event subject type
+and job version/configuration identity directly on their authoritative rows.
+Content Scout-specific payload validation remains outside the generic
+dispatcher, and content ideas are inspected from generic artifacts.
 
-Milestone 1 removes agent configuration and job creation from evidence and fact
-processing. Milestone 2 produces stable analysis events independent of any
-subscriber. Milestone 3 introduces deterministic subscription matching, a
-generic job input reference, agent result, and artifact envelope, and Content
-Scout-specific payload validation outside the generic dispatcher. The existing
-`content_ideas` table may remain as a query projection, but core job completion
-cannot require it.
-
-The walking-skeleton jobs, runs, and ideas are disposable pre-V1 scaffold
-records, not a compatibility surface. Milestone 3 identifies supported runtime
-rows through the V1 job-details sidecar. Queue and inspection queries ignore
-rows without that sidecar and never infer their schema from stored JSON. Those
-rows may remain physically present in a mixed database; Noema does not require
-deleting or recreating the database, and retained fact and semantic analyses
-remain supported.
+This is an intentional clean cutover. Noema does not provide legacy readers,
+backfills, imports, dual writes, or mixed-schema handling for the pre-V1
+database. Pre-V1 local databases must be recreated.
 
 Milestone 1 keeps deterministic `Fact` records and their `AnalysisRun` lineage
-separate from the broad foundation `Observation` model. Milestone 2 keeps
+separate from the retired broad observation scaffold. Milestone 2 keeps
 semantic claims, nullable progress details, and their validation path distinct
-from both facts and observations. Complete Sessions coordinates and explicit
-stage versions are part of both derived paths. Knowledge units, episodes, and
-relation tables are not preconditions for V0.
+from facts. Complete Sessions coordinates and explicit stage versions are part
+of both derived paths. Knowledge units, episodes, and relation tables are not
+preconditions for V0.
 
 Each rerunnable stage has a separate identity:
 
@@ -911,6 +887,20 @@ recorded versioned policy; that does not create another Noema job attempt. A
 failed job is terminal and inspectable. V0 does not yet claim at-least-once
 delivery, retry safety, leases, or replay; those remain target queue semantics
 to add only after the first agent path proves useful.
+
+The planned V1 local matching surface is explicit:
+
+```text
+noema subscriptions match <semantic-analysis-id>
+  --agent-config <content-scout-agent>
+  --disclosure-config <approved-public-terms>
+```
+
+It validates one retained completion event and the complete local
+configuration identity, then atomically stores the complete V1 job row. It
+does not call Eve, require a credential, or publish another event. V1 queue and
+inspection queries select the explicit payload schema version stored on that
+row.
 
 Inngest, Cloudflare Queues, or Cloudflare Workflows may later implement parts
 of this execution model. Their run identifiers and status values remain
@@ -1282,8 +1272,7 @@ or general ability, enroll the user in training, or modify tools and workflows.
 
 ## Delivery sequence
 
-The executable foundation already proves the SQLite process boundary with fake
-adapters. Real behavior is added in three milestones:
+Noema adds real behavior in three milestones:
 
 1. **Canonical evidence and deterministic facts.** Process one explicit
    Sessions identity, validate bounded canonical export, store inspectable facts
@@ -1417,11 +1406,11 @@ to remote infrastructure without a separate privacy design.
 The implementation plan must either resolve these choices or keep them behind a
 small boundary:
 
-- Schema migration tool.
+- Post-V1 schema-evolution strategy. No pre-V1 migration or compatibility path
+  is required.
 - Structured-output validation library.
 - The semantic-claim persistence projection and queries.
-- Exact generic artifact payload encoding and whether `content_ideas` remains a
-  projection after the Milestone 3 cutover.
+- Exact generic artifact payload encoding for later artifact kinds.
 - Authentication, callbacks, recovery, and retention for agent executors beyond
   the V0 loopback-only Eve process.
 - How later artifact-specific previews build on Milestone 1's digest-locked,

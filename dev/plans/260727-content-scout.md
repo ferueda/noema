@@ -1,6 +1,8 @@
 # Produce evidence-backed content ideas through a portable agent boundary
 
 - Status: approved 2026-07-28
+- Decision: clean V1 cutover approved 2026-07-28;
+  backward compatibility with pre-V1 local databases is out of scope
 - Plan review: pass (`20260728-175151-579287`)
 - Roadmap: [V0 Milestone 3: Content Scout](../../docs/roadmap.md#v0-milestone-3-content-scout)
 
@@ -63,8 +65,8 @@ The numbered changes below are the complete Milestone 3 acceptance ledger, not
 one pull-request boundary. Implement them through this dependency graph:
 
 ```text
-1. Contracts and V1 runtime freeze
-   ├── 2. Retained event → deterministic V1 job
+1. Portable contracts
+   ├── 2. Clean V1 runtime + retained event → deterministic V1 job
    │      └── 3. Offline dispatcher → admitted artifacts
    ├── 4A. Go Eve HTTP adapter
    └── 4B. TypeScript Eve agent
@@ -72,27 +74,28 @@ one pull-request boundary. Implement them through this dependency graph:
 3 + 4A + 4B ──────┴──→ 5. Production integration and acceptance
 ```
 
-1. **Contracts and V1 runtime freeze.** Add the shared V1 domain
+1. **Portable contracts.** Add the shared V1 domain
    values, execution and candidate JSON Schemas, configuration shapes,
-   canonical digest rules, cross-language fixtures, and additive runtime
-   tables. Define the two-phase queue
-   contract as inspect oldest pending V1 job → perform local or remote
-   preflight → claim that exact still-pending job. Do not switch job insertion,
-   worker behavior, or public commands yet. This serial prerequisite prevents a
-   half-migrated worker and freezes the contract used by every later branch.
-2. **Retained event to deterministic V1 job.** Add the in-code Content Scout
-   definition, strict agent and disclosure configuration loading, subscription
-   matcher, atomic V1 job and detail insertion, safe list/show inspection, and
-   explicit `subscriptions match` command. This remains entirely local: it
-   creates or reuses work without an executor, endpoint, credential, remote
-   authority, or model call.
+   canonical digest rules, cross-language fixtures, and the two-phase queue
+   contract: inspect the oldest pending V1 job → perform local or remote
+   preflight → claim that exact still-pending job. Do not add persistence,
+   switch worker behavior, or change public commands yet. This serial
+   prerequisite freezes the language-neutral contract used by every later
+   branch.
+2. **Clean V1 runtime and retained event to deterministic job.** Replace the
+   walking-skeleton runtime with the clean V1 schema, remove its obsolete
+   scan/observation worker, and add the in-code Content Scout definition,
+   strict agent and disclosure configuration loading, subscription matcher,
+   atomic complete V1 job insertion, safe list/show inspection, and explicit
+   `subscriptions match` command. This remains entirely local: it creates or
+   reuses work without an executor, endpoint, credential, remote authority, or
+   model call.
 3. **Offline dispatcher to admitted artifacts.** Load and validate the job's
    ordered claims, derived facts, and evidence; prepare bounded generalized
    input; run a fake `AgentExecutor`; apply schema, lineage, privacy,
    disclosure, duplicate, and safety admission; and atomically persist the
-   generic run, artifacts, optional idea projection, and job completion. Include
-   the zero-claim local completion path and replace the obsolete foundation
-   spine as part of the V1 cutover. This is the first complete
+   generic run, authoritative artifacts, and job completion. Include
+   the zero-claim local completion path. This is the first complete
    offline event → job → execution → artifact vertical slice.
 4. **Parallel executor adapters after Slice 1.**
    - **4A: Go Eve HTTP adapter.** Own only `internal/adapters/eve/` and its
@@ -126,12 +129,14 @@ Mutable configuration files and operational credentials never become semantic
 job inputs; a job retains the bounded sanitized policy values required to
 execute the exact reviewed configuration.
 
-Milestone 3 deliberately does not preserve the walking-skeleton job, run, or
-idea contract. Rows without V1 runtime details are outside the supported
-contract: the V1 queue and inspection paths ignore them, do not backfill them,
-and never guess their schema from JSON content. They may remain physically
-present in a mixed database. This cutover does not require deleting the
-database or alter retained facts, claims, analyses, or semantic events.
+By explicit product decision, Milestone 3 does not preserve the
+walking-skeleton database or runtime contract. The clean V1 schema removes
+scan, observation, content-idea projection, event-subject sidecar, and
+job-details sidecar tables. Event subject type, payload schema version, and
+configuration digest live on their authoritative rows. An additive sidecar or
+mixed-schema migration was considered and rejected for V1. Noema provides no
+legacy reader, backfill, dual write, or mixed-database path. Pre-V1 local
+databases must be recreated.
 
 ## Changes
 
@@ -155,9 +160,10 @@ database or alter retained facts, claims, analyses, or semantic events.
      metadata, privacy outcome, fixed safe failure category and stage when
      failed, and produced artifact IDs; and
    - an `Artifact` envelope containing kind, schema version, canonical typed
-     JSON payload, producing run and trigger event, the triggering V1 inputs,
-     locally resolved ordered supporting fact IDs, supporting and contradicting
-     evidence, proposal status, and creation time.
+     JSON payload, producing run and trigger event, the complete job
+     fingerprint, the triggering V1 inputs, locally resolved ordered supporting
+     fact IDs, supporting and contradicting evidence, proposal status, and
+     creation time.
 
    Move the existing content fields into a Content Scout-owned
    `ContentIdeaV1` payload and candidate type. Treat the candidate array order
@@ -182,17 +188,14 @@ database or alter retained facts, claims, analyses, or semantic events.
    `platform.DerivedID("artifact_", fingerprint)`. Reject duplicate artifact
    fingerprints within one candidate batch. This keeps an idea stable when a
    filtered sibling changes its final rank while making distinct content or
-   lineage produce distinct artifacts. The `content_ideas` projection uses the
-   exact artifact ID.
+   lineage produce distinct artifacts.
 
    Remove the unused foundation `EvidenceChunk`, `Observation`, `Scan`,
    `ScanCommit`, and scanner-only ports during the V1 runtime cutover. The
    public `scan sessions` command already uses `FactAnalyzer`, so this removal
    must not change fact or semantic analysis behavior. Do not add import,
-   backfill, or compatibility readers for walking-skeleton jobs, runs, or ideas.
-   Existing databases continue to open and retain supported fact, claim,
-   analysis, and event data; V1 queue and inspection paths simply ignore
-   runtime rows without `agent_job_details`.
+   backfill, compatibility readers, or mixed-schema handling for
+   walking-skeleton jobs, runs, or ideas.
 
    Define the result combinations strictly. `skipped-no-claims` is successful,
    has no receipt, and has no artifacts. `not-invoked` is failed, records a
@@ -495,29 +498,22 @@ database or alter retained facts, claims, analyses, or semantic events.
    retain only safely validated observed receipt fields. Store only a fixed
    safe failure stage and category, never remote or generated prose.
 
-6. `internal/adapters/sqlite/migrations/004_agent_runtime.sql` and focused
-   runtime-store files — add only idempotent `CREATE TABLE IF NOT EXISTS`
-   changes because the current migration runner reapplies every migration on
-   every database open:
-
-   - `agent_job_details`, keyed by the existing job ID, stores payload schema
-     version and configuration digest for exact worker selection; and
-   - `artifacts`, keyed by generic artifact ID and unique fingerprint, stores
-     the versioned envelope, canonical payload JSON, event/run/input lineage,
-     ordered artifact-specific claim and fact IDs, evidence JSON, status, and
-     timestamp.
+6. `internal/adapters/sqlite/migrations/`, and focused runtime-store files —
+   define the clean V1 schema directly. `events` stores subject type, `jobs`
+   stores payload schema version and configuration digest, and `artifacts`,
+   keyed by generic artifact ID and unique fingerprint, stores
+     the versioned envelope, canonical payload JSON, job fingerprint,
+     event/run/input lineage, ordered artifact-specific claim and fact IDs,
+     evidence JSON, status, and timestamp.
 
    Continue storing `AgentJobPayloadV1` in `jobs.payload_json` and
-   `AgentRunResultV1` in `agent_runs.output_json`; do not alter either table in
-   this slice. Do not decode or inspect rows without `agent_job_details`; they
-   belong to the unsupported walking-skeleton runtime. The V1 queue, job
-   inspection, and idea inspection paths use an inner join or equivalent exact
-   V1 lookup and never fall back based on the contents of `payload_json` or
-   `output_json`. No migration backfills those rows.
+   `AgentRunResultV1` in `agent_runs.output_json`. The V1 queue, job inspection,
+   and idea inspection paths validate the explicit version columns and never
+   infer a version from `payload_json` or `output_json`.
 
-   Land the migration and V1-only read boundary first, then switch new job
+   Land the clean schema and V1-only read boundary first, then switch new job
    insertion and worker reads to V1, then remove the foundation scanner and
-   public old types. Insert a new job and its detail row atomically. Inspect the
+   public old types. Insert each complete job atomically. Inspect the
    oldest pending V1 job and its bounded input identities without claiming it. A
    zero-claim job needs only a matching registered local handler and valid
    stored configuration identity before the local completion path claims it.
@@ -528,17 +524,14 @@ database or alter retained facts, claims, analyses, or semantic events.
    fact IDs in their derived order and fail closed on missing, duplicate,
    reordered, uncited, or cross-analysis inputs.
 
-   On success, atomically insert the versioned run result, generic artifacts,
-   and optional `content_ideas` query projection, then mark the job succeeded.
-   Use the artifact ID as the projection ID. On failure, atomically insert the
+   On success, atomically insert the versioned run result and generic artifacts,
+   then mark the job succeeded. On failure, atomically insert the
    canonical failed V1 result into the existing non-null
    `agent_runs.output_json` and mark the job failed without artifacts. A
    pre-execution failure has `not-invoked`, its fixed safe stage and category,
    and no executor receipt; a post-invocation failure has `invoked` and only
    the bounded receipt fields actually validated before failure. Read
-   `noema ideas list` from authoritative `content-idea` artifact payloads; the
-   dedicated table remains a disposable query projection and cannot be
-   required by generic completion.
+   `noema ideas list` from authoritative `content-idea` artifact payloads.
 
    Add one job-centered inspection query that loads the job, trigger event,
    optional run, and ordered generic artifacts without resolving Sessions.
@@ -620,11 +613,11 @@ database or alter retained facts, claims, analyses, or semantic events.
      ranks;
    - exact artifact fingerprinting is stable across rank changes, distinct for
      every changed admitted content or lineage field, rejects duplicates, and
-     gives the query projection the same artifact ID;
+     preserves the same identity when only sibling rank changes;
    - each admitted idea has non-empty claim, fact, and evidence lineage that
      round-trips in exact order;
-   - run, artifact, projection, and job completion are atomically visible; and
-   - rows without `agent_job_details` are invisible to V1 queue and inspection
+   - run, artifacts, and job completion are atomically visible; and
+   - unsupported payload versions are invisible to V1 queue and inspection
      queries and can never be claimed or decoded as V1.
 
    Keep the semantic conformance command, evaluator, processing identity,
@@ -680,7 +673,7 @@ database or alter retained facts, claims, analyses, or semantic events.
    noema ideas list
    ```
 
-   Record the resolved artifact/projection choice, portable execution boundary,
+   Record the resolved artifact-only choice, portable execution boundary,
    local Eve startup and private workflow-state location, loopback route auth,
    disabled tool surface, strict agent file, Flex best-effort and Eve recovery
    behavior, unavailable applied-tier and resolved-provider observations,
