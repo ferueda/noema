@@ -1,7 +1,8 @@
 # Process growing sessions through deterministic evidence windows
 
-- Status: approved; queued after V0 feedback and the knowledge-unit checkpoint
-- Roadmap: [Incremental session windows](../../docs/roadmap.md#incremental-session-windows-milestone)
+- Status: approved; queued after Noema V0, external content feedback, and the
+  knowledge-unit checkpoint
+- Roadmap: [Incremental session windows](../../docs/roadmap.md#incremental-session-windows)
 
 ## Goal
 
@@ -10,12 +11,13 @@ with a deterministic, local, inspectable window plan. A user can preview the
 windows without a model call, approve a bounded number of remote executions,
 and rerun after the session grows without resending unchanged completed work.
 
-The first slice is intentionally between the roadmap's idea-feedback and
+The first slice sits between the roadmap's external content-feedback and
 knowledge-unit decisions and multi-session analysis. It starts only after
-Content Scout produces useful ideas, idea keep/reject decisions and reasons are
-being recorded, and the knowledge-unit checkpoint has either been implemented
-because evidence requires it or explicitly recorded as unnecessary. It proves
-incremental per-session processing while preserving these constraints:
+Noema's event boundary is complete, the independent Content Scout produces
+useful ideas and records keep/reject reasons, and the knowledge-unit checkpoint
+has either been implemented because evidence requires it or explicitly
+recorded as unnecessary. It proves incremental per-session processing while
+preserving these constraints:
 
 - Sessions remains the canonical evidence plane and is accessed only through
   its public full-export CLI contract.
@@ -197,18 +199,18 @@ failure, bound, and coverage result is inspectable.
 
 ## Boundaries
 
-- Do not implement this plan before the V0 Content Scout gate shows useful
-  one-session outputs, idea decisions and reasons are being recorded, and the
-  knowledge-unit checkpoint has been implemented or explicitly closed as
-  unnecessary.
+- Do not implement this plan before Noema V0's event boundary is complete, the
+  independent Content Scout shows useful one-session output and records
+  decisions, and the knowledge-unit checkpoint has been implemented or
+  explicitly closed as unnecessary.
 - Do not add `sessions manifest`, an `EvidenceSet`, time-range discovery,
   project inference, scheduling, retries, leases, a background process, or a
   remote workflow engine.
 - Do not use a model, embeddings, full-text search, or private-content keyword
   scoring to choose windows.
 - Do not aggregate several window analyses into a summary, knowledge unit,
-  episode, or session-level agent event in this slice. Existing per-analysis
-  events and downstream deduplication behavior remain explicit.
+  episode, or session-level event in this slice. Existing per-analysis events
+  and downstream deduplication behavior remain explicit.
 - Do not mutate, supersede, or re-anchor prior claims. A prior Sessions revision
   becoming unavailable remains an honest lineage limitation rather than a
   reason to apply old coordinates to a newer document.
