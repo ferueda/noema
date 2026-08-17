@@ -43,17 +43,3 @@ CREATE TABLE IF NOT EXISTS claims (
     created_at TEXT NOT NULL,
     UNIQUE (analysis_run_id, ordinal)
 );
-
-CREATE TABLE IF NOT EXISTS event_subject_types (
-    event_id TEXT PRIMARY KEY REFERENCES events(id),
-    subject_type TEXT NOT NULL CHECK (length(subject_type) > 0)
-);
-
-INSERT OR IGNORE INTO event_subject_types (event_id, subject_type)
-SELECT id,
-       CASE type
-           WHEN 'observation.created' THEN 'observation'
-           WHEN 'scan.completed' THEN 'scan'
-       END
-  FROM events
- WHERE type IN ('observation.created', 'scan.completed');

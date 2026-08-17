@@ -47,12 +47,8 @@ func runWithDependencies(
 		return runAnalyze(ctx, args[1:], stdout, stderr, dependencies)
 	case "gateway":
 		return runGateway(ctx, args[1:], stdout, stderr, dependencies)
-	case "worker":
-		return runWorker(ctx, args[1:], stdout, stderr)
-	case "jobs":
-		return runJobs(ctx, args[1:], stdout, stderr)
-	case "ideas":
-		return runIdeas(ctx, args[1:], stdout, stderr)
+	case "events":
+		return runEvents(ctx, args[1:], stdout, stderr)
 	case "help", "-h", "--help":
 		writeUsage(stdout)
 		return nil
@@ -170,70 +166,6 @@ func newSessionsReader() sessionsadapter.Reader {
 	return sessionsadapter.Reader{Executable: executable, Runner: sessionsadapter.ExecRunner{}}
 }
 
-func runWorker(_ context.Context, args []string, _ io.Writer, stderr io.Writer) error {
-	flags := flag.NewFlagSet("worker", flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	once := flags.Bool("once", false, "claim at most one pending job")
-	flags.String("database", "", "SQLite database path")
-	allowRemote := flags.Bool("allow-remote", false, "allow the configured remote model request")
-	if err := flags.Parse(args); err != nil {
-		return err
-	}
-	if !*once {
-		return errors.New("worker currently requires --once")
-	}
-	if !*allowRemote {
-		return errors.New("worker requires --allow-remote before an agent model request")
-	}
-	return errors.New("Content Scout is not implemented in the walking-skeleton milestone")
-}
-
-func runJobs(ctx context.Context, args []string, stdout, stderr io.Writer) error {
-	if len(args) == 0 || args[0] != "list" {
-		fmt.Fprintln(stderr, "usage: noema jobs list [--database path]")
-		return errors.New("jobs currently supports only list")
-	}
-	flags := flag.NewFlagSet("jobs list", flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	databasePath := flags.String("database", "", "SQLite database path")
-	if err := flags.Parse(args[1:]); err != nil {
-		return err
-	}
-	store, closeStore, err := openStore(ctx, *databasePath)
-	if err != nil {
-		return err
-	}
-	defer closeStore()
-	jobs, err := store.ListJobs(ctx)
-	if err != nil {
-		return err
-	}
-	return writeJSON(stdout, jobs)
-}
-
-func runIdeas(ctx context.Context, args []string, stdout, stderr io.Writer) error {
-	if len(args) == 0 || args[0] != "list" {
-		fmt.Fprintln(stderr, "usage: noema ideas list [--database path]")
-		return errors.New("ideas currently supports only list")
-	}
-	flags := flag.NewFlagSet("ideas list", flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	databasePath := flags.String("database", "", "SQLite database path")
-	if err := flags.Parse(args[1:]); err != nil {
-		return err
-	}
-	store, closeStore, err := openStore(ctx, *databasePath)
-	if err != nil {
-		return err
-	}
-	defer closeStore()
-	ideas, err := store.ListIdeas(ctx)
-	if err != nil {
-		return err
-	}
-	return writeJSON(stdout, ideas)
-}
-
 func openStore(
 	ctx context.Context,
 	configuredPath string,
@@ -273,7 +205,7 @@ commands:
   analyze claims  derive validated semantic claims with explicit remote approval
   gateway check   check the live semantic route with fixed public input
   analyses show   inspect a stored analysis; optionally resolve its evidence
-  worker --once   process one pending agent job (next milestone)
-  jobs list       list durable jobs
-  ideas list      list content ideas`)
+  events list     inspect durable events and outbox status
+  events show     inspect one durable event and its outbox status
+  events publish  publish one pending event through a generic adapter`)
 }

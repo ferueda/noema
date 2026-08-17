@@ -72,41 +72,48 @@ func validateCompletedSemanticRecord(record application.SemanticAnalysisRecord) 
 	}
 	for index, claim := range record.Analysis.Claims {
 		event := record.Events[index]
-		wantEvidence := append([]domain.EvidenceRef{}, claim.SupportingEvidence...)
-		wantEvidence = append(wantEvidence, claim.ContradictingEvidence...)
-		if event.Type != "claim.admitted" || event.SubjectType != "claim" || event.SubjectID != claim.ID ||
-			!eventSchemaVersionOne(event.Payload) || eventPayloadString(event.Payload, "claimId") != claim.ID ||
+		wantReferences := make([]domain.EventReference, 0, len(claim.SupportingFactIDs)+1)
+		wantReferences = append(wantReferences, domain.EventReference{
+			RecordType: domain.EventReferenceAnalysis,
+			RecordID:   run.ID,
+		})
+		for _, factID := range claim.SupportingFactIDs {
+			wantReferences = append(wantReferences, domain.EventReference{
+				RecordType: domain.EventReferenceFact,
+				RecordID:   factID,
+			})
+		}
+		if event.Type != domain.EventTypeClaimAdmitted ||
+			event.SubjectType != domain.EventReferenceClaim ||
+			event.SubjectID != claim.ID ||
+			event.SchemaVersion != domain.DomainEventSchemaVersionV1 ||
+			eventPayloadString(event.Payload, "claimId") != claim.ID ||
 			eventPayloadString(event.Payload, "analysisId") != run.ID ||
-			!reflect.DeepEqual(event.Evidence, wantEvidence) || event.CreatedAt != claim.CreatedAt ||
+			!reflect.DeepEqual(event.References, wantReferences) || event.CreatedAt != claim.CreatedAt ||
 			!validSemanticEventIdentity(event) {
 			return errors.New("claim event subject or order is invalid")
 		}
 	}
 	completed := record.Events[len(record.Events)-1]
-	if completed.Type != "analysis.completed" || completed.SubjectType != "analysis" ||
-		completed.SubjectID != run.ID || !eventSchemaVersionOne(completed.Payload) ||
+	wantReferences := make([]domain.EventReference, 0, len(run.ClaimIDs))
+	for _, claimID := range run.ClaimIDs {
+		wantReferences = append(wantReferences, domain.EventReference{
+			RecordType: domain.EventReferenceClaim,
+			RecordID:   claimID,
+		})
+	}
+	if completed.Type != domain.EventTypeAnalysisCompleted ||
+		completed.SubjectType != domain.EventReferenceAnalysis ||
+		completed.SubjectID != run.ID ||
+		completed.SchemaVersion != domain.DomainEventSchemaVersionV1 ||
 		eventPayloadString(completed.Payload, "analysisId") != run.ID ||
 		!slices.Equal(eventPayloadStrings(completed.Payload, "claimIds"), run.ClaimIDs) ||
-		len(completed.Evidence) != 0 || completed.CreatedAt != run.FinishedAt ||
+		!reflect.DeepEqual(completed.References, wantReferences) ||
+		completed.CreatedAt != run.FinishedAt ||
 		!validSemanticEventIdentity(completed) {
 		return errors.New("analysis completion event subject is invalid")
 	}
 	return nil
-}
-
-func eventSchemaVersionOne(payload map[string]any) bool {
-	value, ok := payload["schemaVersion"]
-	if !ok {
-		return false
-	}
-	switch version := value.(type) {
-	case int:
-		return version == 1
-	case float64:
-		return version == 1
-	default:
-		return false
-	}
 }
 
 func validateFailedSemanticRecord(record application.SemanticAnalysisRecord) error {
@@ -208,13 +215,6 @@ func eventPayloadStrings(payload map[string]any, key string) []string {
 	}
 }
 
-func validSemanticEventIdentity(event domain.Event) bool {
-	fingerprint, err := application.EventFingerprint(
-		event.Type,
-		event.SubjectType,
-		event.SubjectID,
-		event.Payload,
-	)
-	return err == nil && fingerprint == event.Fingerprint &&
-		event.ID == platform.DerivedID("evt_", fingerprint)
+func validSemanticEventIdentity(event domain.DomainEvent) bool {
+	return event.Validate() == nil
 }

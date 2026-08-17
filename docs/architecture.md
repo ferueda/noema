@@ -268,27 +268,31 @@ retrieval limits require them.
 A meaningful derived-state change produces a small versioned event such as:
 
 ```text
-fact.observed
 claim.admitted
 analysis.completed
-summary.updated
-episode.created
-episode.updated
 ```
+
+Those are the only V1 event types. A later fact, summary, or episode event must
+add and validate its own exact payload and record-reference shape before it can
+cross the outbox boundary.
+
+- `claim.admitted` carries only `claimId` and `analysisId`; it references that
+  analysis followed by any supporting facts.
+- `analysis.completed` carries only `analysisId` and ordered `claimIds`; its
+  references are the same claims in the same order.
 
 The state change, event, and outbox record commit in one SQLite transaction.
 This prevents derived state from changing without a durable publication record.
 Events describe Noema-owned state and remain independent of any consumer.
 
-The event payload contains:
+The event envelope contains:
 
-- event ID and schema version;
-- event type;
-- subject type and ID;
-- occurrence and recording time;
-- causation and correlation when known;
-- bounded attributes needed to understand the change; and
-- stable references to Noema-owned records.
+- a stable event ID and fingerprint;
+- a schema version and event type;
+- a subject type and ID;
+- a creation time;
+- a bounded payload; and
+- bounded stable references to Noema-owned records.
 
 It does not contain raw transcript bodies, a prompt, a consumer name, a model
 route, or a consumer-specific input.
@@ -301,8 +305,9 @@ publication as delivered. On failure, the record remains inspectable and
 eligible for an explicit later attempt.
 
 The first implementation is manual and local. A fake publisher proves the
-contract. A JSONL or stdout publisher may make the boundary visible before a
-hosted transport is chosen.
+contract, and a JSONL publisher makes the boundary visible before a hosted
+transport is chosen. It appends one complete event envelope per explicit
+command. The stable event ID is the external deduplication key.
 
 The publisher does not:
 
@@ -473,13 +478,11 @@ Episodes do not require structured completion or a work item.
 
 A small fact that Noema-owned state changed:
 
-- event ID and type;
+- event ID, fingerprint, type, and schema version;
 - subject type and identity;
-- occurrence and recording time;
-- causation and correlation;
-- bounded attributes;
-- Noema record references; and
-- schema version.
+- creation time;
+- bounded payload; and
+- ordered Noema record references.
 
 Events do not name consumers and do not contain raw evidence.
 
@@ -521,11 +524,11 @@ episodes
 knowledge_units
 ```
 
-The pre-V1 walking skeleton also contains scans, observations, jobs, agent
+The event-boundary cutover removed the pre-V1 scans, observations, jobs, agent
 runs, and content ideas. Those tables proved process and transaction mechanics;
-they are not accepted product contracts. The event-boundary cleanup removes
-them rather than adding compatibility readers, backfills, dual writes, or
-mixed-schema behavior. Pre-V1 local databases may be recreated.
+they were never accepted product contracts. Noema rejects that old schema
+rather than adding compatibility readers, backfills, dual writes, or
+mixed-schema behavior. Pre-V1 local databases must be recreated.
 
 Each rerunnable stage has a separate identity:
 
@@ -534,7 +537,7 @@ Each rerunnable stage has a separate identity:
 - Claims: admitted evidence and facts plus semantic schema, prompt, model, and
   route configuration.
 - Summary: ordered fact and claim identities plus summary configuration.
-- Event: event schema, subject, change identity, and causation.
+- Event: schema, type, subject, bounded payload, and ordered record references.
 - Publication: event ID.
 
 Consumer prompts, models, retries, runs, and outputs do not participate in a
@@ -783,7 +786,7 @@ remote infrastructure without a separate privacy design.
   execution runs, receipts, or consumer artifacts.
 - Consumer code never writes Noema stores directly.
 - Consumer results re-enter only through a normal source/evidence boundary.
-- The pre-V1 agent scaffold is disposable and receives no compatibility path.
+- The pre-V1 agent scaffold was removed and has no compatibility path.
 - Structured and full-text retrieval come before embeddings.
 - The first interface is a CLI.
 - Vercel AI Gateway is the initial semantic model-gateway adapter.
@@ -829,8 +832,6 @@ These rejections are active architecture constraints, not deferred V0 choices.
 
 ## Deferred decisions
 
-- Exact event and outbox schemas for the V1 cutover.
-- Whether the first visible publisher writes JSONL or sends an HTTP event.
 - Which hosted event transport follows the local proof.
 - Whether a later need justifies more than one publisher route.
 - The bounded public read interface for external consumers.

@@ -7,10 +7,7 @@ import (
 	"time"
 
 	"github.com/ferueda/noema/internal/domain"
-	"github.com/ferueda/noema/internal/platform"
 )
-
-const semanticEventSchemaVersion = 1
 
 // SemanticWorkflowRequest identifies one completed fact analysis and the exact
 // local policy inputs that control its semantic processing identity.
@@ -198,7 +195,7 @@ func (workflow SemanticWorkflow) recordFailure(
 		record := SemanticAnalysisRecord{
 			Analysis: domain.SemanticAnalysis{Run: run, Claims: []domain.Claim{}},
 			Details:  details,
-			Events:   []domain.Event{},
+			Events:   []domain.DomainEvent{},
 		}
 		if err := workflow.Store.RecordSemanticFailure(ctx, record); err != nil {
 			return errors.New("semantic analysis persistence unavailable")
@@ -315,33 +312,47 @@ func SemanticAdmissionFailureCategory(err error) string {
 	return semanticAdmissionFailureCategory(err)
 }
 
-func buildSemanticEvents(analysis domain.SemanticAnalysis) ([]domain.Event, error) {
-	events := make([]domain.Event, 0, len(analysis.Claims)+1)
+func buildSemanticEvents(analysis domain.SemanticAnalysis) ([]domain.DomainEvent, error) {
+	events := make([]domain.DomainEvent, 0, len(analysis.Claims)+1)
 	for _, claim := range analysis.Claims {
-		evidence := append([]domain.EvidenceRef{}, claim.SupportingEvidence...)
-		evidence = append(evidence, claim.ContradictingEvidence...)
+		references := make([]domain.EventReference, 0, len(claim.SupportingFactIDs)+1)
+		references = append(references, domain.EventReference{
+			RecordType: domain.EventReferenceAnalysis,
+			RecordID:   analysis.Run.ID,
+		})
+		for _, factID := range claim.SupportingFactIDs {
+			references = append(references, domain.EventReference{
+				RecordType: domain.EventReferenceFact,
+				RecordID:   factID,
+			})
+		}
 		event, err := newSemanticEvent(
-			"claim.admitted", "claim", claim.ID,
+			domain.EventTypeClaimAdmitted, domain.EventReferenceClaim, claim.ID,
 			map[string]any{
-				"schemaVersion": semanticEventSchemaVersion,
-				"claimId":       claim.ID,
-				"analysisId":    analysis.Run.ID,
+				"claimId":    claim.ID,
+				"analysisId": analysis.Run.ID,
 			},
-			evidence, claim.CreatedAt,
+			references, claim.CreatedAt,
 		)
 		if err != nil {
 			return nil, err
 		}
 		events = append(events, event)
 	}
+	references := make([]domain.EventReference, 0, len(analysis.Run.ClaimIDs))
+	for _, claimID := range analysis.Run.ClaimIDs {
+		references = append(references, domain.EventReference{
+			RecordType: domain.EventReferenceClaim,
+			RecordID:   claimID,
+		})
+	}
 	completed, err := newSemanticEvent(
-		"analysis.completed", "analysis", analysis.Run.ID,
+		domain.EventTypeAnalysisCompleted, domain.EventReferenceAnalysis, analysis.Run.ID,
 		map[string]any{
-			"schemaVersion": semanticEventSchemaVersion,
-			"analysisId":    analysis.Run.ID,
-			"claimIds":      append([]string{}, analysis.Run.ClaimIDs...),
+			"analysisId": analysis.Run.ID,
+			"claimIds":   append([]string{}, analysis.Run.ClaimIDs...),
 		},
-		[]domain.EvidenceRef{}, analysis.Run.FinishedAt,
+		references, analysis.Run.FinishedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -352,20 +363,19 @@ func buildSemanticEvents(analysis domain.SemanticAnalysis) ([]domain.Event, erro
 func newSemanticEvent(
 	eventType, subjectType, subjectID string,
 	payload map[string]any,
-	evidence []domain.EvidenceRef,
+	references []domain.EventReference,
 	createdAt time.Time,
-) (domain.Event, error) {
-	if eventType == "" || subjectID == "" ||
-		(subjectType != "claim" && subjectType != "analysis") || createdAt.IsZero() {
-		return domain.Event{}, errors.New("semantic event is invalid")
-	}
-	fingerprint, err := EventFingerprint(eventType, subjectType, subjectID, payload)
+) (domain.DomainEvent, error) {
+	event, err := domain.NewDomainEvent(
+		eventType,
+		subjectType,
+		subjectID,
+		payload,
+		references,
+		createdAt,
+	)
 	if err != nil {
-		return domain.Event{}, errors.New("semantic event identity is unavailable")
+		return domain.DomainEvent{}, errors.New("semantic event is invalid")
 	}
-	return domain.Event{
-		ID: platform.DerivedID("evt_", fingerprint), Fingerprint: fingerprint,
-		Type: eventType, SubjectType: subjectType, SubjectID: subjectID,
-		Payload: payload, Evidence: evidence, CreatedAt: createdAt.UTC(),
-	}, nil
+	return event, nil
 }

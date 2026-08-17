@@ -119,7 +119,7 @@ func (attempt *semanticAttempt) Commit(
 		}
 	}
 	for _, event := range record.Events {
-		if err := insertEvent(ctx, attempt.connection, event); err != nil {
+		if err := insertEventAndPendingOutbox(ctx, attempt.connection, event); err != nil {
 			return err
 		}
 	}
@@ -137,7 +137,7 @@ func (attempt *semanticAttempt) RecordFailure(
 	record := application.SemanticAnalysisRecord{
 		Analysis: domain.SemanticAnalysis{Run: run, Claims: []domain.Claim{}},
 		Details:  details,
-		Events:   []domain.Event{},
+		Events:   []domain.DomainEvent{},
 	}
 	if err := validateFailedSemanticRecord(record); err != nil {
 		return err

@@ -280,19 +280,29 @@ func loadSemanticEvents(
 	queryer semanticQueryer,
 	analysisID string,
 	claims []domain.Claim,
-) ([]domain.Event, error) {
-	events := make([]domain.Event, 0, len(claims)+1)
+) ([]domain.DomainEvent, error) {
+	events := make([]domain.DomainEvent, 0, len(claims)+1)
 	for _, claim := range claims {
-		event, err := loadEvent(ctx, queryer, "claim.admitted", "claim", claim.ID)
+		event, err := loadEvent(
+			ctx, queryer,
+			domain.EventTypeClaimAdmitted,
+			domain.EventReferenceClaim,
+			claim.ID,
+		)
 		if err != nil {
 			return nil, fmt.Errorf("load claim event %s: %w", claim.ID, err)
 		}
 		events = append(events, event)
 	}
-	completed, err := loadEvent(ctx, queryer, "analysis.completed", "analysis", analysisID)
+	completed, err := loadEvent(
+		ctx, queryer,
+		domain.EventTypeAnalysisCompleted,
+		domain.EventReferenceAnalysis,
+		analysisID,
+	)
 	if errors.Is(err, sql.ErrNoRows) {
 		if len(events) == 0 {
-			return []domain.Event{}, nil
+			return []domain.DomainEvent{}, nil
 		}
 		return nil, err
 	}
@@ -307,35 +317,23 @@ func loadEvent(
 	ctx context.Context,
 	queryer semanticQueryer,
 	eventType, subjectType, subjectID string,
-) (domain.Event, error) {
-	var event domain.Event
-	var payload, evidence, createdAt string
-	if err := queryer.QueryRowContext(ctx, `
-		SELECT events.id, events.fingerprint, events.type,
-		       event_subject_types.subject_type, events.subject_id,
-		       events.payload_json, events.evidence_json, events.created_at
+) (domain.DomainEvent, error) {
+	record, err := readEventRecord(queryer.QueryRowContext(ctx, `
+		SELECT events.id, events.fingerprint, events.schema_version, events.type,
+		       events.subject_type, events.subject_id, events.payload_json,
+		       events.references_json, events.created_at,
+		       event_outbox.event_id, event_outbox.status,
+		       event_outbox.attempt_count, event_outbox.last_failure_category,
+		       event_outbox.acknowledgement_id, event_outbox.delivered_at
 		  FROM events
-		  JOIN event_subject_types ON event_subject_types.event_id = events.id
-		 WHERE events.type = ? AND event_subject_types.subject_type = ?
+		  JOIN event_outbox ON event_outbox.event_id = events.id
+		 WHERE events.type = ? AND events.subject_type = ?
 		   AND events.subject_id = ?
-	`, eventType, subjectType, subjectID).Scan(
-		&event.ID, &event.Fingerprint, &event.Type, &event.SubjectType,
-		&event.SubjectID, &payload, &evidence, &createdAt,
-	); err != nil {
-		return domain.Event{}, err
-	}
-	if err := decodeJSON(payload, &event.Payload); err != nil {
-		return domain.Event{}, err
-	}
-	if err := decodeJSON(evidence, &event.Evidence); err != nil {
-		return domain.Event{}, err
-	}
-	var err error
-	event.CreatedAt, err = parseTime(createdAt)
+	`, eventType, subjectType, subjectID))
 	if err != nil {
-		return domain.Event{}, err
+		return domain.DomainEvent{}, err
 	}
-	return event, nil
+	return record.Event, nil
 }
 
 func nullableString(value *string) any {

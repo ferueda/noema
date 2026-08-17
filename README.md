@@ -26,11 +26,12 @@ a model call. Exact unchanged reruns reuse the prior analysis, changed document
 digests create a new analysis, and stored evidence resolves only while Sessions
 can return the recorded revision. With explicit approval, the semantic path can
 send bounded, privacy-filtered evidence and facts through a pinned Vercel AI
-Gateway route, then atomically retain locally validated claims and knowledge
-events. The public-data conformance command has passed against the pinned
-Cerebras route. The first digest-pinned 12-case synthetic evaluation and human
-review are complete. Seven batches were admitted, five failed local admission,
-and one of 14 admitted claims was judged unsupported. A versioned V9 one-pass
+Gateway route, then atomically retain locally validated claims and
+consumer-neutral domain events. The public-data conformance command has passed
+against the pinned Cerebras route. The first digest-pinned 12-case synthetic
+evaluation and human review are complete. Seven batches were admitted, five
+failed local admission, and one of 14 admitted claims was judged unsupported.
+A versioned V9 one-pass
 correction now makes evidence and outcome checks explicit before output. Its
 single approved unchanged-corpus comparison admitted 11 of 12 batches; all 10
 admitted claims were supported in human review, 9 were useful, and no second
@@ -44,10 +45,11 @@ The new cases confirmed strong scope, chronology, separation, reversion, and
 prompt-injection behavior while exposing conservative misses for root cause,
 decisions, lessons, and one implemented change.
 
-The repository still contains a pre-V1 producer/worker scaffold used to prove a
-SQLite process boundary. That scaffold is not the accepted product
-architecture. Its agent jobs, runs, and Content Scout-shaped output will be
-removed rather than promoted into Noema's V1 model.
+Every admitted semantic event is stored with a pending transactional-outbox
+record. Events and publication state can be inspected locally. One explicit
+command can append the oldest pending event to a JSONL transport file and mark
+it delivered. This proves the handoff boundary without adding subscribers,
+workers, agents, automatic retries, or consumer output to Noema.
 
 The current sources of truth are:
 
@@ -88,6 +90,10 @@ go run ./cmd/noema analyze claims '<fact-analysis-id>' --allow-remote \
   --database /path/to/noema.db
 go run ./cmd/noema analyses show '<analysis-id>' --database /path/to/noema.db
 go run ./cmd/noema analyses show '<analysis-id>' --resolve --database /path/to/noema.db
+go run ./cmd/noema events list --status pending --database /path/to/noema.db
+go run ./cmd/noema events show '<event-id>' --database /path/to/noema.db
+go run ./cmd/noema events publish --once --output /path/to/events.jsonl \
+  --database /path/to/noema.db
 ```
 
 Check the live semantic route without loading Sessions or opening SQLite:
@@ -161,8 +167,21 @@ categories for evidence and fact reference failures, attribution, provenance,
 duplicates, values, or outcome failures (wrong claim type, unsupported result,
 or conflicting result) without retaining rejected model prose.
 
-The test suite includes the temporary foundation scaffold and a generic fake
-Sessions executable that proves revision-safe fact processing:
+`events publish --once` sends only one pending event through the configured
+JSONL adapter. A complete append, file sync, and close counts as transport
+delivery; it does not mean that a consumer ran or succeeded. A failed append
+leaves the event pending with a fixed safe failure category. Publication is at
+least once: if a transport accepts an event but the local acknowledgement
+cannot be committed, a later attempt can publish the same stable event ID
+again.
+
+Noema V1 uses a clean local schema. Databases created by the removed pre-V1
+producer/worker scaffold are rejected rather than migrated. Delete or move the
+old local database and let Noema create a new one; canonical evidence remains
+in Sessions.
+
+The test suite uses a generic fake Sessions executable and isolated SQLite
+databases to prove revision-safe processing and publication:
 
 ```sh
 go test ./...

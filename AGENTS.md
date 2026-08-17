@@ -41,7 +41,9 @@ Contributor guidance:
 - Keep evidence admission, fact extraction, and semantic claims independent of
   downstream uses. Content fields, coding assessments, and workflow proposals
   belong to external consumers, not the knowledge pipeline.
-- Preserve evidence references for derived observations and events.
+- Preserve source evidence references on derived facts and claims. Domain
+  events carry stable references to those Noema-owned records, not evidence
+  bodies or consumer-prepared input.
 - Keep raw private evidence local by default. Do not send it to a remote model
   or service without an explicit product decision and user control.
 - End Noema core at the durable domain-event and transactional-outbox boundary.

@@ -74,7 +74,7 @@ The following decisions are fixed:
 
 ## Foundation: runtime spine
 
-- Status: implemented as disposable scaffold
+- Status: proof completed; scaffold removed
 - Evidence: PR #5
 
 The foundation proved:
@@ -87,9 +87,9 @@ The foundation proved:
 - an end-to-end fake proof.
 
 It also introduced scans, observations, jobs, agent runs, and content ideas.
-Those types and tables are not the accepted product model. They are scheduled
-for removal during the event-boundary cutover. No compatibility reader,
-backfill, dual write, or mixed-schema path is required for pre-V1 databases.
+The event-boundary cutover removed those types, tables, commands, and tests.
+Pre-V1 databases are rejected with an instruction to create a clean database;
+there is no compatibility reader, backfill, dual write, or mixed-schema path.
 
 The lesson retained from the scaffold is atomic durable handoff. The
 producer/worker and agent-runtime design is not retained.
@@ -168,7 +168,7 @@ processing identity.
 - Validate schema, evidence, confidence, status, contradiction, privacy, and
   consistency with stronger deterministic facts.
 - Store admitted claims, processing identity, safe failures, and
-  consumer-neutral knowledge events.
+  consumer-neutral domain events.
 - Record a separate semantic `AnalysisRun`.
 - Keep summaries optional and rebuildable.
 - Commit the semantic analysis, claims, granular events, and
@@ -218,7 +218,7 @@ admission or add a second verifier without new evidence.
 
 ## V0 Milestone 3: durable event publication boundary
 
-- Status: planned
+- Status: implemented
 
 ### Goal
 
@@ -232,7 +232,7 @@ Finish Noema at a reliable, consumer-neutral event boundary.
 - Keep event identity independent of transport and consumers.
 - Add local list/show inspection for events and outbox status.
 - Add one generic publisher application port.
-- Add a fake publisher and one visible local adapter, such as JSONL or stdout.
+- Add a fake publisher and one visible local JSONL adapter.
 - Add an explicit one-shot publication command.
 - Mark an outbox record delivered only after a bounded acknowledgement.
 - Preserve a safe failure category and leave failed records eligible for an

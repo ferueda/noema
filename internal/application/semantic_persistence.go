@@ -24,7 +24,7 @@ type SemanticAnalysisDetails struct {
 type SemanticAnalysisRecord struct {
 	Analysis domain.SemanticAnalysis `json:"analysis"`
 	Details  SemanticAnalysisDetails `json:"details"`
-	Events   []domain.Event          `json:"events"`
+	Events   []domain.DomainEvent    `json:"events"`
 }
 
 // SemanticAnalysisStore owns durable semantic analyses and the one-at-a-time

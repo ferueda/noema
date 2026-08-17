@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -23,6 +24,7 @@ func TestSemanticStoreCommitsLoadsAndReusesOrderedAnalysis(t *testing.T) {
 	defer database.Close()
 	store := NewStore(database)
 	record := semanticStoreRecord(time.Date(2026, 7, 21, 10, 0, 0, 0, time.UTC), "one", true)
+	seedSemanticStoreFacts(t, ctx, store, record)
 
 	attempt, err := store.BeginSemanticAttempt(ctx)
 	if err != nil {
@@ -63,12 +65,11 @@ func TestSemanticStoreCommitsLoadsAndReusesOrderedAnalysis(t *testing.T) {
 		t.Fatalf("rollback reuse attempt: %v", err)
 	}
 	for table, want := range map[string]int{
-		"analysis_runs": 1,
+		"analysis_runs": 2,
+		"facts":         1,
 		"claims":        1,
 		"events":        2,
-		"jobs":          0,
-		"agent_runs":    0,
-		"content_ideas": 0,
+		"event_outbox":  2,
 	} {
 		var count int
 		if err := database.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&count); err != nil || count != want {
@@ -144,6 +145,7 @@ func TestSemanticStoreRejectsClaimContentOutsideStoredFingerprint(t *testing.T) 
 	defer database.Close()
 	store := NewStore(database)
 	record := semanticStoreRecord(time.Date(2026, 7, 21, 10, 0, 0, 0, time.UTC), "changed-claim", true)
+	seedSemanticStoreFacts(t, ctx, store, record)
 	attempt, err := store.BeginSemanticAttempt(ctx)
 	if err != nil {
 		t.Fatalf("begin semantic attempt: %v", err)
@@ -229,6 +231,7 @@ func TestSemanticAttemptRecordsLateFailureAndAllowsRetry(t *testing.T) {
 	store := NewStore(database)
 	now := time.Date(2026, 7, 21, 10, 0, 0, 0, time.UTC)
 	completed := semanticStoreRecord(now, "retry", true)
+	seedSemanticStoreFacts(t, ctx, store, completed)
 	failure := semanticStoreFailure(now, "failed-retry")
 	failure.Analysis.Run.Revision = completed.Analysis.Run.Revision
 	failure.Analysis.Run.Selection = completed.Analysis.Run.Selection
@@ -287,7 +290,7 @@ func TestSemanticAttemptRecordsLateFailureAndAllowsRetry(t *testing.T) {
 		t.Fatalf("commit successful retry: %v", err)
 	}
 	var runCount int
-	if err := database.QueryRowContext(ctx, "SELECT COUNT(*) FROM analysis_runs").Scan(&runCount); err != nil || runCount != 2 {
+	if err := database.QueryRowContext(ctx, "SELECT COUNT(*) FROM analysis_runs").Scan(&runCount); err != nil || runCount != 3 {
 		t.Fatalf("analysis run count after retry = %d, %v", runCount, err)
 	}
 }
@@ -301,12 +304,19 @@ func TestSemanticStoreRollsBackPartialCommit(t *testing.T) {
 	defer database.Close()
 	store := NewStore(database)
 	record := semanticStoreRecord(time.Date(2026, 7, 21, 10, 0, 0, 0, time.UTC), "rollback", true)
+	seedSemanticStoreFacts(t, ctx, store, record)
 	if _, err := database.ExecContext(ctx, `
 		INSERT INTO events (
-			id, fingerprint, type, subject_id, payload_json, evidence_json, created_at
-		) VALUES ('preexisting-event', ?, 'analysis.completed', 'other-analysis', '{}', '[]', ?);
-		INSERT INTO event_subject_types (event_id, subject_type)
-		VALUES ('preexisting-event', 'analysis')
+			id, fingerprint, schema_version, type, subject_type, subject_id,
+			payload_json, references_json, created_at
+		) VALUES (
+			'preexisting-event', ?, 1, 'analysis.completed', 'analysis',
+			'other-analysis', '{}', '[]', ?
+		);
+		INSERT INTO event_outbox (
+			event_id, status, attempt_count, last_failure_category,
+			acknowledgement_id, delivered_at
+		) VALUES ('preexisting-event', 'pending', 0, '', NULL, NULL)
 	`, record.Events[1].Fingerprint, formatTime(record.Events[1].CreatedAt)); err != nil {
 		t.Fatalf("seed conflicting event: %v", err)
 	}
@@ -321,8 +331,8 @@ func TestSemanticStoreRollsBackPartialCommit(t *testing.T) {
 		t.Fatalf("rollback failed attempt: %v", err)
 	}
 	for table, want := range map[string]int{
-		"analysis_runs": 0, "semantic_analysis_details": 0, "claims": 0,
-		"events": 1, "event_subject_types": 1,
+		"analysis_runs": 1, "facts": 1, "semantic_analysis_details": 0,
+		"claims": 0, "events": 1, "event_outbox": 1,
 	} {
 		var count int
 		if err := database.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&count); err != nil || count != want {
@@ -448,7 +458,7 @@ func semanticStoreRecord(now time.Time, suffix string, withClaim bool) applicati
 	}
 	claimIDs := []string{}
 	claims := []domain.Claim{}
-	events := []domain.Event{}
+	events := []domain.DomainEvent{}
 	analysisID := "analysis-" + suffix
 	if withClaim {
 		claim := domain.Claim{
@@ -473,14 +483,31 @@ func semanticStoreRecord(now time.Time, suffix string, withClaim bool) applicati
 		claims = append(claims, claim)
 		events = append(events, semanticStoreEvent(
 			"claim.admitted", "claim", claimID,
-			map[string]any{"schemaVersion": 1, "claimId": claimID, "analysisId": analysisID},
-			claim.SupportingEvidence, now,
+			map[string]any{"claimId": claimID, "analysisId": analysisID},
+			append(
+				[]domain.EventReference{{
+					RecordType: domain.EventReferenceAnalysis,
+					RecordID:   analysisID,
+				}},
+				domain.EventReference{
+					RecordType: domain.EventReferenceFact,
+					RecordID:   inputFactIDs[0],
+				},
+			),
+			now,
 		))
+	}
+	completionReferences := make([]domain.EventReference, 0, len(claimIDs))
+	for _, claimID := range claimIDs {
+		completionReferences = append(completionReferences, domain.EventReference{
+			RecordType: domain.EventReferenceClaim,
+			RecordID:   claimID,
+		})
 	}
 	events = append(events, semanticStoreEvent(
 		"analysis.completed", "analysis", analysisID,
-		map[string]any{"schemaVersion": 1, "analysisId": analysisID, "claimIds": claimIDs},
-		[]domain.EvidenceRef{}, now,
+		map[string]any{"analysisId": analysisID, "claimIds": claimIDs},
+		completionReferences, now,
 	))
 	run := domain.AnalysisRun{
 		ID: analysisID, ProcessingKey: processingKey,
@@ -521,7 +548,7 @@ func semanticStoreFailure(now time.Time, suffix string) application.SemanticAnal
 			},
 			Route: route,
 		},
-		Events: []domain.Event{},
+		Events: []domain.DomainEvent{},
 	}
 }
 
@@ -545,23 +572,21 @@ func semanticStoreRoute() domain.ValidatedModelRoute {
 func semanticStoreEvent(
 	eventType, subjectType, subjectID string,
 	payload map[string]any,
-	evidence []domain.EvidenceRef,
+	references []domain.EventReference,
 	createdAt time.Time,
-) domain.Event {
-	fingerprint, err := platform.Fingerprint(struct {
-		Type        string
-		SubjectType string
-		SubjectID   string
-		Payload     map[string]any
-	}{eventType, subjectType, subjectID, payload})
+) domain.DomainEvent {
+	event, err := domain.NewDomainEvent(
+		eventType,
+		subjectType,
+		subjectID,
+		payload,
+		references,
+		createdAt,
+	)
 	if err != nil {
 		panic(err)
 	}
-	return domain.Event{
-		ID: platform.DerivedID("evt_", fingerprint), Fingerprint: fingerprint,
-		Type: eventType, SubjectType: subjectType, SubjectID: subjectID,
-		Payload: payload, Evidence: evidence, CreatedAt: createdAt,
-	}
+	return event
 }
 
 func semanticStoreRevision() domain.EvidenceRevision {
@@ -622,4 +647,44 @@ func semanticStoreFactAnalysis(now time.Time) domain.FactAnalysis {
 		ExtractorVersion: "1", SchemaVersion: 1, FactIDs: []string{},
 		Status: domain.AnalysisCompleted, StartedAt: now, FinishedAt: now,
 	}, Facts: []domain.Fact{}}
+}
+
+func seedSemanticStoreFacts(
+	t *testing.T,
+	ctx context.Context,
+	store *Store,
+	record application.SemanticAnalysisRecord,
+) {
+	t.Helper()
+	if record.Details.InputFactIDs == nil || len(*record.Details.InputFactIDs) == 0 {
+		return
+	}
+	run := record.Analysis.Run
+	analysisID := "source-" + run.ID
+	facts := make([]domain.Fact, 0, len(*record.Details.InputFactIDs))
+	for index, factID := range *record.Details.InputFactIDs {
+		facts = append(facts, domain.Fact{
+			ID: factID, Fingerprint: fmt.Sprintf("%s-%d", analysisID, index),
+			AnalysisRunID: analysisID, Kind: "test", SchemaVersion: 1,
+			Value: domain.FactValue{}, Outcome: domain.FactOutcomeUnknown,
+			ExtractorName: "semantic-store-fixture", ExtractorVersion: "1",
+			ParseRule: "fixture", Evidence: []domain.EvidenceRef{},
+			CreatedAt: run.StartedAt,
+		})
+	}
+	factAnalysis := domain.FactAnalysis{
+		Run: domain.AnalysisRun{
+			ID: analysisID, ProcessingKey: "processing-" + analysisID,
+			Stage:                   domain.AnalysisStageFacts,
+			RequestedSourceIdentity: run.RequestedSourceIdentity,
+			Revision:                run.Revision, Selection: run.Selection,
+			ExtractorName: "semantic-store-fixture", ExtractorVersion: "1",
+			SchemaVersion: 1, FactIDs: append([]string{}, (*record.Details.InputFactIDs)...),
+			Status: domain.AnalysisCompleted, StartedAt: run.StartedAt, FinishedAt: run.StartedAt,
+		},
+		Facts: facts,
+	}
+	if inserted, err := store.CommitFactAnalysis(ctx, factAnalysis); err != nil || !inserted {
+		t.Fatalf("seed semantic input facts = %v, %v", inserted, err)
+	}
 }
